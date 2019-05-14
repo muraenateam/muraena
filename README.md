@@ -97,6 +97,22 @@ Once you are satisfied with the generated config file, start with:
 `sudo ./muraena -c config/config_yourtarget.json`
 
 
+Compiling from Sources
+-----------------
+
+In order to compile muraena from sources, make sure that:
+
+* You have a correctly configured **[Go >= 1.12](https://golang.org/doc/install)** environment.
+* `$GOPATH` is defined and `$GOPATH/bin` is in `$PATH`.
+
+Once you've met this conditions, you can run the following commands to compile muraena:
+
+```bash
+go get github.com/muraenateam/muraena
+cd $GOPATH/src/github.com/muraenateam/muraena
+make build 
+```
+
 MiTM the Proxy
 -----------------
 
