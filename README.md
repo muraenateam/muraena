@@ -6,7 +6,6 @@
 
 **Muraena** is an almost-transparent reverse proxy aimed at automating phishing and post-phishing activities.
 
-
 About
 -------------
 
@@ -51,7 +50,13 @@ Once certificates are sorted, just include them within the configuration file:
 }
 ```
 
-or alternatively pass the raw values: 
+or Base64 encode the certificates: 
+
+```
+alias cert2base64='awk '\''{printf "%s\\n", $0}'\'' '
+cert2base64 <certificate.pem> | pbcopy
+```
+and paste in their JSON fields:
 ```json
 "tls": {
     "enabled": true,
@@ -65,8 +70,7 @@ or alternatively pass the raw values:
 Public Setup
 -------------
 In real life you need a certificate from a public CA unless somehow your targets already trust your custom CA.
-An free option is to use LetsEncrypt. Once you obtained your wildcard certificate from LetsEncrypt, 
-just point the key and certificate material to the config file in the same way as described in the Testing Setup.
+An free option is to use LetsEncrypt. Once you obtained your wildcard certificate, just point the key and certificate material to the config file in the same way as described in the [Testing Setup](#testing-setup).
 
 Similarly, `dnsmasq` is not an option, so you will need to tune the DNS Zone file of your phishing domain
 (which you partially already did to get the LetsEncrypt, see `A` record) in order to have
@@ -94,7 +98,7 @@ but it is recommended that you double-check the generated configuration to see
 if the crawler did not miss any important origins which are external to your main proxied domain.
 Once you are satisfied with the generated config file, start with:
 
-`sudo ./muraena -c config/config_yourtarget.json`
+`sudo ./muraena -c your_config.json`
 
 
 Compiling from Sources
@@ -123,7 +127,6 @@ traffic will be forwarded to the defined proxy if `-debug` switch is set.
 sudo -E http_proxy=127.0.0.1:8080 ./muraena -debug true -config yourconfig.json
 ```
 		
-
 Notes
 -----------
 
