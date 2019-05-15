@@ -38,6 +38,7 @@ Great Go libraries that did help during development:
   - crawler: https://github.com/gocolly/colly
   - browser instrumentation: https://github.com/chromedp/chromedp
   - extract URLs from strings: https://github.com/mvdan/xurls
+<br>
 
 - @drk1wi for being an ex muraena-team member and for his great contribution
 - @evilsocket for being a source of inspiration
@@ -46,4 +47,4 @@ Great Go libraries that did help during development:
 
 ## License
 
-`muraena` is made with ❤️ by [the dev team](https://github.com/orgs/muraenateam/people) and it's released under the 3-Clause BSD License.
+**Muraena** is made with ❤️ by [the dev team](https://github.com/orgs/muraenateam/people) and it's released under the 3-Clause BSD License.
