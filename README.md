@@ -47,4 +47,4 @@ Great Go libraries that did help during development:
 
 ## License
 
-**Muraena** is made with ❤️ by [the dev team](https://github.com/orgs/muraenateam/people) and it's released under the 3-Clause BSD License.
+**Muraena** is made with ❤️ by [the dev team](https://github.com/orgs/muraenateam/people) and it's released under the [3-Clause BSD License](LICENSE).
