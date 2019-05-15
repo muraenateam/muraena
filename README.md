@@ -2,6 +2,12 @@
   <img alt="Muraena Logo" src="./media/img/muraena-logo.jpg"
    height="160" /><br>
 	<i>help us with a logo</i>
+	<p align="center">
+    <a href="https://github.com/muraenateam/muraena/releases/latest"><img alt="Release" src="https://img.shields.io/github/release/muraenateam/muraena.svg?style=flat-square"></a>
+    <a href="https://github.com/muraenateam/muraena/blob/master/LICENSE.md"><img alt="Software License" src="https://img.shields.io/badge/license-BSD-brightgreen.svg?style=flat-square"></a>
+    <a href="https://travis-ci.org/muraenateam/muraena"><img alt="Travis" src="https://img.shields.io/travis/muraenateam/muraena/master.svg?style=flat-square"></a> 
+    <a href="https://goreportcard.com/report/github.com/muraenateam/muraena"><img alt="Go Report Card" src="https://goreportcard.com/badge/github.com/muraenateam/muraena?style=flat-square&fuckgithubcache=1"></a>
+  </p>
 </p>
 
 **Muraena** is an almost-transparent reverse proxy aimed at automating phishing and post-phishing activities.
