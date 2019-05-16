@@ -2,7 +2,6 @@ package session
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"runtime"
 
@@ -38,8 +37,10 @@ func New() (*Session, error) {
 		Modules: make([]Module, 0),
 	}
 
-	fmt.Printf("%s v%s (built for %s %s with %s)\n", core.Name, core.Version, runtime.GOOS, runtime.GOARCH, runtime.Version())
+	version := fmt.Sprintf("%s v%s (built for %s %s with %s)", core.Name, core.Version, runtime.GOOS,
+		runtime.GOARCH, runtime.Version())
 	if *s.Options.Version {
+		fmt.Println(version)
 		os.Exit(0)
 	}
 
@@ -50,12 +51,8 @@ func New() (*Session, error) {
 		log.Debug("DEBUG ON")
 	}
 
-	ascii, err := ioutil.ReadFile("muraena-ascii.txt")
-	if err != nil {
-		log.Fatal("Muraena needs its ascii masturbat1on!")
-	}
-	log.Format = "\n{level:color}{message}{reset}"
-	log.Important("%s", tui.Bold(tui.Red(string(ascii))))
+	log.Format = "\n{message}{reset}"
+	log.Important(tui.Bold(tui.Red(string(core.Banner))), version)
 
 	log.Format = "{datetime} {level:color}{level:name}{reset}: {message}"
 

@@ -2,8 +2,8 @@ package proxy
 
 import (
 	"fmt"
-	"github.com/muraenateam/muraena/log"
 	"github.com/evilsocket/islazy/tui"
+	"github.com/muraenateam/muraena/log"
 	"net/url"
 	"regexp"
 	"strings"

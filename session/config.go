@@ -3,13 +3,14 @@ package session
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/evilsocket/islazy/tui"
-	"github.com/pkg/errors"
 	"io/ioutil"
 	"os"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/evilsocket/islazy/tui"
+	"github.com/pkg/errors"
 )
 
 // Configuration struct for JSON configuration
