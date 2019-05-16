@@ -3,6 +3,8 @@ package session
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
+	"runtime"
 
 	"github.com/evilsocket/islazy/log"
 	"github.com/evilsocket/islazy/tui"
@@ -34,6 +36,11 @@ func New() (*Session, error) {
 	s := &Session{
 		Options: opts,
 		Modules: make([]Module, 0),
+	}
+
+	fmt.Printf("%s v%s (built for %s %s with %s)\n", core.Name, core.Version, runtime.GOOS, runtime.GOARCH, runtime.Version())
+	if *s.Options.Version {
+		os.Exit(0)
 	}
 
 	log.Level = log.INFO

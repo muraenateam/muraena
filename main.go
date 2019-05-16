@@ -7,9 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"runtime"
 
-	"github.com/muraenateam/muraena/core"
 	"github.com/muraenateam/muraena/log"
 	"github.com/muraenateam/muraena/module"
 	"github.com/muraenateam/muraena/proxy"
@@ -74,10 +72,6 @@ func main() {
 			fmt.Printf("\n\nWARNING: This terminal does not support colors, view will be very limited.\n\n")
 		}
 	}
-
-	appName := fmt.Sprintf("%s v%s", core.Name, core.Version)
-	appBuild := fmt.Sprintf("(built for %s %s with %s)", runtime.GOOS, runtime.GOARCH, runtime.Version())
-	fmt.Printf("%s %s\n\n", tui.Bold(appName), tui.Dim(appBuild))
 
 	// Initialize the Buffered Logging
 	log.Init(sess.Config.Proxy.Log.Enabled, sess.Config.Proxy.Log.FilePath, sess.Config.Proxy.Log.BufferedLogDelay)
