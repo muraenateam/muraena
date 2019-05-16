@@ -1,0 +1,29 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:1.12
+    working_directory: /go/src/github.com/muraenateam/muraena
+    steps:
+      - checkout
+      - run:
+          name: "Should we release?"
+          command: |
+            if [[ ! "$(git show -s --format=%s)" == "Releasing"* ]]; then circleci-agent step halt; fi
+      - run: go get github.com/mitchellh/gox
+      - run: go get github.com/tcnksm/ghr
+      - run: gox -os="linux darwin windows" -arch="amd64" -ldflags "-X main.Version=$BUILD_VERSION -X main.BuildDate=$BUILD_DATE" -output "dist/muraena_{{.OS}}_{{.Arch}}"
+      - run:
+          name: "Create release release"
+          command: |
+            VERSION=$(cat core/banner.go | grep Version | cut -d '"' -f 2)
+            bash ./.circleci/auto-release.sh ./dist/*
+            cat RELEASE.md
+            ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -n "v$VERSION" -body "$(cat RELEASE.md)" -draft -replace -delete "v$VERSION" dist/
+workflows:
+  version: 2
+  workflow:
+    jobs:
+      - build
+
+
