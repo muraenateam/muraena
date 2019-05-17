@@ -52,6 +52,10 @@ func (module *StaticHTTP) Author() string {
 	return Author
 }
 
+// Prompt prints module status based on the provided parameters
+func (module *StaticHTTP) Prompt(what string) {
+}
+
 // Load configures the module by initializing its main structure and variables
 func Load(s *session.Session) (m *StaticHTTP, err error) {
 

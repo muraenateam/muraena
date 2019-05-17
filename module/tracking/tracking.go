@@ -60,6 +60,16 @@ func (module *Tracker) Author() string {
 	return Author
 }
 
+// Prompt prints module status based on the provided parameters
+func (module *Tracker) Prompt(what string) {
+	switch strings.ToLower(what) {
+	case "victims":
+		module.ShowVictims()
+	case "credentials":
+		module.ShowCredentials()
+	}
+}
+
 // IsEnabled returns a boolead to indicate if the module is enabled or not
 func (module *Tracker) IsEnabled() bool {
 	return module.Enabled

@@ -12,6 +12,7 @@ type Module interface {
 	Name() string
 	Description() string
 	Author() string
+	Prompt(what string)
 }
 
 type SessionModule struct {
