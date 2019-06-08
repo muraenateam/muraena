@@ -90,9 +90,8 @@ func Load(s *session.Session) (m *Crawler, err error) {
 	config.ExternalOrigins = proxy.ArmorDomain(crawledDomains)
 
 	// save new config file with externalDomains to prevent crawling at next start
-	//save new config file with externalDomains to prevent crawling at next start
 	m.Info("Domain crawling stats:")
-	err = s.UpdateConfiguration(&externalOrigins, &subdomains, &uniqueDomains)
+	err = s.UpdateConfiguration(&config.ExternalOrigins, &subdomains, &uniqueDomains)
 
 	return
 }
