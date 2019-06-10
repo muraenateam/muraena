@@ -123,6 +123,7 @@ type Configuration struct {
 	//
 	Tracking struct {
 		Enabled    bool   `json:"enabled"`
+		Type       string `json:"type"`
 		Identifier string `json:"identifier"`
 		Regex      string `json:"regex"`
 
