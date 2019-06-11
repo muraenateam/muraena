@@ -158,7 +158,7 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 		Magenta(request.Method), Magenta(sess.Config.Protocol), Green(muraena.Origin),
 		Brown(muraena.Target), Cyan(request.URL.Path))
 
-	log.Info(l)
+	//log.Info(l)
 	log.BufLogInfo(l)
 
 	//
@@ -207,7 +207,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 				muraena.Session.Config.Proxy.Phishing))
 		response.Header.Set("Location", response.Request.Header.Get("If-Landing-Redirect"))
 
-		log.Warning("Setting cookies: %s", response.Request.Header.Get("If-Range"))
+		//log.Warning("Setting cookies: %s", response.Request.Header.Get("If-Range"))
 		return
 	}
 

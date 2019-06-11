@@ -113,11 +113,11 @@ func main() {
 			CertPool: sess.Config.TLS.Root,
 		}
 
-		if err := tlsServer.ServeTLS(fmt.Sprintf("%s:443", sess.Config.Proxy.Phishing)); err != nil {
+		if err := tlsServer.ServeTLS(fmt.Sprintf("%s:443", "0.0.0.0")); err != nil {
 			log.Fatal("Error binding Muraena on HTTPS: %s", err)
 		}
 	} else {
-		muraena := &http.Server{Addr: fmt.Sprintf("%s:80", sess.Config.Proxy.Phishing)}
+		muraena := &http.Server{Addr: fmt.Sprintf("%s:80", "0.0.0.0")}
 		lline := fmt.Sprintf("Muraena Reverse Proxy waiting for food on HTTP...\n[ %s ] ==> [ %s ]",
 			tui.Yellow(sess.Config.Proxy.Phishing), tui.Green(sess.Config.Proxy.Target))
 		log.Info(lline)

