@@ -5,7 +5,7 @@
 // https://developers.google.com/open-source/licenses/bsd.
 
 // Package lint contains a linter for Go source code.
-package lint
+package lint // import "golang.org/x/lint"
 
 import (
 	"bufio"
@@ -23,6 +23,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/gcexportdata"
 )
 
@@ -197,9 +198,7 @@ func (f *file) lint() {
 	f.lintBlankImports()
 	f.lintExported()
 	f.lintNames()
-	f.lintVarDecls()
 	f.lintElses()
-	f.lintIfError()
 	f.lintRanges()
 	f.lintErrorf()
 	f.lintErrors()
@@ -527,7 +526,10 @@ func (f *file) lintExported() {
 	})
 }
 
-var allCapsRE = regexp.MustCompile(`^[A-Z0-9_]+$`)
+var (
+	allCapsRE = regexp.MustCompile(`^[A-Z0-9_]+$`)
+	anyCapsRE = regexp.MustCompile(`[A-Z]`)
+)
 
 // knownNameExceptions is a set of names that are known to be exempt from naming checks.
 // This is usually because they are constrained by having to match names in the
@@ -537,12 +539,27 @@ var knownNameExceptions = map[string]bool{
 	"kWh":          true,
 }
 
+func isInTopLevel(f *ast.File, ident *ast.Ident) bool {
+	path, _ := astutil.PathEnclosingInterval(f, ident.Pos(), ident.End())
+	for _, f := range path {
+		switch f.(type) {
+		case *ast.File, *ast.GenDecl, *ast.ValueSpec, *ast.Ident:
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 // lintNames examines all names in the file.
 // It complains if any use underscores or incorrect known initialisms.
 func (f *file) lintNames() {
 	// Package names need slightly different handling than other names.
 	if strings.Contains(f.f.Name.Name, "_") && !strings.HasSuffix(f.f.Name.Name, "_test") {
 		f.errorf(f.f, 1, link("http://golang.org/doc/effective_go.html#package-names"), category("naming"), "don't use an underscore in package name")
+	}
+	if anyCapsRE.MatchString(f.f.Name.Name) {
+		f.errorf(f.f, 1, link("http://golang.org/doc/effective_go.html#package-names"), category("mixed-caps"), "don't use MixedCaps in package name; %s should be %s", f.f.Name.Name, strings.ToLower(f.f.Name.Name))
 	}
 
 	check := func(id *ast.Ident, thing string) {
@@ -555,12 +572,22 @@ func (f *file) lintNames() {
 
 		// Handle two common styles from other languages that don't belong in Go.
 		if len(id.Name) >= 5 && allCapsRE.MatchString(id.Name) && strings.Contains(id.Name, "_") {
-			f.errorf(id, 0.8, link(styleGuideBase+"#mixed-caps"), category("naming"), "don't use ALL_CAPS in Go names; use CamelCase")
-			return
+			capCount := 0
+			for _, c := range id.Name {
+				if 'A' <= c && c <= 'Z' {
+					capCount++
+				}
+			}
+			if capCount >= 2 {
+				f.errorf(id, 0.8, link(styleGuideBase+"#mixed-caps"), category("naming"), "don't use ALL_CAPS in Go names; use CamelCase")
+				return
+			}
 		}
-		if len(id.Name) > 2 && id.Name[0] == 'k' && id.Name[1] >= 'A' && id.Name[1] <= 'Z' {
-			should := string(id.Name[1]+'a'-'A') + id.Name[2:]
-			f.errorf(id, 0.8, link(styleGuideBase+"#mixed-caps"), category("naming"), "don't use leading k in Go names; %s %s should be %s", thing, id.Name, should)
+		if thing == "const" || (thing == "var" && isInTopLevel(f.f, id)) {
+			if len(id.Name) > 2 && id.Name[0] == 'k' && id.Name[1] >= 'A' && id.Name[1] <= 'Z' {
+				should := string(id.Name[1]+'a'-'A') + id.Name[2:]
+				f.errorf(id, 0.8, link(styleGuideBase+"#mixed-caps"), category("naming"), "don't use leading k in Go names; %s %s should be %s", thing, id.Name, should)
+			}
 		}
 
 		should := lintName(id.Name)
@@ -949,84 +976,6 @@ var zeroLiteral = map[string]bool{
 	"0i":  true,
 }
 
-// lintVarDecls examines variable declarations. It complains about declarations with
-// redundant LHS types that can be inferred from the RHS.
-func (f *file) lintVarDecls() {
-	var lastGen *ast.GenDecl // last GenDecl entered.
-
-	f.walk(func(node ast.Node) bool {
-		switch v := node.(type) {
-		case *ast.GenDecl:
-			if v.Tok != token.CONST && v.Tok != token.VAR {
-				return false
-			}
-			lastGen = v
-			return true
-		case *ast.ValueSpec:
-			if lastGen.Tok == token.CONST {
-				return false
-			}
-			if len(v.Names) > 1 || v.Type == nil || len(v.Values) == 0 {
-				return false
-			}
-			rhs := v.Values[0]
-			// An underscore var appears in a common idiom for compile-time interface satisfaction,
-			// as in "var _ Interface = (*Concrete)(nil)".
-			if isIdent(v.Names[0], "_") {
-				return false
-			}
-			// If the RHS is a zero value, suggest dropping it.
-			zero := false
-			if lit, ok := rhs.(*ast.BasicLit); ok {
-				zero = zeroLiteral[lit.Value]
-			} else if isIdent(rhs, "nil") {
-				zero = true
-			}
-			if zero {
-				f.errorf(rhs, 0.9, category("zero-value"), "should drop = %s from declaration of var %s; it is the zero value", f.render(rhs), v.Names[0])
-				return false
-			}
-			lhsTyp := f.pkg.typeOf(v.Type)
-			rhsTyp := f.pkg.typeOf(rhs)
-
-			if !validType(lhsTyp) || !validType(rhsTyp) {
-				// Type checking failed (often due to missing imports).
-				return false
-			}
-
-			if !types.Identical(lhsTyp, rhsTyp) {
-				// Assignment to a different type is not redundant.
-				return false
-			}
-
-			// The next three conditions are for suppressing the warning in situations
-			// where we were unable to typecheck.
-
-			// If the LHS type is an interface, don't warn, since it is probably a
-			// concrete type on the RHS. Note that our feeble lexical check here
-			// will only pick up interface{} and other literal interface types;
-			// that covers most of the cases we care to exclude right now.
-			if _, ok := v.Type.(*ast.InterfaceType); ok {
-				return false
-			}
-			// If the RHS is an untyped const, only warn if the LHS type is its default type.
-			if defType, ok := f.isUntypedConst(rhs); ok && !isIdent(v.Type, defType) {
-				return false
-			}
-
-			f.errorf(v.Type, 0.8, category("type-inference"), "should omit type %s from declaration of var %s; it will be inferred from the right-hand side", f.render(v.Type), v.Names[0])
-			return false
-		}
-		return true
-	})
-}
-
-func validType(T types.Type) bool {
-	return T != nil &&
-		T != types.Typ[types.Invalid] &&
-		!strings.Contains(T.String(), "invalid type") // good but not foolproof
-}
-
 // lintElses examines else blocks. It complains about any else block whose if block ends in a return.
 func (f *file) lintElses() {
 	// We don't want to flag if { } else if { } else { } constructions.
@@ -1039,11 +988,11 @@ func (f *file) lintElses() {
 		if !ok || ifStmt.Else == nil {
 			return true
 		}
-		if ignore[ifStmt] {
-			return true
-		}
 		if elseif, ok := ifStmt.Else.(*ast.IfStmt); ok {
 			ignore[elseif] = true
+			return true
+		}
+		if ignore[ifStmt] {
 			return true
 		}
 		if _, ok := ifStmt.Else.(*ast.BlockStmt); !ok {
@@ -1078,20 +1027,25 @@ func (f *file) lintRanges() {
 		if !ok {
 			return true
 		}
-		if rs.Value == nil {
-			// for x = range m { ... }
-			return true // single var form
-		}
-		if !isIdent(rs.Value, "_") {
-			// for ?, y = range m { ... }
+
+		if isIdent(rs.Key, "_") && (rs.Value == nil || isIdent(rs.Value, "_")) {
+			p := f.errorf(rs.Key, 1, category("range-loop"), "should omit values from range; this loop is equivalent to `for range ...`")
+
+			newRS := *rs // shallow copy
+			newRS.Value = nil
+			newRS.Key = nil
+			p.ReplacementLine = f.firstLineOf(&newRS, rs)
+
 			return true
 		}
 
-		p := f.errorf(rs.Value, 1, category("range-loop"), "should omit 2nd value from range; this loop is equivalent to `for %s %s range ...`", f.render(rs.Key), rs.Tok)
+		if isIdent(rs.Value, "_") {
+			p := f.errorf(rs.Value, 1, category("range-loop"), "should omit 2nd value from range; this loop is equivalent to `for %s %s range ...`", f.render(rs.Key), rs.Tok)
 
-		newRS := *rs // shallow copy
-		newRS.Value = nil
-		p.ReplacementLine = f.firstLineOf(&newRS, rs)
+			newRS := *rs // shallow copy
+			newRS.Value = nil
+			p.ReplacementLine = f.firstLineOf(&newRS, rs)
+		}
 
 		return true
 	})
@@ -1113,6 +1067,9 @@ func (f *file) lintErrorf() {
 			}
 		}
 		if !isErrorsNew && !isTestingError {
+			return true
+		}
+		if !f.imports("errors") {
 			return true
 		}
 		arg := ce.Args[0]
@@ -1293,6 +1250,9 @@ func (f *file) lintErrorReturn() {
 		}
 		ret := fn.Type.Results.List
 		if len(ret) <= 1 {
+			return true
+		}
+		if isIdent(ret[len(ret)-1].Type, "error") {
 			return true
 		}
 		// An error return parameter should be the last parameter.
@@ -1489,63 +1449,6 @@ func (f *file) containsComments(start, end token.Pos) bool {
 	return false
 }
 
-func (f *file) lintIfError() {
-	f.walk(func(node ast.Node) bool {
-		switch v := node.(type) {
-		case *ast.BlockStmt:
-			for i := 0; i < len(v.List)-1; i++ {
-				// if var := whatever; var != nil { return var }
-				s, ok := v.List[i].(*ast.IfStmt)
-				if !ok || s.Body == nil || len(s.Body.List) != 1 || s.Else != nil {
-					continue
-				}
-				assign, ok := s.Init.(*ast.AssignStmt)
-				if !ok || len(assign.Lhs) != 1 || !(assign.Tok == token.DEFINE || assign.Tok == token.ASSIGN) {
-					continue
-				}
-				id, ok := assign.Lhs[0].(*ast.Ident)
-				if !ok {
-					continue
-				}
-				expr, ok := s.Cond.(*ast.BinaryExpr)
-				if !ok || expr.Op != token.NEQ {
-					continue
-				}
-				if lhs, ok := expr.X.(*ast.Ident); !ok || lhs.Name != id.Name {
-					continue
-				}
-				if rhs, ok := expr.Y.(*ast.Ident); !ok || rhs.Name != "nil" {
-					continue
-				}
-				r, ok := s.Body.List[0].(*ast.ReturnStmt)
-				if !ok || len(r.Results) != 1 {
-					continue
-				}
-				if r, ok := r.Results[0].(*ast.Ident); !ok || r.Name != id.Name {
-					continue
-				}
-
-				// return nil
-				r, ok = v.List[i+1].(*ast.ReturnStmt)
-				if !ok || len(r.Results) != 1 {
-					continue
-				}
-				if r, ok := r.Results[0].(*ast.Ident); !ok || r.Name != "nil" {
-					continue
-				}
-
-				// check if there are any comments explaining the construct, don't emit an error if there are some.
-				if f.containsComments(s.Pos(), r.Pos()) {
-					continue
-				}
-
-				f.errorf(v.List[i], 0.9, "redundant if ...; err != nil check, just return error instead.")
-			}
-		}
-		return true
-	})
-}
-
 // receiverType returns the named type of the method receiver, sans "*",
 // or "invalid-type" if fn.Recv is ill formed.
 func receiverType(fn *ast.FuncDecl) string {
@@ -1681,6 +1584,20 @@ func (f *file) srcLineWithMatch(node ast.Node, pattern string) (m []string) {
 	line = strings.TrimSuffix(line, "\n")
 	rx := regexp.MustCompile(pattern)
 	return rx.FindStringSubmatch(line)
+}
+
+// imports returns true if the current file imports the specified package path.
+func (f *file) imports(importPath string) bool {
+	all := astutil.Imports(f.fset, f.f)
+	for _, p := range all {
+		for _, i := range p {
+			uq, err := strconv.Unquote(i.Path.Value)
+			if err == nil && importPath == uq {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // srcLine returns the complete line at p, including the terminating newline.

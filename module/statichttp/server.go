@@ -78,6 +78,7 @@ func Load(s *session.Session) (m *StaticHTTP, err error) {
 
 	// Enable static server module
 	if err = m.Start(); err != nil {
+		m.Debug("Dying")
 		return
 	}
 
@@ -105,11 +106,7 @@ func (module *StaticHTTP) Start() (err error) {
 		return err
 	}
 
-	// module.SetRunning(true, func() {
-	err = http.ListenAndServe(module.address, module.mux)
-	if err != nil && err != http.ErrServerClosed {
-		panic(err)
-	}
+	go http.ListenAndServe(module.address, module.mux)
 
 	return nil
 }

@@ -201,7 +201,7 @@ func (r *Replacer) patchWildcard(rep []string) (prep []string) {
 				}
 				newDomain = newDomain + w
 
-				log.Info("[*] New wildcard %s (%s)", tui.Bold(tui.Red(s)), tui.Green(newDomain))
+				//log.Info("[*] New wildcard %s (%s)", tui.Bold(tui.Red(s)), tui.Green(newDomain))
 				prep = append(prep, newDomain)
 				found = true
 			}
@@ -334,7 +334,7 @@ func (r *Replacer) DomainMapping() (err error) {
 			o := fmt.Sprintf("%s%d", prefix, wildcards)
 			r.WildcardDomain = o
 			r.WildcardMapping[domain] = o
-			log.Info("Wild Including [%s]=%s", domain, o)
+			//log.Info("Wild Including [%s]=%s", domain, o)
 			log.BufLogInfo(fmt.Sprintf("Wild Including [%s]=%s", domain, o))
 
 		} else {
@@ -342,7 +342,7 @@ func (r *Replacer) DomainMapping() (err error) {
 			// Extra domains or nested subdomains
 			o := fmt.Sprintf("%s%d", r.ExternalOriginPrefix, count)
 			r.OriginsMapping[domain] = o
-			log.Info("Including [%s]=%s", domain, o)
+			//log.Info("Including [%s]=%s", domain, o)
 			log.BufLogInfo(fmt.Sprintf("Including [%s]=%s", domain, o))
 		}
 

