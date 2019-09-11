@@ -29,10 +29,13 @@ func wantStr(in string, want interface{}) string {
 func doTest(t *testing.T, name string, re *regexp.Regexp, cases []testCase) {
 	for i, c := range cases {
 		t.Run(fmt.Sprintf("%s/%03d", name, i), func(t *testing.T) {
-			got := re.FindString(c.in)
 			want := wantStr(c.in, c.want)
-			if got != want {
-				t.Errorf(`%s.FindString("%s") got "%s", want "%s"`, name, c.in, got, want)
+			for _, surround := range []string{"", "\n"} {
+				in := surround + c.in + surround
+				got := re.FindString(in)
+				if got != want {
+					t.Errorf(`FindString(%q) got %q, want %q`, in, got, want)
+				}
 			}
 		})
 	}
@@ -104,7 +107,7 @@ var constantTestCases = []testCase{
 	{`'http://foo.com/bar'`, `http://foo.com/bar`},
 	{`'http://foo.com/bar'more`, `http://foo.com/bar'more`},
 	{`"http://foo.com/bar"`, `http://foo.com/bar`},
-	{`http://a.b/a0/-+_&~*%=#@.,:;'?!|[]()a`, true},
+	{`http://a.b/a0/-+_&~*%=#@.,:;'?![]()a`, true},
 	{`http://a.b/a0/$€¥`, true},
 	{`http://✪foo.bar/pa✪th©more`, true},
 	{`http://foo.bar/path/`, true},
@@ -126,6 +129,7 @@ var constantTestCases = []testCase{
 	{`http://foo.bar/path!`, `http://foo.bar/path`},
 	{`http://foo.bar/path@`, `http://foo.bar/path`},
 	{`http://foo.bar/path|`, `http://foo.bar/path`},
+	{`http://foo.bar/path|more`, `http://foo.bar/path`},
 	{`http://foo.bar/path<`, `http://foo.bar/path`},
 	{`http://foo.bar/path<more`, `http://foo.bar/path`},
 	{`http://foo.com/path_(more)`, true},
@@ -188,6 +192,11 @@ func TestRegexes(t *testing.T) {
 		{`foo.onion`, true},
 		{`中国.中国`, true},
 		{`中国.中国/foo中国`, true},
+		{`test.联通`, true},
+		{`test.xn--8y0a063a`, true},
+		{`test.xn--8y0a063a/foobar`, true},
+		{`test.xn-foo`, nil},
+		{`test.xn--`, nil},
 		{`foo.com/`, true},
 		{`1.1.1.1`, true},
 		{`10.50.23.250`, true},

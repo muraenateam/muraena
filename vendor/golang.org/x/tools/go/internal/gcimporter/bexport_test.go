@@ -22,12 +22,17 @@ import (
 	"golang.org/x/tools/go/loader"
 )
 
+var isRace = false
+
 func TestBExportData_stdlib(t *testing.T) {
 	if runtime.Compiler == "gccgo" {
 		t.Skip("gccgo standard library is inaccessible")
 	}
 	if runtime.GOOS == "android" {
 		t.Skipf("incomplete std lib on %s", runtime.GOOS)
+	}
+	if isRace {
+		t.Skipf("stdlib tests take too long in race mode and flake on builders")
 	}
 
 	// Load, parse and type-check the program.
@@ -240,7 +245,7 @@ func equalType(x, y types.Type) error {
 			return fmt.Errorf("results: %s", err)
 		}
 		if x.Variadic() != y.Variadic() {
-			return fmt.Errorf("unequal varidicity: %t vs %t",
+			return fmt.Errorf("unequal variadicity: %t vs %t",
 				x.Variadic(), y.Variadic())
 		}
 		if (x.Recv() != nil) != (y.Recv() != nil) {

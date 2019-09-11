@@ -38,6 +38,25 @@ func TestIoctlGetInt(t *testing.T) {
 	t.Logf("%d bits of entropy available", v)
 }
 
+func TestIoctlRetInt(t *testing.T) {
+	f, err := os.Open("/proc/self/ns/mnt")
+	if err != nil {
+		t.Skipf("skipping test, %v", err)
+	}
+	defer f.Close()
+
+	v, err := unix.IoctlRetInt(int(f.Fd()), unix.NS_GET_NSTYPE)
+	if err != nil {
+		if err == unix.ENOTTY {
+			t.Skipf("old kernel? (need Linux >= 4.11)")
+		}
+		t.Fatalf("failed to perform ioctl: %v", err)
+	}
+	if v != unix.CLONE_NEWNS {
+		t.Fatalf("unexpected return from ioctl; expected %v, got %v", v, unix.CLONE_NEWNS)
+	}
+}
+
 func TestIoctlGetRTCTime(t *testing.T) {
 	f, err := os.Open("/dev/rtc0")
 	if err != nil {
@@ -516,7 +535,7 @@ func TestClockNanosleep(t *testing.T) {
 		t.Skip("clock_nanosleep syscall is not available, skipping test")
 	} else if err != nil {
 		t.Errorf("ClockNanosleep(CLOCK_MONOTONIC, 0, %#v, nil) = %v", &rel, err)
-	} else if slept := time.Now().Sub(start); slept < delay {
+	} else if slept := time.Since(start); slept < delay {
 		t.Errorf("ClockNanosleep(CLOCK_MONOTONIC, 0, %#v, nil) slept only %v", &rel, slept)
 	}
 
@@ -527,7 +546,7 @@ func TestClockNanosleep(t *testing.T) {
 	err = unix.ClockNanosleep(unix.CLOCK_REALTIME, unix.TIMER_ABSTIME, &abs, nil)
 	if err != nil {
 		t.Errorf("ClockNanosleep(CLOCK_REALTIME, TIMER_ABSTIME, %#v (=%v), nil) = %v", &abs, until, err)
-	} else if slept := time.Now().Sub(start); slept < delay {
+	} else if slept := time.Since(start); slept < delay {
 		t.Errorf("ClockNanosleep(CLOCK_REALTIME, TIMER_ABSTIME, %#v (=%v), nil) slept only %v", &abs, until, slept)
 	}
 
