@@ -195,7 +195,7 @@ func (s *Session) GetConfiguration() (err error) {
 		s.Config.TLS.KeyFile = s.Config.TLS.Key
 		if !strings.HasPrefix(s.Config.TLS.Key, "-----BEGIN") {
 			er := errors.New(fmt.Sprintf("Error reading TLS cert key %s: %s", s.Config.TLS.Key, err))
-			if _, err := os.Stat(s.Config.TLS.RootFile); err == nil {
+			if _, err := os.Stat(s.Config.TLS.KeyFile); err == nil {
 				k, err := ioutil.ReadFile(s.Config.TLS.KeyFile)
 				if err != nil {
 					return er
