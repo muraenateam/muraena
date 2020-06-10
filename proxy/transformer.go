@@ -2,11 +2,13 @@ package proxy
 
 import (
 	"fmt"
-	"github.com/evilsocket/islazy/tui"
-	"github.com/muraenateam/muraena/log"
 	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/evilsocket/islazy/tui"
+
+	"github.com/muraenateam/muraena/log"
 )
 
 var (
@@ -23,16 +25,18 @@ const (
 
 // Replacer structure used to populate the transformation rules
 type Replacer struct {
-	Phishing             string
-	Target               string
-	ExternalOrigin       []string
-	ExternalOriginPrefix string
-	OriginsMapping       map[string]string // The origin map who maps between external origins and internal origins
-	WildcardMapping      map[string]string
-	TBodyUniversal       [][]string
-	TBodyCustom          [][]string
-	ForwardReplacements  []string
-	BackwardReplacements []string
+	Phishing                string
+	Target                  string
+	ExternalOrigin          []string
+	ExternalOriginPrefix    string
+	OriginsMapping          map[string]string // The origin map who maps between external origins and internal origins
+	WildcardMapping         map[string]string
+	TBodyUniversal          [][]string
+	TBodyCustom             [][]string
+	ForwardReplacements     []string
+	BackwardReplacements    []string
+	LastForwardReplacements []string
+	LastBackwardReplacements []string
 
 	WildcardDomain string
 }
@@ -62,10 +66,13 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 	}
 
 	var replacements []string
+	var lastReplacements []string
 	if forward { // used in Requests
 		replacements = r.ForwardReplacements
+		lastReplacements = r.LastForwardReplacements
 	} else { // used in Responses
 		replacements = r.BackwardReplacements
+		lastReplacements = r.LastBackwardReplacements
 	}
 
 	// Handling of base64 encoded data which should be decoded before transformation
@@ -74,6 +81,11 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 	// Replace transformation
 	replacer := strings.NewReplacer(replacements...)
 	result = replacer.Replace(input)
+
+	// do last replacements
+	replacer = strings.NewReplacer(lastReplacements...)
+	result = replacer.Replace(result)
+
 
 	// Re-encode if base64 encoded data was found
 	if base64Found {
@@ -260,16 +272,6 @@ func (r *Replacer) MakeReplacements() {
 	r.BackwardReplacements = []string{}
 	r.BackwardReplacements = append(r.BackwardReplacements, []string{r.Target, r.Phishing}...)
 
-	// used for all sites
-	for _, tr := range r.TBodyUniversal {
-		r.BackwardReplacements = append(r.BackwardReplacements, tr...)
-	}
-
-	// meant to be used only for certain sites
-	for _, tr := range r.TBodyCustom {
-		r.BackwardReplacements = append(r.BackwardReplacements, tr...)
-	}
-
 	count = 0
 	for include, subMapping := range r.OriginsMapping {
 
@@ -298,6 +300,26 @@ func (r *Replacer) MakeReplacements() {
 		count++
 		log.Debug("[Wild Backward | replacements #%d]: %s < %s", count, tui.Green(rep[0]), tui.Yellow(to))
 	}
+
+
+	//
+	// These should be done as Final replacements
+	r.LastBackwardReplacements = []string{}
+
+	// used for all sites
+	for _, tr := range r.TBodyUniversal {
+		r.LastBackwardReplacements = append(r.LastBackwardReplacements, tr...)
+		log.Debug("[Universal Replacements] %+v", tr)
+	}
+
+	// meant to be used only for certain sites
+	for _, tr := range r.TBodyCustom {
+		r.LastBackwardReplacements = append(r.LastBackwardReplacements, tr...)
+		log.Debug("[Custom Replacements] %+v", tr)
+	}
+
+	r.BackwardReplacements = append(r.BackwardReplacements, r.LastBackwardReplacements...)
+
 }
 
 func (r *Replacer) DomainMapping() (err error) {
