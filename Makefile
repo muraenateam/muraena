@@ -6,9 +6,11 @@ all: deps build
 deps: godep golint gofmt gomegacheck updatedeps
 
 build:
+	export GO111MODULE=on
 	@go build -o $(TARGET) .
 
 racebuild:
+	export GO111MODULE=on
 	@go build -a -race -o $(TARGET) .
 
 lint: gofmt
