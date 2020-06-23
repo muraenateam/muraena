@@ -6,3 +6,4 @@ muraena_logs.txt
 .DS_Store
 muraena
 config/*.json
+static/
