@@ -4,6 +4,6 @@
 *.log
 muraena_logs.txt
 .DS_Store
-muraena
-config/*.json
+build/
 static/
+config/*.json
