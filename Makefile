@@ -1,39 +1,38 @@
-TARGET=muraena
-PACKAGES=core log proxy session module module/crawler module/necrobrowser module/statichttp module/tracking
+TARGET    ?= muraena
+PACKAGES  ?= core log proxy session module module/crawler module/necrobrowser module/statichttp module/tracking
+GO        ?= go
 
-all: deps build
+all: build
 
-deps: godep golint gofmt gomegacheck updatedeps
+# This will be triggered before any command, or when just calling $ make
+pre:
+	mkdir -p ./build/
+    # GO111MODULE is required only when inside GOPATH
+	env GO111MODULE=on go get -d ./
 
-build:
-	@go build -o $(TARGET) .
+build: pre
+	$(RM) -f ./build/$(TARGET)
+	$(GO) build -o ./build/$(TARGET) .
 
-racebuild:
-	@go build -a -race -o $(TARGET) .
+build_with_race_detector: pre
+	$(GO) build -race -o $(TARGET) .
 
-lint: gofmt
+
+buildall: pre
+	$(RM) -r ./build
+	mkdir -p ./build/windows
+	mkdir -p ./build/linux
+	mkdir -p ./build/macos
+	env GO111MODULE=on GOOS=darwin GOARCH=amd64 go build -o ./build/macos/$(TARGET) .
+	env GO111MODULE=on GOOS=linux GOARCH=amd64 go build -o ./build/linux/$(TARGET) .
+	env GO111MODULE=on GOOS=windows GOARCH=amd64 go build -o  ./build/windows/$(TARGET).exe .
+
+lint: fmt
 	@git add . && git commit -a -m "Linting :star2:"
 
-clean:
-	@rm -rf $(TARGET)
-	@rm -rf build
-	@dep prune
-
-updatedeps:
-	@dep ensure -update -v
-	@dep prune
-	@git add "Gopkg.*" "vendor"
-	@git commit -m "Updated deps :star2:  (via Makefile)"
-
-# tools
-godep:
-	@go get -u github.com/golang/dep/...
-
-golint:
-	@go get -u golang.org/x/lint/golint
-
-gomegacheck:
-	@go get honnef.co/go/tools/cmd/megacheck
-
-gofmt:
+fmt:
 	gofmt -s -w $(PACKAGES)
+
+
+
+.PHONY: all build build_with_race_detector lint fmt

@@ -202,7 +202,7 @@ func (module *Crawler) fetchJS(waitGroup *sync.WaitGroup, res string, dest strin
 			module.Error("Error beautifying JS at %s", res)
 		}
 
-		jsUrls := xurls.Strict().FindAllString(beautyBody, -1)
+		jsUrls := xurls.Strict.FindAllString(beautyBody, -1)
 		if len(jsUrls) > 0 && len(jsUrls) < 100 { // prevent cases where we have a lots of domains
 			for _, jsURL := range jsUrls {
 				module.appendExternalDomain(jsURL, crawledDomains)

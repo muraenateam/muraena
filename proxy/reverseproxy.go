@@ -158,7 +158,7 @@ var hopHeaders = []string{
 }
 
 func (p *ReverseProxy) defaultErrorHandler(rw http.ResponseWriter, req *http.Request, err error) {
-	p.logf("http: proxy error: %v", err)
+	p.logf("http: proxy error: %+v", err)
 	rw.WriteHeader(http.StatusBadGateway)
 }
 
@@ -283,7 +283,7 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		// is abort the request. Issue 23643: ReverseProxy should use ErrAbortHandler
 		// on read error while copying body.
 		if !shouldPanicOnCopyError(req) {
-			p.logf("suppressing panic for copyResponse error in test; copy error: %v", err)
+			p.logf("suppressing panic for copyResponse error in test; copy error: %+v", err)
 			return
 		}
 		panic(http.ErrAbortHandler)
@@ -370,7 +370,7 @@ func (p *ReverseProxy) copyBuffer(dst io.Writer, src io.Reader, buf []byte) (int
 	for {
 		nr, rerr := src.Read(buf)
 		if rerr != nil && rerr != io.EOF && rerr != context.Canceled {
-			p.logf("httputil: ReverseProxy read error during body copy: %v", rerr)
+			p.logf("httputil: ReverseProxy read error during body copy: %+v", rerr)
 		}
 		if nr > 0 {
 			nw, werr := dst.Write(buf[:nr])

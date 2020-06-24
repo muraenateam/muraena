@@ -62,7 +62,13 @@ func (muraena *MuraenaProxy) RequestBodyProcessor(request *http.Request, track *
 			log.Error("%s", err)
 			return err
 		}
-		defer r.Close()
+
+		// defer r.Close()
+		defer func() {
+			if err = r.Close(); err != nil {
+				log.Error("Error in r.Close(): %+v", err)
+			}
+		}()
 
 		bodyString := string(buf)
 
@@ -315,13 +321,17 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 	}
 
 	// process body and pack again
-	modResponse.Pack([]byte(replacer.Transform(string(responseBuffer), false, base64)))
+	err = modResponse.Pack([]byte(replacer.Transform(string(responseBuffer), false, base64)))
+	if err != nil {
+		log.Info("Error processing the body: %+v", err)
+		return err
+	}
 
 	return nil
 }
 
 func (muraena *MuraenaProxy) ProxyErrHandler(response http.ResponseWriter, request *http.Request, err error) {
-	log.Error("[errHandler] %s in request %s %s%s", Red(err), request.Method, request.Host, request.URL.Path)
+	log.Error("[errHandler] \n\t%+v \n\t in request %s %s%s", err, request.Method, request.Host, request.URL.Path)
 }
 
 func (init *MuraenaProxyInit) Spawn() *MuraenaProxy {
