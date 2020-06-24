@@ -25,17 +25,17 @@ const (
 
 // Replacer structure used to populate the transformation rules
 type Replacer struct {
-	Phishing                string
-	Target                  string
-	ExternalOrigin          []string
-	ExternalOriginPrefix    string
-	OriginsMapping          map[string]string // The origin map who maps between external origins and internal origins
-	WildcardMapping         map[string]string
-	TBodyUniversal          [][]string
-	TBodyCustom             [][]string
-	ForwardReplacements     []string
-	BackwardReplacements    []string
-	LastForwardReplacements []string
+	Phishing                 string
+	Target                   string
+	ExternalOrigin           []string
+	ExternalOriginPrefix     string
+	OriginsMapping           map[string]string // The origin map who maps between external origins and internal origins
+	WildcardMapping          map[string]string
+	TBodyUniversal           [][]string
+	TBodyCustom              [][]string
+	ForwardReplacements      []string
+	BackwardReplacements     []string
+	LastForwardReplacements  []string
 	LastBackwardReplacements []string
 
 	WildcardDomain string
@@ -85,7 +85,6 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 	// do last replacements
 	replacer = strings.NewReplacer(lastReplacements...)
 	result = replacer.Replace(result)
-
 
 	// Re-encode if base64 encoded data was found
 	if base64Found {
@@ -300,7 +299,6 @@ func (r *Replacer) MakeReplacements() {
 		count++
 		log.Debug("[Wild Backward | replacements #%d]: %s < %s", count, tui.Green(rep[0]), tui.Yellow(to))
 	}
-
 
 	//
 	// These should be done as Final replacements

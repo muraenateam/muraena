@@ -70,7 +70,6 @@ func (muraena *MuraenaProxy) RequestBodyProcessor(request *http.Request, track *
 			}
 		}()
 
-
 		bodyString := string(buf)
 
 		// Trace credentials
