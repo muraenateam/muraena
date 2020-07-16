@@ -45,7 +45,8 @@ func (response *Response) Unpack() (buffer []byte, err error) {
 		fallthrough
 	default:
 		rc = response.Body
-		buffer, err = ioutil.ReadAll(rc)
+		buffer, _ = ioutil.ReadAll(rc)
+		/*
 		if err != nil {
 			return nil, err
 		}
@@ -53,6 +54,7 @@ func (response *Response) Unpack() (buffer []byte, err error) {
 		if err != nil {
 			return nil, err
 		}
+		 */
 		defer rc.Close()
 	}
 	return
