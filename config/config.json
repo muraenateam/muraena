@@ -104,6 +104,7 @@
     "enabled": true,
     "identifier": "_gat",
     "regex": "[a-zA-Z0-9]{5}",
+    "domain": "",
     "urls": {
       "credentials": [
         "/credentials_path"

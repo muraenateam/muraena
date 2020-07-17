@@ -125,6 +125,7 @@ type Configuration struct {
 		Enabled    bool   `json:"enabled"`
 		Type       string `json:"type"`
 		Identifier string `json:"identifier"`
+		Domain     string `json:"domain"`
 		Regex      string `json:"regex"`
 
 		Urls struct {

