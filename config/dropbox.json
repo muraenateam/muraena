@@ -142,6 +142,7 @@
     "identifier": "_gat",
     "regex": "[a-zA-Z0-9]{5}",
     "domain": "",
+    "ipSource": "",
     "urls": {
       "credentials": [
         "/ajax_login"

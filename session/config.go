@@ -126,6 +126,7 @@ type Configuration struct {
 		Type       string `json:"type"`
 		Identifier string `json:"identifier"`
 		Domain     string `json:"domain"`
+		IPSource   string `json:"ipSource"`
 		Regex      string `json:"regex"`
 
 		Urls struct {
