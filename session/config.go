@@ -39,11 +39,8 @@ type Configuration struct {
 			} `json:"request"`
 
 			Response struct {
-				Header []string `json:"header"`
-				Body   struct {
-					Universal [][]string `json:"universal"`
-					Custom    [][]string `json:"custom"`
-				} `json:"body"`
+				Header []string   `json:"header"`
+				Custom [][]string `json:"custom"`
 			} `json:"response"`
 		} `json:"transform"`
 

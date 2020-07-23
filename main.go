@@ -81,13 +81,12 @@ func main() {
 
 	// Load replacer rules
 	var replacer = &proxy.Replacer{
-		Phishing:             sess.Config.Proxy.Phishing,
-		Target:               sess.Config.Proxy.Target,
-		ExternalOrigin:       sess.Config.Crawler.ExternalOrigins,
-		ExternalOriginPrefix: sess.Config.Crawler.ExternalOriginPrefix,
-		OriginsMapping:       sess.Config.Crawler.OriginsMapping,
-		TBodyUniversal:       sess.Config.Proxy.Transform.Response.Body.Universal,
-		TBodyCustom:          sess.Config.Proxy.Transform.Response.Body.Custom,
+		Phishing:                      sess.Config.Proxy.Phishing,
+		Target:                        sess.Config.Proxy.Target,
+		ExternalOrigin:                sess.Config.Crawler.ExternalOrigins,
+		ExternalOriginPrefix:          sess.Config.Crawler.ExternalOriginPrefix,
+		OriginsMapping:                sess.Config.Crawler.OriginsMapping,
+		CustomResponseTransformations: sess.Config.Proxy.Transform.Response.Custom,
 	}
 	if err = replacer.DomainMapping(); err != nil {
 		log.Fatal(err.Error())

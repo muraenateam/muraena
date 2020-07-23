@@ -1,7 +1,6 @@
 {
   "proxy": {
-    "phishing": "phishing.anti",
-    "destination": "youtarget.tld",
+    "phishing": "test.muraena",
     "skipContentType": [
       "font/*",
       "image/*"
@@ -30,16 +29,12 @@
           "Set-Cookie",
           "Access-Control-Allow-Origin"
         ],
-        "body": {
-          "universal": [
-            [
-              "integrity=\"",
-              "no-integrity=\""
-            ]
-          ],
-          "custom": [
+        "custom": [
+          [
+            "DELCOOKIE",
+            "test"
           ]
-        }
+        ]
       }
     },
     "remove": {
@@ -76,12 +71,12 @@
   "tls": {
     "enabled": true,
     "expand": false,
-    "certificate": "./config/phishing-cert.pem",
-    "key": "./config/phishing-key.pem",
-    "root": "./config/phishing-rootCA.pem"
+    "certificate": "./config/cert.pem",
+    "key": "./config/privkey.pem",
+    "root": "./config/fullchain.pem"
   },
   "crawler": {
-    "enabled": true,
+    "enabled": false,
     "depth": 2,
     "upto": 20,
     "externalOriginPrefix": "muraena-",
@@ -102,10 +97,11 @@
   },
   "tracking": {
     "enabled": true,
+    "type": "",
     "identifier": "_gat",
-    "regex": "[a-zA-Z0-9]{5}",
     "domain": "",
     "ipSource": "",
+    "regex": "[a-zA-Z0-9]{5}",
     "urls": {
       "credentials": [
         "/credentials_path"

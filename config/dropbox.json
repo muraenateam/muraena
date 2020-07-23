@@ -30,24 +30,20 @@
           "Set-Cookie",
           "Access-Control-Allow-Origin"
         ],
-        "body": {
-          "universal": [
-            [
-              "integrity=\"",
-              "no-integrity=\""
-            ]
+        "custom": [
+          [
+            "integrity=\"",
+            "no-integrity=\""
           ],
-          "custom": [
-            [
-              "nonce=\"",
-              "nononce=\""
-            ],
-            [
-              "CSP_SCRIPT_NONCE",
-              "CSP_SCRIPT_NONCEz"
-            ]
+          [
+            "nonce=\"",
+            "nononce=\""
+          ],
+          [
+            "CSP_SCRIPT_NONCE",
+            "CSP_SCRIPT_NONCEz"
           ]
-        }
+        ]
       }
     },
     "remove": {

@@ -25,18 +25,17 @@ const (
 
 // Replacer structure used to populate the transformation rules
 type Replacer struct {
-	Phishing                 string
-	Target                   string
-	ExternalOrigin           []string
-	ExternalOriginPrefix     string
-	OriginsMapping           map[string]string // The origin map who maps between external origins and internal origins
-	WildcardMapping          map[string]string
-	TBodyUniversal           [][]string
-	TBodyCustom              [][]string
-	ForwardReplacements      []string
-	BackwardReplacements     []string
-	LastForwardReplacements  []string
-	LastBackwardReplacements []string
+	Phishing                      string
+	Target                        string
+	ExternalOrigin                []string
+	ExternalOriginPrefix          string
+	OriginsMapping                map[string]string // The origin map who maps between external origins and internal origins
+	WildcardMapping               map[string]string
+	CustomResponseTransformations [][]string
+	ForwardReplacements           []string
+	BackwardReplacements          []string
+	LastForwardReplacements       []string
+	LastBackwardReplacements      []string
 
 	WildcardDomain string
 }
@@ -304,14 +303,8 @@ func (r *Replacer) MakeReplacements() {
 	// These should be done as Final replacements
 	r.LastBackwardReplacements = []string{}
 
-	// used for all sites
-	for _, tr := range r.TBodyUniversal {
-		r.LastBackwardReplacements = append(r.LastBackwardReplacements, tr...)
-		log.Debug("[Universal Replacements] %+v", tr)
-	}
-
-	// meant to be used only for certain sites
-	for _, tr := range r.TBodyCustom {
+	// Custom HTTP response replacements
+	for _, tr := range r.CustomResponseTransformations {
 		r.LastBackwardReplacements = append(r.LastBackwardReplacements, tr...)
 		log.Debug("[Custom Replacements] %+v", tr)
 	}

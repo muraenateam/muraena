@@ -1,6 +1,6 @@
 {
   "proxy": {
-    "phishing": "github.evil",
+    "phishing": "test.muraena",
     "destination": "github.com",
     "skipContentType": [
       "font/*",
@@ -30,28 +30,24 @@
           "Set-Cookie",
           "Access-Control-Allow-Origin"
         ],
-        "body": {
-          "universal": [
-            [
-              "integrity=\"",
-              "no-integrity=\""
-            ]
+        "custom": [
+          [
+            "integrity=\"",
+            "no-integrity=\""
           ],
-          "custom": [
-            [
-              "js-proxy-site-detection-payload",
-              ""
-            ],
-            [
-              "expected-hostname",
-              ""
-            ],
-            [
-              "html-safe-nonce",
-              ""
-            ]
+          [
+            "js-proxy-site-detection-payload",
+            ""
+          ],
+          [
+            "expected-hostname",
+            ""
+          ],
+          [
+            "html-safe-nonce",
+            ""
           ]
-        }
+        ]
       }
     },
     "remove": {
