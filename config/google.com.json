@@ -108,9 +108,9 @@
   "tls": {
     "enabled": true,
     "expand": false,
-    "certificate": "./config/phishing-cert.pem",
-    "key": "./config/phishing-key.pem",
-    "root": "./config/phishing-rootCA.pem"
+    "certificate": "./config/cert.pem",
+    "key": "./config/privkey.pem",
+    "root": "./config/fullchain.pem"
   },
   "crawler": {
     "enabled": false,

@@ -1,6 +1,7 @@
 {
   "proxy": {
     "phishing": "test.muraena",
+    "destination": "google.com",
     "skipContentType": [
       "font/*",
       "image/*"
@@ -31,8 +32,8 @@
         ],
         "custom": [
           [
-            "DELCOOKIE",
-            "test"
+            "old-value",
+            "new-value"
           ]
         ]
       }
