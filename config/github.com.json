@@ -2,6 +2,13 @@
   "proxy": {
     "phishing": "test.muraena",
     "destination": "github.com",
+
+    "listener": {
+      "ip": "0.0.0.0",
+      "port": 443,
+      "HTTPtoHTTPS": true
+    },
+
     "skipContentType": [
       "font/*",
       "image/*"

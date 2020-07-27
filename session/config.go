@@ -7,7 +7,6 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/evilsocket/islazy/tui"
 	"github.com/pkg/errors"
@@ -25,6 +24,15 @@ type Configuration struct {
 	Proxy struct {
 		Phishing string `json:"phishing"`
 		Target   string `json:"destination"`
+
+		Listener struct {
+			IP          string `json:"IP"`
+			Port        int    `json:"port"`
+			HTTPtoHTTPS struct {
+				Enabled  bool `json:"enabled"`
+				HTTPport int  `json:"HTTPport"`
+			} `json:"HTTPtoHTTPS"`
+		} `json:"listener"`
 
 		SkipContentType []string `json:"skipContentType"`
 
@@ -60,8 +68,8 @@ type Configuration struct {
 		} `json:"drop"`
 
 		Log struct {
-			Enabled          bool          `json:"enabled"`
-			FilePath         string        `json:"filePath"`
+			Enabled  bool   `json:"enabled"`
+			FilePath string `json:"filePath"`
 		} `json:"log"`
 	} `json:"proxy"`
 
@@ -152,6 +160,18 @@ func (s *Session) GetConfiguration() (err error) {
 
 	if s.Config.Proxy.Phishing == "" || s.Config.Proxy.Target == "" {
 		return errors.New(fmt.Sprintf("Missing phishing/destination from configuration!"))
+	}
+
+	// Listening
+	if s.Config.Proxy.Listener.IP == "" {
+		s.Config.Proxy.Listener.IP = "0.0.0.0"
+	}
+
+	if s.Config.Proxy.Listener.Port == 0 {
+		s.Config.Proxy.Listener.Port = 80
+		if s.Config.TLS.Enabled {
+			s.Config.Proxy.Listener.Port = 443
+		}
 	}
 
 	// Load TLS config
