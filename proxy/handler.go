@@ -162,10 +162,9 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 
 	l := fmt.Sprintf("%s - [%s][%s%s(%s)%s]", lhead,
 		Magenta(request.Method), Magenta(sess.Config.Protocol), Green(muraena.Origin),
-		Brown(muraena.Target), Cyan(request.URL.Path))
+		Yellow(muraena.Target), Cyan(request.URL.Path))
 
-	//log.Info(l)
-	log.BufLogInfo(l)
+	log.Info(l)
 
 	//
 	// BODY

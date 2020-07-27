@@ -348,7 +348,7 @@ func (r *Replacer) DomainMapping() (err error) {
 			r.WildcardDomain = o
 			r.WildcardMapping[domain] = o
 			//log.Info("Wild Including [%s]=%s", domain, o)
-			log.BufLogInfo(fmt.Sprintf("Wild Including [%s]=%s", domain, o))
+			log.Info(fmt.Sprintf("Wild Including [%s]=%s", domain, o))
 
 		} else {
 			count++
@@ -356,7 +356,7 @@ func (r *Replacer) DomainMapping() (err error) {
 			o := fmt.Sprintf("%s%d", r.ExternalOriginPrefix, count)
 			r.OriginsMapping[domain] = o
 			//log.Info("Including [%s]=%s", domain, o)
-			log.BufLogInfo(fmt.Sprintf("Including [%s]=%s", domain, o))
+			log.Info(fmt.Sprintf("Including [%s]=%s", domain, o))
 		}
 
 	}

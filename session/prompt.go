@@ -67,17 +67,15 @@ func validate(input string) error {
 }
 
 func help() {
-	log.Info("**************************************************************************")
-	log.Info("Options")
-	log.Info(" help: %s", tui.Bold("Prints this help"))
-	log.Info(" exit: %s", tui.Bold("Exit from "+core.Name))
-	log.Info(" victims: %s", tui.Bold("Show active victims"))
-	log.Info(" credentials: %s", tui.Bold("Show collected credentials"))
-	log.Info("")
-	log.Info("")
-	log.Warning("NOTE: This feature is not fully implemented yet. ")
-	log.Warning(" Follow evolutions on https://github.com/muraenateam/muraena/issues/5")
-	log.Info("**************************************************************************")
+	log.Raw("**************************************************************************")
+	log.Raw("* NOTE: This feature is not fully implemented yet. ")
+	log.Raw("*       Follow evolutions on https://github.com/muraenateam/muraena/issues/5")
+	log.Raw("* Options")
+	log.Raw("* - help: %s", tui.Bold("Prints this help"))
+	log.Raw("* - exit: %s", tui.Bold("Exit from "+core.Name))
+	log.Raw("* - victims: %s", tui.Bold("Show active victims"))
+	log.Raw("* - credentials: %s", tui.Bold("Show collected credentials"))
+	log.Raw("**************************************************************************")
 
 }
 

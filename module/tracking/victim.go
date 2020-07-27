@@ -78,7 +78,8 @@ func (module *Tracker) ShowCredentials() {
 			//}
 
 			rows = append(rows, []string{tui.Bold(t), c.Key, c.Value, c.Time.UTC().Format("2006-01-02 15:04:05")})
-			log.BufLogInfo(fmt.Sprintf("HARVESTED (at: %s) [%s] %s = %s", c.Time.UTC().Format("2006-01-02 15:04:05"), t, c.Key, c.Value))
+			log.Info(fmt.Sprintf("HARVESTED (at: %s) [%s] %s = %s", c.Time.UTC().Format("2006-01-02 15:04:05"), t,
+				c.Key, c.Value))
 		}
 		return true
 	})

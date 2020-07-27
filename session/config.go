@@ -62,7 +62,6 @@ type Configuration struct {
 		Log struct {
 			Enabled          bool          `json:"enabled"`
 			FilePath         string        `json:"filePath"`
-			BufferedLogDelay time.Duration `json:"bufferedLogDelay"`
 		} `json:"log"`
 	} `json:"proxy"`
 
