@@ -73,8 +73,7 @@
     ],
     "log": {
       "enabled": true,
-      "filePath": "muraena_logs.txt",
-      "bufferedLogDelay": 2
+      "filePath": "muraena.log"
     }
   },
   "tls": {

@@ -73,8 +73,8 @@ func main() {
 		}
 	}
 
-	// Initialize the Buffered Logging
-	log.Init(sess.Config.Proxy.Log.Enabled, sess.Config.Proxy.Log.FilePath, sess.Config.Proxy.Log.BufferedLogDelay)
+	// Init Log
+	log.Init(sess.Options, sess.Config.Proxy.Log.Enabled, sess.Config.Proxy.Log.FilePath)
 
 	// Load all modules
 	module.LoadModules(sess)
@@ -105,7 +105,6 @@ func main() {
 		lline := fmt.Sprintf("Muraena Reverse Proxy waiting for food on HTTPS...\n[ %s ] ==> [ %s ]",
 			tui.Yellow(sess.Config.Proxy.Phishing), tui.Green(sess.Config.Proxy.Target))
 		log.Info(lline)
-		log.BufLogInfo(lline)
 		tlsServer := &TLSServer{
 			Cert:     sess.Config.TLS.Certificate,
 			Key:      sess.Config.TLS.Key,
@@ -120,7 +119,6 @@ func main() {
 		lline := fmt.Sprintf("Muraena Reverse Proxy waiting for food on HTTP...\n[ %s ] ==> [ %s ]",
 			tui.Yellow(sess.Config.Proxy.Phishing), tui.Green(sess.Config.Proxy.Target))
 		log.Info(lline)
-		log.BufLogInfo(lline)
 		if err := muraena.ListenAndServe(); err != nil {
 			log.Fatal("Error binding Muraena on HTTP: %s", err)
 		}
