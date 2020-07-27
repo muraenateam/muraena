@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -43,6 +44,23 @@ type MuraenaProxy struct {
 type SessionType struct {
 	Session  *session.Session
 	Replacer *Replacer
+}
+
+func RedirectToHTTPS(port int) http.HandlerFunc {
+
+	return func(w http.ResponseWriter, req *http.Request) {
+
+		var re = regexp.MustCompile(`(:\d+)$`)
+		host := re.ReplaceAllString(req.Host, "")
+
+		newURL := fmt.Sprintf("https://%s%s", host, req.URL.String())
+		if port != 443 {
+			newURL = fmt.Sprintf("https://%s:%d%s", host, port, req.URL.String())
+		}
+
+		log.Info("Redirecting HTTP to HTTPS: %s", newURL)
+		http.Redirect(w, req, newURL, http.StatusMovedPermanently)
+	}
 }
 
 func (muraena *MuraenaProxy) RequestBodyProcessor(request *http.Request, track *tracking.Trace, base64 Base64) (err error) {

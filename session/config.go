@@ -28,6 +28,10 @@ type Configuration struct {
 		Listener struct {
 			IP          string `json:"IP"`
 			Port        int    `json:"port"`
+			HTTPtoHTTPS struct {
+				Enabled  bool `json:"enabled"`
+				HTTPport int  `json:"HTTPport"`
+			} `json:"HTTPtoHTTPS"`
 		} `json:"listener"`
 
 		SkipContentType []string `json:"skipContentType"`

@@ -5,7 +5,11 @@
 
     "listener": {
       "ip": "0.0.0.0",
-      "port": 443,
+      "port": 8443,
+      "HTTPtoHTTPS": {
+        "enabled": true,
+        "HTTPport": 8080
+      }
     },
 
     "skipContentType": [
