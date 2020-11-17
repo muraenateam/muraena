@@ -446,6 +446,32 @@ func (st *SessionType) HandleFood(response http.ResponseWriter, request *http.Re
 		}
 	}
 
+
+	// PortMapping
+	if sess.Config.Proxy.Listener.PortMap != "" {
+
+		destURL, err := url.Parse(destination)
+		if err != nil {
+			log.Error("%s", err)
+		} else {
+
+			port := destURL.Port()
+			if port == "" && destURL.Scheme == "https" {
+				port = "443"
+				destination = fmt.Sprintf("%s:%s", destination, port)
+			} else if port == "" && destURL.Scheme == "http" {
+				port = "80"
+				destination = fmt.Sprintf("%s:%s", destination, port)
+			}
+
+			if strings.HasPrefix(sess.Config.Proxy.Listener.PortMap, fmt.Sprintf("%s:", port)) {
+				newport := strings.Split(sess.Config.Proxy.Listener.PortMap, ":")[1]
+				destination = strings.Replace(destination, fmt.Sprintf(":%s", port), fmt.Sprintf(":%s", newport), 1)
+			}
+		}
+	}
+
+
 	if destination == "" {
 		log.Error("Unexpected request at: %s", request.Host)
 		return

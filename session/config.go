@@ -24,10 +24,10 @@ type Configuration struct {
 	Proxy struct {
 		Phishing string `json:"phishing"`
 		Target   string `json:"destination"`
-
 		Listener struct {
 			IP          string `json:"IP"`
 			Port        int    `json:"port"`
+			PortMap     string `json:"portmapping"`
 			HTTPtoHTTPS struct {
 				Enabled  bool `json:"enabled"`
 				HTTPport int  `json:"HTTPport"`

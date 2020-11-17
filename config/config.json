@@ -6,6 +6,7 @@
     "listener": {
       "ip": "0.0.0.0",
       "port": 8443,
+      "portmapping": "8443:443",
       "HTTPtoHTTPS": {
         "enabled": true,
         "HTTPport": 8080
