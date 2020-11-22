@@ -2,6 +2,7 @@ package session
 
 import (
 	"fmt"
+	"github.com/muraenateam/muraena/core/db"
 	"os"
 	"runtime"
 
@@ -64,6 +65,11 @@ func New() (*Session, error) {
 	// Load prompt
 	go Prompt(s)
 
+	// Init Redis and MaxMind
+	if err = db.Init(); err != nil {
+		return nil, err
+	}
+	log.Info("Connected to Redis")
 	return s, nil
 }
 
