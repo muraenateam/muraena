@@ -296,7 +296,10 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 				HTTPOnly: c.HttpOnly,
 				Secure:   c.Secure,
 			}
-			muraena.Tracker.AddToCookieJar(victim, sessCookie)
+
+			// TODO re-enable!
+			log.Info("%s", sessCookie)
+			// muraena.Tracker.AddToCookieJar(victim, sessCookie)
 		}
 	} else {
 
@@ -446,7 +449,6 @@ func (st *SessionType) HandleFood(response http.ResponseWriter, request *http.Re
 		}
 	}
 
-
 	// PortMapping
 	if sess.Config.Proxy.Listener.PortMap != "" {
 
@@ -470,7 +472,6 @@ func (st *SessionType) HandleFood(response http.ResponseWriter, request *http.Re
 			}
 		}
 	}
-
 
 	if destination == "" {
 		log.Error("Unexpected request at: %s", request.Host)

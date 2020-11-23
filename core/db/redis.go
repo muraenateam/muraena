@@ -55,7 +55,7 @@ func Init() error {
 		return errors.New("error connecting to redis")
 	}
 
-	// TODO check it maxmind is enabled in config first
+	// TODO check if maxmind is enabled in config first
 	db, err := maxminddb.Open("config/GeoLite2-City.mmdb")
 	if err != nil {
 		log.Printf("error loading MaxMind DB (worker/GeoLite2-City.mmdb): %v", err)
