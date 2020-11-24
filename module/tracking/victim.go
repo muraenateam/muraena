@@ -35,8 +35,8 @@ type Victim struct {
 
 // VictimCredentials structure
 type VictimCredentials struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Key   string    `json:"key"`
+	Value string    `json:"value"`
 	Time  time.Time `json:"time"`
 }
 

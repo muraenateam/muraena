@@ -424,7 +424,6 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 		return
 	}
 
-
 	//
 	// HIJACK!
 	//
@@ -442,7 +441,7 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 	if err != nil {
 		t.Warning(err.Error())
 	}
-	
+
 	m, err := t.Session.Module("necrobrowser")
 	if err != nil {
 		t.Error("%s", err)

