@@ -118,11 +118,7 @@ func (module *Necrobrowser) Instrument(cookieJar []http.Cookie, credentialsJSON 
 			Path:     c.Path,
 			HTTPOnly: c.HttpOnly,
 			Secure:   c.Secure,
-			Session:  false,
-		}
-
-		if nc.Expires < 1 {
-			nc.Session = true
+			Session:  c.Expires.Unix() < 1,
 		}
 
 		necroCookies = append(necroCookies, nc)
