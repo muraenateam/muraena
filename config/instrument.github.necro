@@ -2,7 +2,7 @@
     "name": "InstrumentGitHub",
     "task": {
         "type": "github",
-        "name": "PlantAndDump",
+        "name": [ "PlantAndDump" ],
         "params": {
             "fixSession": "https://github.com/settings/profile",
             "urls": [
