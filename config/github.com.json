@@ -106,20 +106,11 @@
       "*.githubassets.com",
       "*.githubusercontent.com",
       "*.github.io",
-      "github-cloud.s3.amazonaws.com",
       "*.githubapp.com",
+      "github-cloud.s3.amazonaws.com",
       "octocaptcha.com",
-      "stats.g.doubleclick.net",
-      "github.community",
-      "atom.io",
-      "electron.atom.io",
-      "githubstatus.com",
-      "github.blog",
-      "git-merge.com",
-      "githubsatellite.com",
-      "githubcampus.expert",
-      "githubengineering.com",
-      "jekyllrb.com"
+      "stats.g.doubleclick.net"
+      "githubstatus.com"
     ]
   },
   "necrobrowser": {
