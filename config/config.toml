@@ -1,6 +1,6 @@
 [proxy]
     # Phishing domain
-    phishing = "test.muraena"
+    phishing = "phishing.click"
 
     # Target domain to proxy
     destination = "victim.site"
