@@ -105,11 +105,9 @@ type Configuration struct {
 	// Necrobrowser
 	//
 	NecroBrowser struct {
-		Enabled  bool     `json:"enabled"`
-		Endpoint string   `json:"endpoint"`
-		Token    string   `json:"token"`
-		Profile  string   `json:"profile"`
-		Keywords []string `json:"keywords"`
+		Enabled  bool   `json:"enabled"`
+		Endpoint string `json:"endpoint"`
+		Profile  string `json:"profile"`
 	} `json:"necrobrowser"`
 
 	//

