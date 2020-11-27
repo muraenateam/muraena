@@ -12,6 +12,13 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	DefaultIP        = "0.0.0.0"
+	DefaultHTTPPort  = 80
+	DefaultHTTPSPort = 443
+)
+
+
 // Configuration
 type Configuration struct {
 	Protocol       string   `toml:"-"`
@@ -90,10 +97,11 @@ type Configuration struct {
 		Enabled            bool   `toml:"enabled"`
 		Expand             bool   `toml:"expand"`
 		Certificate        string `toml:"certificate"`
-		CertificateContent string `toml:"-"`
 		Key                string `toml:"key"`
-		KeyContent         string `toml:"-"`
 		Root               string `toml:"root"`
+
+		CertificateContent string `toml:"-"`
+		KeyContent         string `toml:"-"`
 		RootContent        string `toml:"-"`
 	} `toml:"tls"`
 
@@ -176,13 +184,13 @@ func (s *Session) GetConfiguration() (err error) {
 
 	// Listening
 	if s.Config.Proxy.IP == "" {
-		s.Config.Proxy.IP = "0.0.0.0"
+		s.Config.Proxy.IP = DefaultIP
 	}
 
 	if s.Config.Proxy.Port == 0 {
-		s.Config.Proxy.Port = 80
+		s.Config.Proxy.Port = DefaultHTTPPort
 		if s.Config.TLS.Enabled {
-			s.Config.Proxy.Port = 443
+			s.Config.Proxy.Port = DefaultHTTPSPort
 		}
 	}
 
