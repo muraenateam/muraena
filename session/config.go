@@ -14,7 +14,7 @@ import (
 
 // Configuration
 type Configuration struct {
-	Protocol       string `toml:"-"`
+	Protocol       string   `toml:"-"`
 	SkipExtensions []string `toml:"-"`
 
 	//
@@ -23,54 +23,65 @@ type Configuration struct {
 	Proxy struct {
 		Phishing string `toml:"phishing"`
 		Target   string `toml:"destination"`
-		Listener struct {
-			IP          string `toml:"IP"`
-			Port        int    `toml:"port"`
-			PortMap     string `toml:"portmapping"`
-			HTTPtoHTTPS struct {
-				Enabled  bool `toml:"enabled"`
-				HTTPport int  `toml:"HTTPport"`
-			} `toml:"HTTPtoHTTPS"`
-		} `toml:"listener"`
+		IP       string `toml:"IP"`
+		Port     int    `toml:"port"`
+		PortMap  string `toml:"portmapping"`
+
+		HTTPtoHTTPS struct {
+			Enabled  bool `toml:"enabled"`
+			HTTPport int  `toml:"HTTPport"`
+		} `toml:"HTTPtoHTTPS"`
+	} `toml:"proxy"`
+
+	//
+	// Transforming rules
+	//
+	Transform struct {
+		Base64 struct {
+			Enabled bool     `toml:"enabled"`
+			Padding []string `toml:"padding"`
+		} `toml:"base64"`
 
 		SkipContentType []string `toml:"skipContentType"`
 
-		Transform struct {
-			Base64 struct {
-				Enabled bool     `toml:"enabled"`
-				Padding []string `toml:"padding"`
-			} `toml:"base64"`
+		Request struct {
+			Headers []string `toml:"headers"`
+		} `toml:"request"`
 
-			Request struct {
-				Header []string `toml:"header"`
-			} `toml:"request"`
+		Response struct {
+			Headers []string   `toml:"headers"`
+			Custom  [][]string `toml:"content"`
+		} `toml:"response"`
+	} `toml:"transform"`
 
-			Response struct {
-				Header []string   `toml:"header"`
-				Custom [][]string `toml:"custom"`
-			} `toml:"response"`
-		} `toml:"transform"`
+	//
+	// Wiping rules
+	//
+	Remove struct {
+		Request struct {
+			Headers []string `toml:"headers"`
+		} `toml:"request"`
 
-		Remove struct {
-			Request struct {
-				Header []string `toml:"header"`
-			} `toml:"request"`
+		Response struct {
+			Headers []string `toml:"headers"`
+		} `toml:"response"`
+	} `toml:"remove"`
 
-			Response struct {
-				Header []string `toml:"header"`
-			} `toml:"response"`
-		} `toml:"remove"`
+	//
+	// Redirection rules
+	//
+	Drop []struct {
+		Path       string `toml:"path"`
+		RedirectTo string `toml:"redirectTo"`
+	} `toml:"drop"`
 
-		Drop []struct {
-			Url        string `toml:"url"`
-			RedirectTo string `toml:"redirectTo"`
-		} `toml:"drop"`
-
-		Log struct {
-			Enabled  bool   `toml:"enabled"`
-			FilePath string `toml:"filePath"`
-		} `toml:"log"`
-	} `toml:"proxy"`
+	//
+	// Logging
+	//
+	Log struct {
+		Enabled  bool   `toml:"enabled"`
+		FilePath string `toml:"filePath"`
+	} `toml:"log"`
 
 	//
 	// TLS
@@ -134,7 +145,7 @@ type Configuration struct {
 			Credentials []string `toml:"credentials"`
 			AuthSession []string `toml:"authSession"`
 		} `toml:"urls"`
-		Params   []string `toml:"params"`
+
 		Patterns []struct {
 			Label    string `toml:"label"`
 			Matching string `toml:"matching"`
@@ -164,14 +175,14 @@ func (s *Session) GetConfiguration() (err error) {
 	}
 
 	// Listening
-	if s.Config.Proxy.Listener.IP == "" {
-		s.Config.Proxy.Listener.IP = "0.0.0.0"
+	if s.Config.Proxy.IP == "" {
+		s.Config.Proxy.IP = "0.0.0.0"
 	}
 
-	if s.Config.Proxy.Listener.Port == 0 {
-		s.Config.Proxy.Listener.Port = 80
+	if s.Config.Proxy.Port == 0 {
+		s.Config.Proxy.Port = 80
 		if s.Config.TLS.Enabled {
-			s.Config.Proxy.Listener.Port = 443
+			s.Config.Proxy.Port = 443
 		}
 	}
 
@@ -248,7 +259,6 @@ func (s *Session) GetConfiguration() (err error) {
 func (s *Session) UpdateConfiguration(externalOrigins, subdomains, uniqueDomains *[]string) (err error) {
 	config := s.Config
 
-
 	// ASCII tables on the terminal
 	columns := []string{"Domains", "#"}
 	rows := [][]string{
@@ -267,7 +277,6 @@ func (s *Session) UpdateConfiguration(externalOrigins, subdomains, uniqueDomains
 	sort.Sort(sort.StringSlice(*externalOrigins))
 	config.Crawler.ExternalOrigins = *externalOrigins
 	config.Crawler.Enabled = false
-
 
 	// Update TLS accordingly
 	if !config.TLS.Expand {
