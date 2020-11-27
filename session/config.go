@@ -1,7 +1,6 @@
 package session
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -9,140 +8,140 @@ import (
 	"strings"
 
 	"github.com/evilsocket/islazy/tui"
+	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
 )
 
-// Configuration struct for JSON configuration
+// Configuration
 type Configuration struct {
-	Protocol            string   `json:"-"`
-	InstrumentationPort int      `json:"-"`
-	SkipExtensions      []string `json:"-"`
+	Protocol       string `toml:"-"`
+	SkipExtensions []string `toml:"-"`
 
 	//
 	// Proxy rules
 	//
 	Proxy struct {
-		Phishing string `json:"phishing"`
-		Target   string `json:"destination"`
+		Phishing string `toml:"phishing"`
+		Target   string `toml:"destination"`
 		Listener struct {
-			IP          string `json:"IP"`
-			Port        int    `json:"port"`
-			PortMap     string `json:"portmapping"`
+			IP          string `toml:"IP"`
+			Port        int    `toml:"port"`
+			PortMap     string `toml:"portmapping"`
 			HTTPtoHTTPS struct {
-				Enabled  bool `json:"enabled"`
-				HTTPport int  `json:"HTTPport"`
-			} `json:"HTTPtoHTTPS"`
-		} `json:"listener"`
+				Enabled  bool `toml:"enabled"`
+				HTTPport int  `toml:"HTTPport"`
+			} `toml:"HTTPtoHTTPS"`
+		} `toml:"listener"`
 
-		SkipContentType []string `json:"skipContentType"`
+		SkipContentType []string `toml:"skipContentType"`
 
 		Transform struct {
 			Base64 struct {
-				Enabled bool     `json:"enabled"`
-				Padding []string `json:"padding"`
-			} `json:"base64"`
+				Enabled bool     `toml:"enabled"`
+				Padding []string `toml:"padding"`
+			} `toml:"base64"`
 
 			Request struct {
-				Header []string `json:"header"`
-			} `json:"request"`
+				Header []string `toml:"header"`
+			} `toml:"request"`
 
 			Response struct {
-				Header []string   `json:"header"`
-				Custom [][]string `json:"custom"`
-			} `json:"response"`
-		} `json:"transform"`
+				Header []string   `toml:"header"`
+				Custom [][]string `toml:"custom"`
+			} `toml:"response"`
+		} `toml:"transform"`
 
 		Remove struct {
 			Request struct {
-				Header []string `json:"header"`
-			} `json:"request"`
+				Header []string `toml:"header"`
+			} `toml:"request"`
 
 			Response struct {
-				Header []string `json:"header"`
-			} `json:"response"`
-		} `json:"remove"`
+				Header []string `toml:"header"`
+			} `toml:"response"`
+		} `toml:"remove"`
 
 		Drop []struct {
-			Url        string `json:"url"`
-			RedirectTo string `json:"redirectTo"`
-		} `json:"drop"`
+			Url        string `toml:"url"`
+			RedirectTo string `toml:"redirectTo"`
+		} `toml:"drop"`
 
 		Log struct {
-			Enabled  bool   `json:"enabled"`
-			FilePath string `json:"filePath"`
-		} `json:"log"`
-	} `json:"proxy"`
+			Enabled  bool   `toml:"enabled"`
+			FilePath string `toml:"filePath"`
+		} `toml:"log"`
+	} `toml:"proxy"`
 
 	//
 	// TLS
 	//
 	TLS struct {
-		Enabled         bool   `json:"enabled"`
-		Expand          bool   `json:"expand"`
-		Certificate     string `json:"certificate"`
-		CertificateFile string `json:"-"`
-		Key             string `json:"key"`
-		KeyFile         string `json:"-"`
-		Root            string `json:"root"`
-		RootFile        string `json:"-"`
-	} `json:"tls"`
+		Enabled            bool   `toml:"enabled"`
+		Expand             bool   `toml:"expand"`
+		Certificate        string `toml:"certificate"`
+		CertificateContent string `toml:"-"`
+		Key                string `toml:"key"`
+		KeyContent         string `toml:"-"`
+		Root               string `toml:"root"`
+		RootContent        string `toml:"-"`
+	} `toml:"tls"`
 
 	//
 	// Crawler & Origins
 	//
 
 	Crawler struct {
-		Enabled bool `json:"enabled"`
-		Depth   int  `json:"depth"`
-		UpTo    int  `json:"upto"`
+		Enabled bool `toml:"enabled"`
+		Depth   int  `toml:"depth"`
+		UpTo    int  `toml:"upto"`
 
-		ExternalOriginPrefix string            `json:"externalOriginPrefix"`
-		ExternalOrigins      []string          `json:"externalOrigins"`
-		OriginsMapping       map[string]string `json:"-"`
-	} `json:"crawler"`
+		ExternalOriginPrefix string            `toml:"externalOriginPrefix"`
+		ExternalOrigins      []string          `toml:"externalOrigins"`
+		OriginsMapping       map[string]string `toml:"-"`
+	} `toml:"crawler"`
 
 	//
 	// Necrobrowser
 	//
 	NecroBrowser struct {
-		Enabled  bool   `json:"enabled"`
-		Endpoint string `json:"endpoint"`
-		Profile  string `json:"profile"`
-	} `json:"necrobrowser"`
+		Enabled  bool   `toml:"enabled"`
+		Endpoint string `toml:"endpoint"`
+		Profile  string `toml:"profile"`
+	} `toml:"necrobrowser"`
 
 	//
 	// Static Server
 	//
 	StaticServer struct {
-		Enabled   bool   `json:"enabled"`
-		Port      int    `json:"port"`
-		LocalPath string `json:"localPath"`
-		URLPath   string `json:"urlPath"`
-	} `json:"staticServer"`
+		Enabled   bool   `toml:"enabled"`
+		Port      int    `toml:"port"`
+		LocalPath string `toml:"localPath"`
+		URLPath   string `toml:"urlPath"`
+	} `toml:"staticServer"`
 
 	//
 	// Tracking
 	//
 	Tracking struct {
-		Enabled    bool   `json:"enabled"`
-		Type       string `json:"type"`
-		Identifier string `json:"identifier"`
-		Domain     string `json:"domain"`
-		IPSource   string `json:"ipSource"`
-		Regex      string `json:"regex"`
+		Enabled    bool   `toml:"enabled"`
+		Type       string `toml:"type"`
+		Identifier string `toml:"identifier"`
+		Domain     string `toml:"domain"`
+		IPSource   string `toml:"ipSource"`
+		Regex      string `toml:"regex"`
 
 		Urls struct {
-			Credentials []string `json:"credentials"`
-			AuthSession []string `json:"authSession"`
-		} `json:"urls"`
-		Params   []string `json:"params"`
+			Credentials []string `toml:"credentials"`
+			AuthSession []string `toml:"authSession"`
+		} `toml:"urls"`
+		Params   []string `toml:"params"`
 		Patterns []struct {
-			Label    string `json:"label"`
-			Matching string `json:"matching"`
-			Start    string `json:"start"`
-			End      string `json:"end"`
-		} `json:"patterns"`
-	} `json:"tracking"`
+			Label    string `toml:"label"`
+			Matching string `toml:"matching"`
+			Start    string `toml:"start"`
+			End      string `toml:"end"`
+		} `toml:"patterns"`
+	} `toml:"tracking"`
 }
 
 // GetConfiguration returns the configuration object
@@ -152,9 +151,13 @@ func (s *Session) GetConfiguration() (err error) {
 	if err != nil {
 		return errors.New(fmt.Sprintf("Error reading configuration file %s: %s", *s.Options.ConfigFilePath, err))
 	}
-	if err := json.Unmarshal(cb, &s.Config); err != nil {
-		return errors.New(fmt.Sprintf("Error unmarshalling JSON configuration file %s: %s", *s.Options.ConfigFilePath, err))
+	c := Configuration{}
+	if err := toml.Unmarshal(cb, &c); err != nil {
+		return errors.New(fmt.Sprintf("Error unmarshalling TOML configuration file %s: %s", *s.Options.ConfigFilePath,
+			err))
 	}
+
+	s.Config = &c
 
 	if s.Config.Proxy.Phishing == "" || s.Config.Proxy.Target == "" {
 		return errors.New(fmt.Sprintf("Missing phishing/destination from configuration!"))
@@ -178,45 +181,46 @@ func (s *Session) GetConfiguration() (err error) {
 	if s.Config.TLS.Enabled {
 
 		// Load TLS Certificate
-		s.Config.TLS.CertificateFile = s.Config.TLS.Certificate
+		s.Config.TLS.CertificateContent = s.Config.TLS.Certificate
+
 		if !strings.HasPrefix(s.Config.TLS.Certificate, "-----BEGIN CERTIFICATE-----\n") {
 			er := errors.New(fmt.Sprintf("Error reading TLS cert %s: %s", s.Config.TLS.Certificate, err))
-			if _, err := os.Stat(s.Config.TLS.CertificateFile); err == nil {
-				crt, err := ioutil.ReadFile(s.Config.TLS.CertificateFile)
+			if _, err := os.Stat(s.Config.TLS.CertificateContent); err == nil {
+				crt, err := ioutil.ReadFile(s.Config.TLS.CertificateContent)
 				if err != nil {
 					return er
 				}
-				s.Config.TLS.Certificate = string(crt)
+				s.Config.TLS.CertificateContent = string(crt)
 			} else {
 				return er
 			}
 		}
 
 		// Load TLS Root CA Certificate
-		s.Config.TLS.RootFile = s.Config.TLS.Root
+		s.Config.TLS.RootContent = s.Config.TLS.Root
 		if !strings.HasPrefix(s.Config.TLS.Root, "-----BEGIN CERTIFICATE-----\n") {
 			er := errors.New(fmt.Sprintf("Error reading TLS cert pool %s: %s", s.Config.TLS.Root, err))
-			if _, err := os.Stat(s.Config.TLS.RootFile); err == nil {
-				crtp, err := ioutil.ReadFile(s.Config.TLS.RootFile)
+			if _, err := os.Stat(s.Config.TLS.RootContent); err == nil {
+				crtp, err := ioutil.ReadFile(s.Config.TLS.RootContent)
 				if err != nil {
 					return er
 				}
-				s.Config.TLS.Root = string(crtp)
+				s.Config.TLS.RootContent = string(crtp)
 			} else {
 				return er
 			}
 		}
 
 		// Load TLS Certificate Key
-		s.Config.TLS.KeyFile = s.Config.TLS.Key
+		s.Config.TLS.KeyContent = s.Config.TLS.Key
 		if !strings.HasPrefix(s.Config.TLS.Key, "-----BEGIN") {
 			er := errors.New(fmt.Sprintf("Error reading TLS cert key %s: %s", s.Config.TLS.Key, err))
-			if _, err := os.Stat(s.Config.TLS.KeyFile); err == nil {
-				k, err := ioutil.ReadFile(s.Config.TLS.KeyFile)
+			if _, err := os.Stat(s.Config.TLS.KeyContent); err == nil {
+				k, err := ioutil.ReadFile(s.Config.TLS.KeyContent)
 				if err != nil {
 					return er
 				}
-				s.Config.TLS.Key = string(k)
+				s.Config.TLS.KeyContent = string(k)
 			} else {
 				return er
 			}
@@ -227,7 +231,6 @@ func (s *Session) GetConfiguration() (err error) {
 
 	s.Config.Crawler.OriginsMapping = make(map[string]string)
 
-	s.Config.InstrumentationPort = 9223
 	s.Config.SkipExtensions = []string{
 		"ttf", "otf", "woff", "woff2", "eot", //fonts and images
 		"ase", "art", "bmp", "blp", "cd5", "cit", "cpt", "cr2", "cut", "dds", "dib", "djvu", "egt", "exif", "gif",
@@ -244,6 +247,7 @@ func (s *Session) GetConfiguration() (err error) {
 
 func (s *Session) UpdateConfiguration(externalOrigins, subdomains, uniqueDomains *[]string) (err error) {
 	config := s.Config
+
 
 	// ASCII tables on the terminal
 	columns := []string{"Domains", "#"}
@@ -264,21 +268,18 @@ func (s *Session) UpdateConfiguration(externalOrigins, subdomains, uniqueDomains
 	config.Crawler.ExternalOrigins = *externalOrigins
 	config.Crawler.Enabled = false
 
+
 	// Update TLS accordingly
 	if !config.TLS.Expand {
-		config.TLS.Root = config.TLS.RootFile
-		config.TLS.Key = config.TLS.KeyFile
-		config.TLS.Certificate = config.TLS.CertificateFile
+		config.TLS.Root = config.TLS.RootContent
+		config.TLS.Key = config.TLS.KeyContent
+		config.TLS.Certificate = config.TLS.CertificateContent
 	}
 
-	newConf, err := json.MarshalIndent(config, "", "\t")
-	path := *s.Options.ConfigFilePath
+	newConf, err := toml.Marshal(config)
 	if err != nil {
 		return
 	}
-	if err = ioutil.WriteFile(path, newConf, 0644); err != nil {
-		return
-	}
 
-	return
+	return ioutil.WriteFile(*s.Options.ConfigFilePath, newConf, 0644)
 }
