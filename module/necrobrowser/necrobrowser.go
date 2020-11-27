@@ -17,7 +17,7 @@ const (
 	Name = "necrobrowser"
 
 	// Description of this module
-	Description = "Post-phishing automation that hijacks the harvested web session in a dockerized Chrome Headless"
+	Description = "Post-phishing automation via Necrobrowser-NG"
 
 	// Author of this module
 	Author = "Muraena Team"
