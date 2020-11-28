@@ -82,32 +82,6 @@ func AddOutput(path string, level ll.Verbosity, config FormatConfig, noEffects b
 	return
 }
 
-/*
-func CloseOutputs() {
-	for p, l := range loggers {
-		if p != "" {
-			l.Writer.Close()
-		}
-	}
-}
-
-func RemoveOutput(path string) error {
-
-	lock.Lock()
-	l, b := loggers[path]
-	lock.Unlock()
-
-	if b {
-		l.Writer.Close()
-		delete(loggers, path)
-	} else {
-		return errors.New("no output with this path")
-	}
-	return nil
-}
-
-*/
-
 func (l *logger) emit(s string) {
 	// remove all effects if found
 	if l.NoEffects {

