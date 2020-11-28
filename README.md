@@ -14,16 +14,6 @@
 The tool re-implements the 15-years old idea of using a custom reverse proxy to dynamically interact with the 
 origin to be targeted, rather than maintaining and serving static pages.
 
-Written in Go, Muraena does not use slow-regexes to do replacement magic, and embeds a crawler (Colly)
-that helps determining in advance which resource should be proxied.
-
-Muraena does the bare minimum to grep/replace origins in request/responses: this means
-that for complex origins extra manual analysis might be required to tune the auto-generated JSON configuration file.
-Hence, do not expect the reverse proxy to work straight out of the box for complex origins. 
-
-The config folder has some examples of custom replacements needed on complex origins likes GSuite, Dropbox, GitHub 
-and others.
-
 
 ## Documentation
 

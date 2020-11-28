@@ -1,10 +1,6 @@
-*.crt
-*.key
 *.pem
 *.log
-muraena_logs.txt
 .DS_Store
+muraena
 build/
 static/
-config/*.json
-TODOS.md

