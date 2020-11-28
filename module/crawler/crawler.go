@@ -40,8 +40,11 @@ type Crawler struct {
 var (
 	crawledDomains            []string
 	subdomains, uniqueDomains []string
-	discoveredJsUrls          []string
+	externalOrigins           []string
+	baseDom                   string
 	waitGroup                 sync.WaitGroup
+
+	discoveredJsUrls []string
 )
 
 // Name returns the module name
@@ -86,8 +89,10 @@ func Load(s *session.Session) (m *Crawler, err error) {
 	waitGroup.Wait()
 	config.ExternalOrigins = proxy.ArmorDomain(crawledDomains)
 
+	// save new config file with externalDomains to prevent crawling at next start
 	m.Info("Domain crawling stats:")
-	err = s.UpdateConfiguration(&s.Config.Crawler.ExternalOrigins, &subdomains, &uniqueDomains)
+	err = s.UpdateConfiguration(&config.ExternalOrigins, &subdomains, &uniqueDomains)
+
 	return
 }
 
@@ -102,9 +107,10 @@ func (module *Crawler) explore() {
 	c := colly.NewCollector(
 		colly.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X x.y; rv:10.0) Gecko/20100101 Firefox/10.0"),
 
-		// MaxDepth is by default 1, so only the links on the scraped page are visited,
-		// and no further links are followed
-		colly.MaxDepth(module.Depth),
+		// MaxDepth is by default 1, so only the links on the scraped page
+		// is visited, and no further links are followed
+		colly.MaxDepth(module.Depth), // first page and also links in second pages
+		//colly.AllowedDomains(Config.Target),
 	)
 
 	numVisited := 0
