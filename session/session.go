@@ -16,9 +16,9 @@ type moduleList []Module
 
 // Session structure
 type Session struct {
-	Options core.Options   `json:"options"`
-	Config  *Configuration `json:"configuration"`
-	Modules moduleList     `json:"modules"`
+	Options core.Options
+	Config  *Configuration
+	Modules moduleList
 }
 
 // New session

