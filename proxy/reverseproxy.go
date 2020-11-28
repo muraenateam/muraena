@@ -227,10 +227,10 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			// If we aren't the first proxy retain prior
 			// X-Forwarded-For information as a comma+space
 			// separated list and fold multiple headers into one.
-			if prior, ok := outreq.Headers["X-Forwarded-For"]; ok {
+			if prior, ok := outreq.Header["X-Forwarded-For"]; ok {
 				clientIP = strings.Join(prior, ", ") + ", " + clientIP
 			}
-			outreq.Headers.Set("X-Forwarded-For", clientIP)
+			outreq.Header.Set("X-Forwarded-For", clientIP)
 		}
 	*/
 

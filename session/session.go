@@ -2,7 +2,6 @@ package session
 
 import (
 	"fmt"
-	"github.com/muraenateam/muraena/core/db"
 	"os"
 	"runtime"
 
@@ -16,9 +15,9 @@ type moduleList []Module
 
 // Session structure
 type Session struct {
-	Options core.Options
-	Config  *Configuration
-	Modules moduleList
+	Options core.Options   `json:"options"`
+	Config  *Configuration `json:"configuration"`
+	Modules moduleList     `json:"modules"`
 }
 
 // New session
@@ -65,11 +64,6 @@ func New() (*Session, error) {
 	// Load prompt
 	go Prompt(s)
 
-	// Init Redis and MaxMind
-	if err = db.Init(); err != nil {
-		return nil, err
-	}
-	log.Info("Connected to Redis")
 	return s, nil
 }
 

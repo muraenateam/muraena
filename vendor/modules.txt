@@ -51,9 +51,6 @@ github.com/gocolly/colly/storage
 # github.com/golang/protobuf v1.3.2
 ## explicit
 github.com/golang/protobuf/proto
-# github.com/gomodule/redigo v1.8.2
-## explicit
-github.com/gomodule/redigo/redis
 # github.com/google/shlex v0.0.0-20181106134648-c34317bd91bf
 github.com/google/shlex
 # github.com/gordonklaus/ineffassign v0.0.0-20190601041439-ed7b1b5ee0f8
@@ -92,9 +89,6 @@ github.com/nicksnyder/go-i18n/i18n
 github.com/nicksnyder/go-i18n/i18n/bundle
 github.com/nicksnyder/go-i18n/i18n/language
 github.com/nicksnyder/go-i18n/i18n/translation
-# github.com/oschwald/maxminddb-golang v1.7.0
-## explicit
-github.com/oschwald/maxminddb-golang
 # github.com/pelletier/go-toml v1.4.0
 ## explicit
 github.com/pelletier/go-toml
@@ -118,9 +112,9 @@ golang.org/x/net/html
 golang.org/x/net/html/atom
 golang.org/x/net/html/charset
 golang.org/x/net/publicsuffix
-# golang.org/x/sys v0.0.0-20191224085550-c709ea063b76
+# golang.org/x/sys v0.0.0-20190910064555-bbd175535a8b
+## explicit
 golang.org/x/sys/unix
-golang.org/x/sys/windows
 # golang.org/x/text v0.3.2
 golang.org/x/text/encoding
 golang.org/x/text/encoding/charmap
