@@ -35,10 +35,11 @@ type Crawler struct {
 	Enabled bool
 	Depth   int
 	UpTo    int
+
+	Domains            []string
 }
 
 var (
-	crawledDomains            []string
 	subdomains, uniqueDomains []string
 	discoveredJsUrls          []string
 	waitGroup                 sync.WaitGroup
@@ -76,7 +77,6 @@ func Load(s *session.Session) (m *Crawler, err error) {
 
 	// Armor domains
 	config.ExternalOrigins = proxy.ArmorDomain(config.ExternalOrigins)
-
 	if !m.Enabled {
 		m.Debug("is disabled")
 		return
@@ -84,10 +84,10 @@ func Load(s *session.Session) (m *Crawler, err error) {
 
 	m.explore()
 	waitGroup.Wait()
-	config.ExternalOrigins = proxy.ArmorDomain(crawledDomains)
+	config.ExternalOrigins = proxy.ArmorDomain(m.Domains)
 
 	m.Info("Domain crawling stats:")
-	err = s.UpdateConfiguration(&s.Config.Crawler.ExternalOrigins, &subdomains, &uniqueDomains)
+	err = s.UpdateConfiguration(&config.ExternalOrigins, &subdomains, &uniqueDomains)
 	return
 }
 
@@ -111,7 +111,6 @@ func (module *Crawler) explore() {
 	c.OnRequest(func(r *colly.Request) {
 		numVisited++
 		if numVisited > module.UpTo {
-			//module.Info("Ending exploration...")
 			r.Abort()
 			return
 		}
@@ -119,11 +118,11 @@ func (module *Crawler) explore() {
 
 	c.OnHTML("script[src]", func(e *colly.HTMLElement) {
 		res := e.Attr("src")
-		if module.appendExternalDomain(res, &crawledDomains) {
+		if module.appendExternalDomain(res) {
 			// if it is a script from an external domain, make sure to fetch it
 			// beautify it and see it we need to replace things
 			waitGroup.Add(1)
-			go module.fetchJS(&waitGroup, res, config.Proxy.Target, &crawledDomains)
+			go module.fetchJS(&waitGroup, res, config.Proxy.Target)
 		}
 
 	})
@@ -131,23 +130,23 @@ func (module *Crawler) explore() {
 	// all other tags with src attribute (img/video/iframe/etc..)
 	c.OnHTML("[src]", func(e *colly.HTMLElement) {
 		res := e.Attr("src")
-		module.appendExternalDomain(res, &crawledDomains)
+		module.appendExternalDomain(res)
 	})
 
 	c.OnHTML("link[href]", func(e *colly.HTMLElement) {
 		res := e.Attr("href")
-		module.appendExternalDomain(res, &crawledDomains)
+		module.appendExternalDomain(res)
 	})
 
 	c.OnHTML("meta[content]", func(e *colly.HTMLElement) {
 		res := e.Attr("content")
-		module.appendExternalDomain(res, &crawledDomains)
+		module.appendExternalDomain(res)
 	})
 
 	// Callback for links on scraped pages
 	c.OnHTML("a[href]", func(e *colly.HTMLElement) {
 		res := e.Attr("href")
-		module.appendExternalDomain(res, &crawledDomains)
+		module.appendExternalDomain(res)
 
 		// crawl
 		if err := c.Visit(e.Request.AbsoluteURL(res)); err != nil {
@@ -170,7 +169,7 @@ func (module *Crawler) explore() {
 	}
 }
 
-func (module *Crawler) fetchJS(waitGroup *sync.WaitGroup, res string, dest string, crawledDomains *[]string) {
+func (module *Crawler) fetchJS(waitGroup *sync.WaitGroup, res string, dest string) {
 
 	defer waitGroup.Done()
 
@@ -182,7 +181,7 @@ func (module *Crawler) fetchJS(waitGroup *sync.WaitGroup, res string, dest strin
 	nu := fmt.Sprintf("%s%s", u.Host, u.Path)
 	if !Contains(&discoveredJsUrls, nu) {
 		discoveredJsUrls = append(discoveredJsUrls, nu)
-		module.Info("Fetching new JS URL: %s", nu)
+		module.Debug("Fetching new JS URL: %s", nu)
 
 		resp, err := resty.R().Get(res)
 		if err != nil {
@@ -199,14 +198,14 @@ func (module *Crawler) fetchJS(waitGroup *sync.WaitGroup, res string, dest strin
 		jsUrls := xurls.Strict.FindAllString(beautyBody, -1)
 		if len(jsUrls) > 0 && len(jsUrls) < 100 { // prevent cases where we have a lots of domains
 			for _, jsURL := range jsUrls {
-				module.appendExternalDomain(jsURL, crawledDomains)
+				module.appendExternalDomain(jsURL)
 			}
-			module.Info("Domains found in JS at %s: %d", res, len(jsUrls))
+			module.Info("%d domain(s) found in JS at %s", len(jsUrls),res)
 		}
 	}
 }
 
-func (module *Crawler) appendExternalDomain(res string, crawledDomains *[]string) bool {
+func (module *Crawler) appendExternalDomain(res string) bool {
 	if strings.HasPrefix(res, "//") || strings.HasPrefix(res, "https://") || strings.HasPrefix(res, "http://") {
 		u, err := url.Parse(res)
 		if err != nil {
@@ -216,7 +215,7 @@ func (module *Crawler) appendExternalDomain(res string, crawledDomains *[]string
 		// update the crawledDomains after doing some minimal checks that might happen from xurls when
 		// parsing urls from JS files
 		if len(u.Host) > 2 && (strings.Contains(u.Host, ".") || strings.Contains(u.Host, ":")) {
-			*crawledDomains = append(*crawledDomains, u.Host)
+			module.Domains = append(module.Domains, u.Host)
 		}
 
 		return true

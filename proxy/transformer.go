@@ -330,7 +330,7 @@ func (r *Replacer) DomainMapping() (err error) {
 
 			// We don't map 1-level subdomains ..
 			if strings.Count(trim, ".") < 2 {
-				log.Debug("We ignore this domain: %s [%s]", domain, trim)
+				log.Debug("Ignore: %s [%s]", domain, trim)
 				continue
 			}
 		}
