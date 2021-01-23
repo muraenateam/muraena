@@ -266,7 +266,13 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 	request.Header.Set("If-Range", t.ID)
 
 	// Check if the Trace ID is bind to an existing victim
-	v, _ := module.GetVictim(t)
+	v, verr := module.GetVictim(t)
+
+	if v == nil || verr != nil {
+		module.Error("%+v", verr)
+		return
+	}
+
 	if v.ID == "" {
 
 		// Tracking IP
@@ -279,22 +285,16 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 			ID:           t.ID,
 			IP:           IPSource,
 			UA:           request.UserAgent(),
-			RequestCount: 1,
+			RequestCount: 0,
 			FirstSeen:    time.Now().UTC().Format("2006-01-02 15:04:05"),
 			LastSeen:     time.Now().UTC().Format("2006-01-02 15:04:05"),
 		}
 
 		module.Push(v)
 		module.Info("New victim [%s] IP[%s] UA[%s]", tui.Bold(tui.Red(t.ID)), IPSource, request.UserAgent())
-
-	} else {
-		// This Victim is well known, increasing the number of requests processed
-		// TODO handle this with redis HINCRBY
-
-		// TODO update also the LastSeen time
-		v.RequestCount++
 	}
 
+	v.RequestCount++
 	return
 }
 
