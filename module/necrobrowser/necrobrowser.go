@@ -2,11 +2,12 @@ package necrobrowser
 
 import (
 	"encoding/json"
-	"github.com/muraenateam/muraena/core/db"
-	"github.com/muraenateam/muraena/log"
 	"io/ioutil"
 	"strings"
 	"time"
+
+	"github.com/muraenateam/muraena/core/db"
+	"github.com/muraenateam/muraena/log"
 
 	"gopkg.in/resty.v1"
 

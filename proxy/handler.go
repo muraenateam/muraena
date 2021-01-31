@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
-	"github.com/muraenateam/muraena/core/db"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/muraenateam/muraena/core/db"
 
 	. "github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"

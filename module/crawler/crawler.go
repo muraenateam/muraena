@@ -36,7 +36,7 @@ type Crawler struct {
 	Depth   int
 	UpTo    int
 
-	Domains            []string
+	Domains []string
 }
 
 var (
@@ -200,7 +200,7 @@ func (module *Crawler) fetchJS(waitGroup *sync.WaitGroup, res string, dest strin
 			for _, jsURL := range jsUrls {
 				module.appendExternalDomain(jsURL)
 			}
-			module.Info("%d domain(s) found in JS at %s", len(jsUrls),res)
+			module.Info("%d domain(s) found in JS at %s", len(jsUrls), res)
 		}
 	}
 }
