@@ -195,7 +195,7 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 		}
 	}
 
-	if track.IsValid() {
+	if muraena.Session.Config.Tracking.Enabled && track.IsValid() {
 		log.Debug("Going to hijack session: %s (Track: %+v)", request.URL.Path, track)
 		err = track.HijackSession(request)
 		if err != nil {
