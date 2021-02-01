@@ -2,16 +2,24 @@ version: 2
 jobs:
   build:
     docker:
-      - image: circleci/golang:1.12
+      - image: circleci/golang:1.15
     working_directory: /go/src/github.com/muraenateam/muraena
+
+    environment: # environment variables for the build itself
+      TEST_RESULTS: /tmp/test-results # path to where test results will be saved
+
     steps:
       - checkout
       - run:
           name: "Should we release?"
           command: |
             if [[ ! "$(git show -s --format=%s)" == "Releasing"* ]]; then circleci-agent step halt; fi
+
+
+      - run: make pre # pull and build dependencies for the project
       - run: go get github.com/mitchellh/gox
       - run: go get github.com/tcnksm/ghr
+
       - run: gox -os="linux darwin windows" -arch="amd64" -ldflags "-X main.Version=$BUILD_VERSION -X main.BuildDate=$BUILD_DATE" -output "dist/muraena_{{.OS}}_{{.Arch}}"
       - run:
           name: "Create release release"
