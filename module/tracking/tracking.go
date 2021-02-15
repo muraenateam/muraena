@@ -71,6 +71,15 @@ func (module *Tracker) Prompt(what string) {
 	case "credentials":
 		module.ShowCredentials()
 	}
+
+	// export cookie jar as JSON file, like: export ygTCC
+	if strings.HasPrefix(what, "export ") {
+		id := strings.Split(what, " ")
+		if len(id) != 2 {
+			return
+		}
+		module.ExportSession(id[1])
+	}
 }
 
 // IsEnabled returns a boolead to indicate if the module is enabled or not

