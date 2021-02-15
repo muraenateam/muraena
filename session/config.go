@@ -18,7 +18,6 @@ const (
 	DefaultHTTPSPort = 443
 )
 
-
 // Configuration
 type Configuration struct {
 	Protocol       string   `toml:"-"`
@@ -94,11 +93,11 @@ type Configuration struct {
 	// TLS
 	//
 	TLS struct {
-		Enabled            bool   `toml:"enabled"`
-		Expand             bool   `toml:"expand"`
-		Certificate        string `toml:"certificate"`
-		Key                string `toml:"key"`
-		Root               string `toml:"root"`
+		Enabled     bool   `toml:"enabled"`
+		Expand      bool   `toml:"expand"`
+		Certificate string `toml:"certificate"`
+		Key         string `toml:"key"`
+		Root        string `toml:"root"`
 
 		CertificateContent string `toml:"-"`
 		KeyContent         string `toml:"-"`
@@ -126,6 +125,17 @@ type Configuration struct {
 		Enabled  bool   `toml:"enabled"`
 		Endpoint string `toml:"endpoint"`
 		Profile  string `toml:"profile"`
+
+		Keepalive struct {
+			Enabled bool `toml:"enabled"`
+			Minutes int  `toml:"minutes"`
+		} `toml:"keepalive"`
+
+		Trigger struct {
+			Type   string   `toml:"type"`
+			Values []string `toml:"values"`
+			Delay  int      `toml:"delay"`
+		} `toml:"trigger"`
 	} `toml:"necrobrowser"`
 
 	//
@@ -148,6 +158,7 @@ type Configuration struct {
 		Domain     string `toml:"domain"`
 		IPSource   string `toml:"ipSource"`
 		Regex      string `toml:"regex"`
+		RedirectTo string `toml:"redirectTo"`
 
 		Urls struct {
 			Credentials []string `toml:"credentials"`

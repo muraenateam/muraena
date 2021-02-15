@@ -47,14 +47,14 @@ func (response *Response) Unpack() (buffer []byte, err error) {
 		rc = response.Body
 		buffer, _ = ioutil.ReadAll(rc)
 		/*
-		if err != nil {
-			return nil, err
-		}
-		err = response.Body.Close()
-		if err != nil {
-			return nil, err
-		}
-		 */
+			if err != nil {
+				return nil, err
+			}
+			err = response.Body.Close()
+			if err != nil {
+				return nil, err
+			}
+		*/
 		defer rc.Close()
 	}
 	return

@@ -4,6 +4,7 @@ import (
 	//"encoding/json"
 	"encoding/json"
 	"fmt"
+	"github.com/muraenateam/muraena/log"
 	"net/http"
 	"net/url"
 	"path"
@@ -222,18 +223,27 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 	}
 
 	noTraces := true
+	isTrackedPath := false
 
 	//
 	// Tracing types: Path || Query (default)
 	//
 	if module.Type == "path" {
-		re := regexp.MustCompile(`/([^/]+)`)
+		tr := module.Session.Config.Tracking
+
+		pathRegex := strings.Replace(tr.Identifier, "_", "/", -1) + tr.Regex
+		re := regexp.MustCompile(pathRegex)
+
 		match := re.FindStringSubmatch(request.URL.Path)
+		module.Info("tracking path match: %v", match)
+
 		if len(match) > 0 {
-			t = module.makeTrace(match[1])
+			t = module.makeTrace(match[0])
 			if t.IsValid() {
+				log.Info("setting If-Landing-Redirect header to %s", strings.ReplaceAll(request.URL.Path, t.ID, ""))
 				request.Header.Set("If-Landing-Redirect", strings.ReplaceAll(request.URL.Path, t.ID, ""))
 				noTraces = false
+				isTrackedPath = true
 			}
 		}
 	}
@@ -303,6 +313,11 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 	}
 
 	v.RequestCount++
+
+	if module.Type == "path" && isTrackedPath {
+		request.URL.Path = module.Session.Config.Tracking.RedirectTo
+	}
+
 	return
 }
 
