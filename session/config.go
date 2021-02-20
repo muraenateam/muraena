@@ -154,6 +154,8 @@ type Configuration struct {
 		Enabled    bool   `toml:"enabled"`
 		Type       string `toml:"type"`
 		Identifier string `toml:"identifier"`
+		Header     string `toml:"header"`
+		Landing    string `toml:"landing"`
 		Domain     string `toml:"domain"`
 		IPSource   string `toml:"ipSource"`
 		Regex      string `toml:"regex"`
