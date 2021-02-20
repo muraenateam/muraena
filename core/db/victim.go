@@ -2,7 +2,9 @@ package db
 
 import (
 	"fmt"
+
 	"github.com/gomodule/redigo/redis"
+
 	"github.com/muraenateam/muraena/log"
 )
 
