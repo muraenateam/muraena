@@ -5,8 +5,13 @@
     # Target domain to proxy
     destination = "victim.site"
 
-    # Listening IP address
-    IP = "0.0.0.0"
+    # Listening IP address (IPv4 or IPv6)
+	# e.g. 0.0.0.0 or [::]
+    IP = "127.0.0.1"
+
+	# Listen announces on the local network address.
+	# The network must be "tcp", "tcp4", "tcp6"
+	listener = "tcp"
 
     # Listeninng TCP Port
     port = 443
@@ -164,7 +169,7 @@
 # TRACKING
 #
 [tracking]
-enabled = true
+enabled = false
 
     # Tracking types can be Path || Query (default)
     #

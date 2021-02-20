@@ -10,10 +10,13 @@ import (
 	"github.com/evilsocket/islazy/tui"
 	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
+
+	"github.com/muraenateam/muraena/core"
 )
 
 const (
 	DefaultIP        = "0.0.0.0"
+	DefaultListener  = "tcp"
 	DefaultHTTPPort  = 80
 	DefaultHTTPSPort = 443
 )
@@ -30,6 +33,7 @@ type Configuration struct {
 		Phishing string `toml:"phishing"`
 		Target   string `toml:"destination"`
 		IP       string `toml:"IP"`
+		Listener string `toml:"listener"`
 		Port     int    `toml:"port"`
 		PortMap  string `toml:"portmapping"`
 
@@ -196,6 +200,13 @@ func (s *Session) GetConfiguration() (err error) {
 	// Listening
 	if s.Config.Proxy.IP == "" {
 		s.Config.Proxy.IP = DefaultIP
+	}
+
+	// Network Listener
+	if s.Config.Proxy.Listener == "" {
+		s.Config.Proxy.Listener = DefaultListener
+	} else if !core.StringContains(strings.ToLower(s.Config.Proxy.Listener), []string{"tcp", "tcp4", "tcp6"}) {
+		s.Config.Proxy.Listener = DefaultListener
 	}
 
 	if s.Config.Proxy.Port == 0 {
