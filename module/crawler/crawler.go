@@ -61,7 +61,8 @@ func (module *Crawler) Author() string {
 }
 
 // Prompt prints module status based on the provided parameters
-func (module *Crawler) Prompt(what string) {
+func (module *Crawler) Prompt() {
+	module.Raw("No options are available for this module")
 }
 
 // Load configures the module by initializing its main structure and variables

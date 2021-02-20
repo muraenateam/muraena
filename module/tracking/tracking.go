@@ -66,10 +66,21 @@ func (module *Tracker) Author() string {
 }
 
 // Prompt prints module status based on the provided parameters
-func (module *Tracker) Prompt(what string) {
-	switch strings.ToLower(what) {
+func (module *Tracker) Prompt() {
+
+	menu := []string{
+		"victims",
+		"credentials",
+	}
+	result, err := session.DoModulePrompt(Name, menu)
+	if err != nil {
+		return
+	}
+
+	switch result {
 	case "victims":
 		module.ShowVictims()
+
 	case "credentials":
 		module.ShowCredentials()
 	}

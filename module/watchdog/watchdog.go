@@ -80,28 +80,24 @@ func (module *Watchdog) Author() string {
 }
 
 // Prompt prints module status based on the provided parameters
-func (module *Watchdog) Prompt(what string) {
+func (module *Watchdog) Prompt() {
 
-	prompt := promptui.Select{
-		Label: "Watchdog actions:",
-		Items: []string{
-			"rules",
-			"flush",
-			"reload",
-			"save",
-			"add",
-			"remove",
-			"response",
-		},
+	menu := []string{
+		"rules",
+		"flush",
+		"reload",
+		"save",
+		"add",
+		"remove",
+		"response",
 	}
-	_, result, err := prompt.Run()
+	result, err := session.DoModulePrompt(Name, menu)
 	if err != nil {
-		module.Error("Prompt failed %v\n", err)
 		return
 	}
 
-	switch strings.ToLower(result) {
 
+	switch result {
 	case "rules":
 		module.PrintRules()
 

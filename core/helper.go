@@ -131,3 +131,13 @@ func IsError(err error) bool {
 
 	return ei.IsError()
 }
+
+// StringContains checks if a string is contained in a slice of strings
+func StringContains(v string, a []string) bool {
+	for _, i := range a {
+		if i == v {
+			return true
+		}
+	}
+	return false
+}

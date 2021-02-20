@@ -74,7 +74,9 @@ func (module *Necrobrowser) Author() string {
 }
 
 // Prompt prints module status based on the provided parameters
-func (module *Necrobrowser) Prompt(what string) {}
+func (module *Necrobrowser) Prompt() {
+	module.Raw("No options are available for this module")
+}
 
 // Load configures the module by initializing its main structure and variables
 func Load(s *session.Session) (m *Necrobrowser, err error) {

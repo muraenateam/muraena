@@ -17,7 +17,7 @@ const (
 	Name = "static.http"
 
 	// Description of this module
-	Description = "Expose a simple HTTP server to serve static resources during the MiTM session"
+	Description = "Exposes a simple HTTP server to serve static resources during the MiTM session"
 
 	// Author of this module
 	Author = "Muraena Team"
@@ -53,7 +53,8 @@ func (module *StaticHTTP) Author() string {
 }
 
 // Prompt prints module status based on the provided parameters
-func (module *StaticHTTP) Prompt(what string) {
+func (module *StaticHTTP) Prompt() {
+	module.Raw("No options are available for this module")
 }
 
 // Load configures the module by initializing its main structure and variables
