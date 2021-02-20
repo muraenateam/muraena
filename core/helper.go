@@ -46,15 +46,6 @@ func (response *Response) Unpack() (buffer []byte, err error) {
 	default:
 		rc = response.Body
 		buffer, _ = ioutil.ReadAll(rc)
-		/*
-		if err != nil {
-			return nil, err
-		}
-		err = response.Body.Close()
-		if err != nil {
-			return nil, err
-		}
-		 */
 		defer rc.Close()
 	}
 	return
@@ -121,4 +112,22 @@ func packDeflate(i []byte) ([]byte, error) {
 		return nil, err
 	}
 	return b.Bytes(), nil
+}
+
+type iError interface {
+	IsError() bool
+}
+
+// https://mikeschinkel.me/2019/gos-unfortunate-err-nil-idiom/
+func IsError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	ei, ok := err.(iError)
+	if !ok {
+		return true
+	}
+
+	return ei.IsError()
 }

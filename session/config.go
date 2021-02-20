@@ -18,7 +18,6 @@ const (
 	DefaultHTTPSPort = 443
 )
 
-
 // Configuration
 type Configuration struct {
 	Protocol       string   `toml:"-"`
@@ -94,11 +93,11 @@ type Configuration struct {
 	// TLS
 	//
 	TLS struct {
-		Enabled            bool   `toml:"enabled"`
-		Expand             bool   `toml:"expand"`
-		Certificate        string `toml:"certificate"`
-		Key                string `toml:"key"`
-		Root               string `toml:"root"`
+		Enabled     bool   `toml:"enabled"`
+		Expand      bool   `toml:"expand"`
+		Certificate string `toml:"certificate"`
+		Key         string `toml:"key"`
+		Root        string `toml:"root"`
 
 		CertificateContent string `toml:"-"`
 		KeyContent         string `toml:"-"`
@@ -137,6 +136,16 @@ type Configuration struct {
 		LocalPath string `toml:"localPath"`
 		URLPath   string `toml:"urlPath"`
 	} `toml:"staticServer"`
+
+	//
+	// Watchdog
+	//
+	Watchdog struct {
+		Enabled bool   `toml:"enabled"`
+		Dynamic bool   `toml:"dynamic"`
+		Rules   string `toml:"rules"`
+		GeoDB   string `toml:"geoDB"`
+	} `toml:"watchdog"`
 
 	//
 	// Tracking

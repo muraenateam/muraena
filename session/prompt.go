@@ -48,6 +48,9 @@ func Prompt(s *Session) {
 			exit()
 		case "victims", "credentials":
 			s.showTracking(result)
+
+		case "watchdog":
+			s.Watchdog("")
 		}
 
 	}
@@ -59,7 +62,8 @@ func validate(input string) error {
 		"", "h",
 		"help",
 		"exit",
-		"victims", "credentials":
+		"victims", "credentials",
+		"watchdog":
 		return nil
 	}
 
@@ -75,6 +79,7 @@ func help() {
 	log.Raw("* - exit: %s", tui.Bold("Exit from "+core.Name))
 	log.Raw("* - victims: %s", tui.Bold("Show active victims"))
 	log.Raw("* - credentials: %s", tui.Bold("Show collected credentials"))
+	log.Raw("* - watchdog: %s", tui.Bold("Interact with watchdog module"))
 	log.Raw("**************************************************************************")
 
 }
@@ -94,6 +99,17 @@ func exit() {
 func (s *Session) showTracking(what string) {
 
 	m, err := s.Module("tracker")
+	if err != nil {
+		log.Error("%s", err)
+		return
+	}
+
+	m.Prompt(what)
+}
+
+
+func (s *Session) Watchdog(what string) {
+	m, err := s.Module("watchdog")
 	if err != nil {
 		log.Error("%s", err)
 		return

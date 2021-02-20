@@ -2,9 +2,10 @@ package session
 
 import (
 	"fmt"
-	"github.com/muraenateam/muraena/core/db"
 	"os"
 	"runtime"
+
+	"github.com/muraenateam/muraena/core/db"
 
 	"github.com/evilsocket/islazy/log"
 	"github.com/evilsocket/islazy/tui"

@@ -151,6 +151,16 @@
 
 
 #
+# WATCHDOG
+#
+[watchdog]
+	enabled = true
+	# Monitor rules file changes and reload
+	dynamic = true
+	rules = "./config/watchdog.rules"
+	geoDb = "./config/geodb.mmdb"
+
+#
 # TRACKING
 #
 [tracking]

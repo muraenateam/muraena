@@ -55,6 +55,10 @@ func (m *SessionModule) Error(format string, args ...interface{}) {
 	log.Error(m.tag+format, args...)
 }
 
+func (m *SessionModule) Err(error error) {
+	log.Error(m.tag+"%v", error)
+}
+
 func (m *SessionModule) Fatal(format string, args ...interface{}) {
 	log.Fatal(m.tag+format, args...)
 }
