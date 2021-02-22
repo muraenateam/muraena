@@ -129,6 +129,17 @@ type Configuration struct {
 		Enabled  bool   `toml:"enabled"`
 		Endpoint string `toml:"endpoint"`
 		Profile  string `toml:"profile"`
+
+		Keepalive struct {
+			Enabled bool `toml:"enabled"`
+			Minutes int  `toml:"minutes"`
+		} `toml:"keepalive"`
+
+		Trigger struct {
+			Type   string   `toml:"type"`
+			Values []string `toml:"values"`
+			Delay  int      `toml:"delay"`
+		} `toml:"trigger"`
 	} `toml:"necrobrowser"`
 
 	//
@@ -163,6 +174,7 @@ type Configuration struct {
 		Domain     string `toml:"domain"`
 		IPSource   string `toml:"ipSource"`
 		Regex      string `toml:"regex"`
+		RedirectTo string `toml:"redirectTo"`
 
 		Urls struct {
 			Credentials []string `toml:"credentials"`
