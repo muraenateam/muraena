@@ -142,7 +142,7 @@ func (module *Necrobrowser) CheckSessionCookies() {
 		module.Debug("error fetching all victims: %s", err)
 	}
 
-	module.Debug("checkSessions: we have %d victim sessions. Checking authenticated ones.. ", len(victims))
+	// module.Debug("checkSessions: we have %d victim sessions. Checking authenticated ones.. ", len(victims))
 
 	for _, vId := range victims {
 		cookieJar, err := db.GetVictimCookiejar(vId)

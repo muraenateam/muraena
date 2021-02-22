@@ -12,6 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/manifoldco/promptui"
+
+	"github.com/muraenateam/muraena/core"
 	"github.com/muraenateam/muraena/core/db"
 
 	"github.com/evilsocket/islazy/tui"
@@ -71,6 +74,7 @@ func (module *Tracker) Prompt() {
 	menu := []string{
 		"victims",
 		"credentials",
+		"export",
 	}
 	result, err := session.DoModulePrompt(Name, menu)
 	if err != nil {
@@ -85,11 +89,17 @@ func (module *Tracker) Prompt() {
 		module.ShowCredentials()
 
 	case "export":
+		prompt := promptui.Prompt{
+			Label: "Enter session identifier",
+		}
 
-		// TODO
+		result, err := prompt.Run()
+		if core.IsError(err) {
+			module.Warning("%v+\n", err)
+			return
+		}
 
-		module.ExportSession("XX")
-
+		module.ExportSession(result)
 	}
 }
 

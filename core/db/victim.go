@@ -216,7 +216,7 @@ func GetVictimCookiejar(id string) ([]VictimCookie, error) {
 		return nil, err
 	}
 
-	log.Debug("Victim %s has %d cookies in the cookiejar", id, len(values))
+	// log.Debug("Victim %s has %d cookies in the cookiejar", id, len(values))
 
 	var cookiejar []VictimCookie
 	for _, name := range values {
