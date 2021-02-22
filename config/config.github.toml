@@ -1,12 +1,17 @@
 [proxy]
 # Phishing domain
-phishing = "phishing.com"
+phishing = "phishing.click"
 
 # Target domain to proxy
 destination = "github.com"
 
-# Listening IP address
-IP = "0.0.0.0"
+# Listening IP address (IPv4 or IPv6)
+# e.g. 0.0.0.0 or [::]
+IP = "127.0.0.1"
+
+# Listen announces on the local network address.
+# The network must be "tcp", "tcp4", "tcp6"
+listener = "tcp4"
 
 # Listeninng TCP Port
 port = 443
@@ -149,6 +154,16 @@ urlPath = "/evilpath/"
 
 
 #
+# WATCHDOG
+#
+[watchdog]
+enabled = true
+# Monitor rules file changes and reload
+dynamic = true
+rules = "./config/watchdog.rules"
+geoDb = "./config/geodb.mmdb"
+
+#
 # TRACKING
 #
 [tracking]
@@ -165,6 +180,12 @@ identifier = "_GithubProfile_"
 
 # Rule to generate and validate a tracking identifier
 regex = "[a-zA-Z0-9]{3}-[a-zA-Z0-9]{3}-[a-zA-Z0-9]{3}"
+
+# Tracking initial HTTP Header (empty is: If-Range)
+header = "X-If-Range"
+
+# Landing HTTP Header (empty is: X-If-Landing-Redirect)
+landing = "X-If-Landing-Redirect"
 
 [tracking.urls]
 credentials = [ "/session" ]

