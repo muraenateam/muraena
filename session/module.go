@@ -12,7 +12,7 @@ type Module interface {
 	Name() string
 	Description() string
 	Author() string
-	Prompt(what string)
+	Prompt()
 }
 
 type SessionModule struct {
@@ -53,6 +53,14 @@ func (m *SessionModule) Warning(format string, args ...interface{}) {
 
 func (m *SessionModule) Error(format string, args ...interface{}) {
 	log.Error(m.tag+format, args...)
+}
+
+func (m *SessionModule) Err(error error) {
+	log.Error(m.tag+"%v", error)
+}
+
+func (m *SessionModule) Raw(format string, args ...interface{}) {
+	log.Raw(m.tag+format, args...)
 }
 
 func (m *SessionModule) Fatal(format string, args ...interface{}) {

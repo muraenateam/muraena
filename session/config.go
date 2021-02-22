@@ -10,14 +10,16 @@ import (
 	"github.com/evilsocket/islazy/tui"
 	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
+
+	"github.com/muraenateam/muraena/core"
 )
 
 const (
 	DefaultIP        = "0.0.0.0"
+	DefaultListener  = "tcp"
 	DefaultHTTPPort  = 80
 	DefaultHTTPSPort = 443
 )
-
 
 // Configuration
 type Configuration struct {
@@ -31,6 +33,7 @@ type Configuration struct {
 		Phishing string `toml:"phishing"`
 		Target   string `toml:"destination"`
 		IP       string `toml:"IP"`
+		Listener string `toml:"listener"`
 		Port     int    `toml:"port"`
 		PortMap  string `toml:"portmapping"`
 
@@ -94,11 +97,11 @@ type Configuration struct {
 	// TLS
 	//
 	TLS struct {
-		Enabled            bool   `toml:"enabled"`
-		Expand             bool   `toml:"expand"`
-		Certificate        string `toml:"certificate"`
-		Key                string `toml:"key"`
-		Root               string `toml:"root"`
+		Enabled     bool   `toml:"enabled"`
+		Expand      bool   `toml:"expand"`
+		Certificate string `toml:"certificate"`
+		Key         string `toml:"key"`
+		Root        string `toml:"root"`
 
 		CertificateContent string `toml:"-"`
 		KeyContent         string `toml:"-"`
@@ -126,6 +129,17 @@ type Configuration struct {
 		Enabled  bool   `toml:"enabled"`
 		Endpoint string `toml:"endpoint"`
 		Profile  string `toml:"profile"`
+
+		Keepalive struct {
+			Enabled bool `toml:"enabled"`
+			Minutes int  `toml:"minutes"`
+		} `toml:"keepalive"`
+
+		Trigger struct {
+			Type   string   `toml:"type"`
+			Values []string `toml:"values"`
+			Delay  int      `toml:"delay"`
+		} `toml:"trigger"`
 	} `toml:"necrobrowser"`
 
 	//
@@ -139,15 +153,28 @@ type Configuration struct {
 	} `toml:"staticServer"`
 
 	//
+	// Watchdog
+	//
+	Watchdog struct {
+		Enabled bool   `toml:"enabled"`
+		Dynamic bool   `toml:"dynamic"`
+		Rules   string `toml:"rules"`
+		GeoDB   string `toml:"geoDB"`
+	} `toml:"watchdog"`
+
+	//
 	// Tracking
 	//
 	Tracking struct {
 		Enabled    bool   `toml:"enabled"`
 		Type       string `toml:"type"`
 		Identifier string `toml:"identifier"`
+		Header     string `toml:"header"`
+		Landing    string `toml:"landing"`
 		Domain     string `toml:"domain"`
 		IPSource   string `toml:"ipSource"`
 		Regex      string `toml:"regex"`
+		RedirectTo string `toml:"redirectTo"`
 
 		Urls struct {
 			Credentials []string `toml:"credentials"`
@@ -185,6 +212,13 @@ func (s *Session) GetConfiguration() (err error) {
 	// Listening
 	if s.Config.Proxy.IP == "" {
 		s.Config.Proxy.IP = DefaultIP
+	}
+
+	// Network Listener
+	if s.Config.Proxy.Listener == "" {
+		s.Config.Proxy.Listener = DefaultListener
+	} else if !core.StringContains(strings.ToLower(s.Config.Proxy.Listener), []string{"tcp", "tcp4", "tcp6"}) {
+		s.Config.Proxy.Listener = DefaultListener
 	}
 
 	if s.Config.Proxy.Port == 0 {

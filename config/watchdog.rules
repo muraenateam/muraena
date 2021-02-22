@@ -1,0 +1,22 @@
+#
+# Muraena watchdog rules file
+#
+# The engine works in DEFAULT ALLOW mode.
+#
+# Syntax:
+#   Match All [*] (Useful for creating a whitelist)
+#   Match IP [e.g. 203.0.113.6 or 2001:db8::68]
+#   Match IP Network [e.g.: 192.0.2.0/24 or ::1/128]
+#   Match Hostname [e.g. crawl-66-249-66-1.googlebot.com]
+#   Match Hostname RegExp [e.g.: ~ .*\.cox\.net]
+#   Match Geofence [e.g.: @ 39.377297 -74.451082 (7km)]
+#
+# Example 1:
+# Block everything, only allow access from localhost:
+#  *
+#  ! ::1  		# Allow localhost IPv6
+#  ! 127.0.0.1	# Allow localhost IPv4
+#
+# Interactive Prompt:
+# You can interact with watchdog by typing in the prompt: watchdog
+#
