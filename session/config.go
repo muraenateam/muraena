@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"sort"
 	"strings"
 
-	"github.com/evilsocket/islazy/tui"
 	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
 
@@ -298,26 +296,14 @@ func (s *Session) GetConfiguration() (err error) {
 	return
 }
 
-func (s *Session) UpdateConfiguration(externalOrigins, subdomains, uniqueDomains *[]string) (err error) {
+func (s *Session) UpdateConfiguration(domains *[]string) (err error) {
 	config := s.Config
-
-	// ASCII tables on the terminal
-	columns := []string{"Domains", "#"}
-	rows := [][]string{
-		{"External domains", fmt.Sprintf("%v", len(*externalOrigins))},
-		{"Subdomains", fmt.Sprintf("%v", len(*subdomains))},
-		{"----------------", fmt.Sprintf("---")},
-		{"Unique domains", fmt.Sprintf("%v", len(*uniqueDomains))},
-	}
-
-	tui.Table(os.Stdout, columns, rows)
 
 	//
 	// Update config
 	//
 	// Disable crawler and update external domains
-	sort.Sort(sort.StringSlice(*externalOrigins))
-	config.Crawler.ExternalOrigins = *externalOrigins
+	config.Crawler.ExternalOrigins = *domains
 	config.Crawler.Enabled = false
 
 	// Update TLS accordingly

