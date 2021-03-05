@@ -6,8 +6,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/muraenateam/muraena/core/db"
-
 	"github.com/evilsocket/islazy/log"
 	"github.com/evilsocket/islazy/tui"
 
@@ -64,14 +62,18 @@ func New() (*Session, error) {
 		return nil, err
 	}
 
+	// Load Redis
+	if s.Config.Redis.Enabled {
+		if err = s.InitRedis(); err != nil {
+			log.Error("%s", err)
+		} else {
+			log.Info("Connected to Redis")
+		}
+	}
+
 	// Load prompt
 	go Prompt(s)
 
-	// Init Redis and MaxMind
-	if err = db.Init(); err != nil {
-		return nil, err
-	}
-	log.Info("Connected to Redis")
 	return s, nil
 }
 
