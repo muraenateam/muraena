@@ -10,8 +10,8 @@ import (
 
 	"gopkg.in/resty.v1"
 
-	session "github.com/muraenateam/muraena/session"
 	"github.com/muraenateam/muraena/core/db"
+	"github.com/muraenateam/muraena/session"
 )
 
 const (

