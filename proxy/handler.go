@@ -11,12 +11,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/muraenateam/muraena/core/db"
-
 	. "github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
 
-	"github.com/muraenateam/muraena/core"
+	"github.com/muraenateam/muraena/core/db"
 	"github.com/muraenateam/muraena/log"
 	"github.com/muraenateam/muraena/module/statichttp"
 	"github.com/muraenateam/muraena/module/tracking"
@@ -328,7 +326,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 	// BODY
 	//
 	// unpack response body
-	modResponse := core.Response{Response: response}
+	modResponse := Response{Response: response}
 	responseBuffer, err := modResponse.Unpack()
 	if err != nil {
 		log.Info("Error reading/deflating response: %+v", err)

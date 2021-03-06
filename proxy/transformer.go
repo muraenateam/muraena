@@ -8,6 +8,7 @@ import (
 
 	"github.com/evilsocket/islazy/tui"
 
+	"github.com/muraenateam/muraena/core"
 	"github.com/muraenateam/muraena/log"
 )
 
@@ -47,6 +48,7 @@ type Base64 struct {
 }
 
 //
+// Transform:
 // If used with forward=true, Transform uses Replacer to replace all occurrences of the phishing origin, the external domains defined,
 // as well as the rest of the data to be replaced defined in MakeReplacements(), with the target real origin.
 // If used with forward=false, Transform will replace data coming from the targeted origin
@@ -117,7 +119,7 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 				}
 
 				for _, element := range matchSubdomains {
-					if contains(rep, element) {
+					if core.StringContains(element, rep) {
 						continue
 					}
 
