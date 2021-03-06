@@ -134,6 +134,18 @@
     key = "./config/privkey.pem"
     root = "./config/fullchain.pem"
 
+	#
+	# Danger zone, be careful editing these settings
+	#
+	# Minimum supported TLS version: SSL3.0, TLS1.0, TLS1.1, TLS1.2, TLS1.3
+	minVersion = "TLS1.2"
+	preferServerCipherSuites = true
+	sessionTicketsDisabled =  true
+	# InsecureSkipVerify controls whether muraena verifies the server's
+	# certificate chain and host name.
+	insecureSkipVerify = false
+
+
 #
 # CRAWLER
 #

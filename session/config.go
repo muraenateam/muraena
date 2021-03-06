@@ -114,6 +114,12 @@ type Configuration struct {
 		CertificateContent string `toml:"-"`
 		KeyContent         string `toml:"-"`
 		RootContent        string `toml:"-"`
+
+		// Minimum supported TLS version: SSL3, TLS1, TLS1.1, TLS1.2, TLS1.3
+		MinVersion               string `toml:"minVersion"`
+		PreferServerCipherSuites bool   `toml:"preferServerCipherSuites"`
+		SessionTicketsDisabled   bool   `toml:"SessionTicketsDisabled"`
+		InsecureSkipVerify       bool   `toml:"insecureSkipVerify"`
 	} `toml:"tls"`
 
 	//
@@ -288,6 +294,12 @@ func (s *Session) GetConfiguration() (err error) {
 		}
 
 		s.Config.Protocol = "https://"
+
+		s.Config.TLS.MinVersion = strings.ToUpper(s.Config.TLS.MinVersion)
+		if !core.StringContains(s.Config.TLS.MinVersion, []string{"SSL3.0", "TLS1.0", "TLS1.1", "TLS1.2", "TLS1.3"}) {
+			// Fallback to TLS1
+			s.Config.TLS.MinVersion = "TLS1.0"
+		}
 	}
 
 	s.Config.Crawler.OriginsMapping = make(map[string]string)

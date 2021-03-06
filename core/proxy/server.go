@@ -21,6 +21,11 @@ type tlsServer struct {
 	Cert     string
 	Key      string
 	CertPool string
+
+	MinVersion               string
+	PreferServerCipherSuites bool
+	SessionTicketsDisabled   bool
+	InsecureSkipVerify       bool
 }
 
 type muraenaServer struct {
@@ -28,17 +33,23 @@ type muraenaServer struct {
 	NetListener net.Listener
 }
 
-// TODO: Allow to customize this TLS ssetup.
+var tlsVersionToConst = map[string]uint16{
+	"SSL3.0": tls.VersionSSL30,
+	"TLS1.0": tls.VersionTLS10,
+	"TLS1.1": tls.VersionTLS11,
+	"TLS1.2": tls.VersionTLS12,
+	"TLS1.3": tls.VersionTLS13,
+}
+
 func (server *tlsServer) serveTLS() (err error) {
 
-	// In an ideal world everyone would use TLS 1.2 at least, but we downgrade to
-	// accept SSL 3.0 as a minimum version, otherwise old clients will have issues
 	conf := &tls.Config{
-		MinVersion:               tls.VersionSSL30,
-		PreferServerCipherSuites: true,
-		SessionTicketsDisabled:   true,
+		MinVersion:               tlsVersionToConst[server.MinVersion],
+		PreferServerCipherSuites: server.PreferServerCipherSuites,
+		SessionTicketsDisabled:   server.SessionTicketsDisabled,
 		NextProtos:               []string{"http/1.1"},
 		Certificates:             make([]tls.Certificate, 1),
+		InsecureSkipVerify:       server.InsecureSkipVerify,
 	}
 
 	conf.Certificates[0], err = tls.X509KeyPair([]byte(server.Cert), []byte(server.Key))
@@ -79,7 +90,6 @@ func Run(sess *session.Session) {
 	// Start the reverse proxy
 	//
 	http.HandleFunc("/", func(response http.ResponseWriter, request *http.Request) {
-
 
 		// TODO: Move this out of here
 		if sess.Config.Watchdog.Enabled {
@@ -136,15 +146,20 @@ func Run(sess *session.Session) {
 		}
 
 		// Attach TLS configurations to muraena server
+		cTLS := sess.Config.TLS
 		tlsServer := &tlsServer{
 			muraenaServer: muraena,
-			Cert:          sess.Config.TLS.CertificateContent,
-			Key:           sess.Config.TLS.KeyContent,
-			CertPool:      sess.Config.TLS.RootContent,
+			Cert:          cTLS.CertificateContent,
+			Key:           cTLS.KeyContent,
+			CertPool:      cTLS.RootContent,
+
+			MinVersion:               cTLS.MinVersion,
+			PreferServerCipherSuites: cTLS.PreferServerCipherSuites,
+			SessionTicketsDisabled:   cTLS.SessionTicketsDisabled,
+			InsecureSkipVerify:       cTLS.InsecureSkipVerify,
 		}
 		if err := tlsServer.serveTLS(); core.IsError(err) {
 			log.Fatal("Error binding Muraena on HTTPS: %s", err)
 		}
 	}
 }
-
