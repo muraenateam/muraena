@@ -95,9 +95,8 @@ type Configuration struct {
 	// DB (Redis)
 	//
 	Redis struct {
-		Enabled bool `toml:"enabled"`
-		Host string `toml:"host"`
-		Port int `toml:"port"`
+		Host     string `toml:"host"`
+		Port     int    `toml:"port"`
 		Password string `toml:"password"`
 	} `toml:"redis"`
 

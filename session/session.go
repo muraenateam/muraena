@@ -63,13 +63,11 @@ func New() (*Session, error) {
 	}
 
 	// Load Redis
-	if s.Config.Redis.Enabled {
-		if err = s.InitRedis(); err != nil {
-			log.Error("%s", err)
-		} else {
-			log.Info("Connected to Redis")
-		}
+	if err = s.InitRedis(); err != nil {
+		log.Fatal("%s", err)
 	}
+
+	log.Info("Connected to Redis")
 
 	// Load prompt
 	go Prompt(s)

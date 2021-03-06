@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/evilsocket/islazy/tui"
 	"github.com/gomodule/redigo/redis"
 )
 
@@ -35,15 +36,15 @@ func (s *Session) InitRedis() error {
 
 	// init a new Redis db Pool
 	RedisPool = newRedisPool()
-	if RedisPool == nil {
-		config.Enabled = false
-		return errors.New("error connecting to redis")
+	if _, err := RedisPool.Dial(); err != nil {
+		return errors.New(fmt.Sprintf("%s %s", tui.Wrap(tui.BACKLIGHTBLUE, tui.Wrap(tui.FOREBLACK, "redis")), err.Error()))
 	}
 
 	return nil
 }
 
 func newRedisPool() *redis.Pool {
+
 	return &redis.Pool{
 		MaxIdle:     3,
 		IdleTimeout: 240 * time.Second,

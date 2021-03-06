@@ -22,7 +22,7 @@ type SessionModule struct {
 }
 
 func AsTag(name string) string {
-	return fmt.Sprintf("[%s] ", tui.Wrap(tui.BACKLIGHTBLUE, tui.Wrap(tui.FOREBLACK, name)))
+	return fmt.Sprintf("%s ", tui.Wrap(tui.BACKLIGHTBLUE, tui.Wrap(tui.FOREBLACK, name)))
 }
 
 func NewSessionModule(name string, s *Session) SessionModule {
