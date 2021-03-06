@@ -15,7 +15,7 @@ import (
 	"gopkg.in/resty.v1"
 	"mvdan.cc/xurls/v2"
 
-	"github.com/muraenateam/muraena/proxy"
+	"github.com/muraenateam/muraena/core/proxy"
 	"github.com/muraenateam/muraena/session"
 )
 
