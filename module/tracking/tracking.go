@@ -446,7 +446,7 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 						if err != nil {
 							return false, err
 						}
-						t.Info("[%s] New credentials! [%s:%s]", t.ID, creds.Key, creds.Value)
+						t.Info("[%s] New credentials! [%s:%s]", t.ID)
 						found = true
 					}
 				}

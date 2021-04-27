@@ -319,7 +319,7 @@ func (r *Replacer) DomainMapping() (err error) {
 
 	d := strings.Split(r.Target, ".")
 	baseDom := fmt.Sprintf("%s.%s", d[len(d)-2], d[len(d)-1])
-	log.Info("Proxy destination: %s", tui.Bold(tui.Green("*."+baseDom)))
+	log.Debug("Proxy destination: %s", tui.Bold(tui.Green("*."+baseDom)))
 
 	r.ExternalOrigin = ArmorDomain(r.ExternalOrigin)
 	r.OriginsMapping = make(map[string]string)
@@ -350,7 +350,7 @@ func (r *Replacer) DomainMapping() (err error) {
 			r.WildcardDomain = o
 			r.WildcardMapping[domain] = o
 			//log.Info("Wild Including [%s]=%s", domain, o)
-			log.Info(fmt.Sprintf("Wild Including [%s]=%s", domain, o))
+			log.Debug(fmt.Sprintf("Wild Including [%s]=%s", domain, o))
 
 		} else {
 			count++
@@ -358,7 +358,7 @@ func (r *Replacer) DomainMapping() (err error) {
 			o := fmt.Sprintf("%s%d", r.ExternalOriginPrefix, count)
 			r.OriginsMapping[domain] = o
 			//log.Info("Including [%s]=%s", domain, o)
-			log.Info(fmt.Sprintf("Including [%s]=%s", domain, o))
+			log.Debug(fmt.Sprintf("Including [%s]=%s", domain, o))
 		}
 
 	}
@@ -367,7 +367,7 @@ func (r *Replacer) DomainMapping() (err error) {
 		Wildcards = true
 	}
 
-	log.Info("Processed %d domains to transform, %d are wildcards", count, wildcards)
+	log.Debug("Processed %d domains to transform, %d are wildcards", count, wildcards)
 
 	return
 }
