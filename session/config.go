@@ -119,6 +119,7 @@ type Configuration struct {
 		PreferServerCipherSuites bool   `toml:"preferServerCipherSuites"`
 		SessionTicketsDisabled   bool   `toml:"SessionTicketsDisabled"`
 		InsecureSkipVerify       bool   `toml:"insecureSkipVerify"`
+		RenegotiationSupport     string `toml:"renegotiationSupport"`
 	} `toml:"tls"`
 
 	//
@@ -299,6 +300,13 @@ func (s *Session) GetConfiguration() (err error) {
 			// Fallback to TLS1
 			s.Config.TLS.MinVersion = "TLS1.0"
 		}
+
+		s.Config.TLS.RenegotiationSupport = strings.ToUpper(s.Config.TLS.RenegotiationSupport)
+		if !core.StringContains(s.Config.TLS.RenegotiationSupport, []string{"NEVER", "ONCE", "FREELY"}) {
+			// Fallback to NEVER
+			s.Config.TLS.RenegotiationSupport = "NEVER"
+		}
+
 	}
 
 	s.Config.Crawler.OriginsMapping = make(map[string]string)

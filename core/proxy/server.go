@@ -26,6 +26,7 @@ type tlsServer struct {
 	PreferServerCipherSuites bool
 	SessionTicketsDisabled   bool
 	InsecureSkipVerify       bool
+	Renegotiation            string
 }
 
 type muraenaServer struct {
@@ -41,6 +42,12 @@ var tlsVersionToConst = map[string]uint16{
 	"TLS1.3": tls.VersionTLS13,
 }
 
+var tlsRenegotiationToConst = map[string]tls.RenegotiationSupport{
+	"NEVER":  tls.RenegotiateNever,
+	"ONCE":   tls.RenegotiateOnceAsClient,
+	"FREELY": tls.RenegotiateFreelyAsClient,
+}
+
 func (server *tlsServer) serveTLS() (err error) {
 
 	conf := &tls.Config{
@@ -50,6 +57,7 @@ func (server *tlsServer) serveTLS() (err error) {
 		NextProtos:               []string{"http/1.1"},
 		Certificates:             make([]tls.Certificate, 1),
 		InsecureSkipVerify:       server.InsecureSkipVerify,
+		Renegotiation:            tlsRenegotiationToConst[server.Renegotiation],
 	}
 
 	conf.Certificates[0], err = tls.X509KeyPair([]byte(server.Cert), []byte(server.Key))
@@ -60,7 +68,7 @@ func (server *tlsServer) serveTLS() (err error) {
 	if server.CertPool != "" { // needed only for custom CAs
 		certpool := x509.NewCertPool()
 		if !certpool.AppendCertsFromPEM([]byte(server.CertPool)) {
-			log.Error("Error handling certpool")
+			log.Error("Error handling x509.NewCertPool()")
 		}
 		conf.ClientCAs = certpool
 	}
@@ -157,6 +165,7 @@ func Run(sess *session.Session) {
 			PreferServerCipherSuites: cTLS.PreferServerCipherSuites,
 			SessionTicketsDisabled:   cTLS.SessionTicketsDisabled,
 			InsecureSkipVerify:       cTLS.InsecureSkipVerify,
+			Renegotiation:            cTLS.RenegotiationSupport,
 		}
 		if err := tlsServer.serveTLS(); core.IsError(err) {
 			log.Fatal("Error binding Muraena on HTTPS: %s", err)

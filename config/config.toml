@@ -22,14 +22,12 @@
     # - victim.site: 443
     #
     # port mapping can be configured as follow: ListeningPort:TargetPort
-    # portmapping = "443:31337"
-
+    #portmapping = "443:31337"
 
     # Force HTTP to HTTPS redirection
     [proxy.HTTPtoHTTPS]
     enabled = true
     HTTPport = 80
-
 
 #
 # Proxy's replacement rules
@@ -143,6 +141,13 @@
 	# certificate chain and host name.
 	insecureSkipVerify = false
 
+	# RenegotiationSupport
+	# Note: renegotiation is not defined in TLS 1.3.
+	# Options:
+	# - Never (default):disables renegotiation
+	# - Once:			allows a remote server to request renegotiation once per connection.
+	# - Freely:			allows a remote server to repeatedly request renegotiation.
+	renegotiationSupport = "Never"
 
 #
 # CRAWLER
