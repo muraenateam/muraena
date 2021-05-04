@@ -73,7 +73,8 @@
 
     [remove.request]
         headers = [
-            "X-Forwarded-For"
+            "X-Forwarded-For",
+			#"User-Agent"
         ]
 
     [remove.response]
@@ -87,6 +88,19 @@
             "Referrer-Policy",
             "X-Forwarded-For"
         ]
+
+#
+# Proxy's crafting rules
+#
+[craft]
+	[craft.add]
+		[craft.add.request]
+			[[craft.add.request.headers]]
+				#name = "User-Agent"
+				#value = "Ninja Agent"
+
+		 [craft.add.response]
+			 [[craft.add.response.headers]]
 
 #
 # Rudimental redirection rules

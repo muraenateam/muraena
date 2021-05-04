@@ -76,6 +76,28 @@ type Configuration struct {
 	} `toml:"remove"`
 
 	//
+	// Crafting rules
+	// TODO: Merge this with Wiping rule in some standard approach
+	//
+	Craft struct {
+		Add struct {
+			Request struct {
+				Headers []struct {
+					Name    string `toml:"name"`
+					Value string `toml:"value"`
+				} `toml:"headers"`
+			} `toml:"request"`
+
+			Response struct {
+				Headers []struct {
+					Name    string `toml:"name"`
+					Value string `toml:"value"`
+				} `toml:"headers"`
+			} `toml:"response"`
+		} `toml:"add"`
+	} `toml:"craft"`
+
+	//
 	// Redirection rules
 	//
 	Drop []struct {

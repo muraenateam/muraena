@@ -177,10 +177,14 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 		lhead = fmt.Sprintf("[%s]%s", track.ID, lhead)
 	}
 
+	// Add extra HTTP headers
+	for _, header := range sess.Config.Craft.Add.Request.Headers {
+		request.Header.Set(header.Name, header.Value)
+	}
+
 	l := fmt.Sprintf("%s - [%s][%s%s(%s)%s]", lhead,
 		Magenta(request.Method), Magenta(sess.Config.Protocol), Green(muraena.Origin),
 		Yellow(muraena.Target), Cyan(request.URL.Path))
-
 	log.Info(l)
 
 	//
@@ -252,6 +256,11 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 	}
 	if dropRequest {
 		return
+	}
+
+	// Add extra HTTP headers
+	for _, header := range sess.Config.Craft.Add.Response.Headers {
+		response.Header.Set(header.Name, header.Value)
 	}
 
 	// Media Type handling.
