@@ -24,10 +24,12 @@ buildall: pre
 
 update:
 	go get -u
+	go mod vendor
 	go mod tidy
+	@git commit go.mod go.sum -m "Bump dependencies 📈"
 
 lint: fmt
-	@git add . && git commit -a -m "Linting :star2:"
+	@git add . && git commit -a -m "Code linting :star2:"
 
 fmt:
 	gofmt -s -w $(PACKAGES)
