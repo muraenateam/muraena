@@ -42,9 +42,9 @@ type Crawler struct {
 }
 
 var (
-	discoveredJsUrls          []string
-	waitGroup                 sync.WaitGroup
-	rgxURLS                   *regexp.Regexp
+	discoveredJsUrls []string
+	waitGroup        sync.WaitGroup
+	rgxURLS          *regexp.Regexp
 )
 
 // Name returns the module name
@@ -157,8 +157,6 @@ func (module *Crawler) explore() {
 	c.OnResponse(func(r *colly.Response) {})
 
 	c.OnRequest(func(r *colly.Request) {})
-
-
 
 	var config *session.Configuration
 	config = module.Session.Config

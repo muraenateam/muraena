@@ -361,7 +361,6 @@ func (s *Session) GetConfiguration() (err error) {
 	}
 	s.Config.Craft.Add.Request.Headers = slice
 
-
 	return
 }
 

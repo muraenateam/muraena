@@ -30,7 +30,7 @@ func Prompt(s *Session) {
 		validate := func(input string) error {
 			input = strings.ToLower(input)
 
-			if core.StringContains(input, []string{"","h","help","e", "exit"}) {
+			if core.StringContains(input, []string{"", "h", "help", "e", "exit"}) {
 				return nil
 			}
 

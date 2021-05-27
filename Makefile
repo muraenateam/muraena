@@ -1,6 +1,6 @@
 BUILD     ?= build
 TARGET    ?= muraena
-PACKAGES  ?= core log proxy session module module/crawler module/necrobrowser module/statichttp module/tracking
+PACKAGES  ?= core log session module module/crawler module/necrobrowser module/statichttp module/tracking
 GO        ?= go
 
 all: build

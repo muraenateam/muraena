@@ -23,7 +23,7 @@ type Victim struct {
 	CookieJar           string `redis:"cookiejar_id"`
 	SessionInstrumented bool   `redis:"session_instrumented"`
 
-	Cookies     []VictimCookie `redis:"-"`
+	Cookies     []VictimCookie     `redis:"-"`
 	Credentials []VictimCredential `redis:"-"`
 }
 

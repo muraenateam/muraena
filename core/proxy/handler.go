@@ -402,11 +402,10 @@ func (init *MuraenaProxyInit) Spawn() *MuraenaProxy {
 		// If HTTP_PROXY or HTTPS_PROXY env variables are defined
 		// all the proxy traffic will be forwarded to the defined proxy.
 		// Basically a MiTM of the MiTM :)
-		config := &tls.Config{
-			InsecureSkipVerify: true,
+		proxy.Transport = &http.Transport{
+			Proxy:           http.ProxyFromEnvironment,
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
-
-		proxy.Transport = &http.Transport{TLSClientConfig: config, Proxy: http.ProxyFromEnvironment}
 	}
 
 	return muraena

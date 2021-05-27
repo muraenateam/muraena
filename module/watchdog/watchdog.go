@@ -1,4 +1,5 @@
 package watchdog
+
 // Parts of this module have been taken from ZeroDrop (https://github.com/oftn-oswg/zerodrop)
 
 import (
@@ -95,7 +96,6 @@ func (module *Watchdog) Prompt() {
 	if err != nil {
 		return
 	}
-
 
 	switch result {
 	case "rules":
