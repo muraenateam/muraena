@@ -83,14 +83,14 @@ type Configuration struct {
 		Add struct {
 			Request struct {
 				Headers []struct {
-					Name    string `toml:"name"`
+					Name  string `toml:"name"`
 					Value string `toml:"value"`
 				} `toml:"headers"`
 			} `toml:"request"`
 
 			Response struct {
 				Headers []struct {
-					Name    string `toml:"name"`
+					Name  string `toml:"name"`
 					Value string `toml:"value"`
 				} `toml:"headers"`
 			} `toml:"response"`
@@ -343,6 +343,24 @@ func (s *Session) GetConfiguration() (err error) {
 		"cmx", "dxf", "e2d", "egt", "eps", "fs", "gbr", "odg", "svg", "stl", "vrml", "x3d", "sxd", "v2d", "vnd", "wmf",
 		"emf", "art", "xar", "png", "webp", "jxr", "hdp", "wdp", "cur", "ecw", "iff", "lbm", "liff", "nrrd", "pam",
 		"pcx", "pgf", "sgi", "rgb", "rgba", "bw", "int", "inta", "sid", "ras", "sun", "tga"}
+
+	// Fix Craft config
+	slice := s.Config.Craft.Add.Response.Headers
+	for s, header := range s.Config.Craft.Add.Response.Headers {
+		if header.Name == "" {
+			slice = append(slice[:s], slice[s+1:]...)
+		}
+	}
+	s.Config.Craft.Add.Response.Headers = slice
+
+	slice = s.Config.Craft.Add.Request.Headers
+	for s, header := range s.Config.Craft.Add.Request.Headers {
+		if header.Name == "" {
+			slice = append(slice[:s], slice[s+1:]...)
+		}
+	}
+	s.Config.Craft.Add.Request.Headers = slice
+
 
 	return
 }
