@@ -198,6 +198,30 @@ func transformBase64(input string, b64 Base64, decode bool) (output string, base
 	return input, base64Found
 }
 
+func (r *Replacer) transformUrl(URL string, base64 Base64) (result string, err error) {
+	result = r.Transform(URL, true, base64)
+
+	hURL, err := url.Parse(URL)
+	if err != nil || hURL.Scheme == "" || hURL.Host == "" {
+		return
+	}
+
+	query, err := url.ParseQuery(hURL.RawQuery)
+	if err != nil {
+		return
+	}
+
+	for pKey := range query {
+		for k, v := range query[pKey] {
+			query[pKey][k] = r.Transform(v, true, base64)
+		}
+	}
+	hURL.RawQuery = query.Encode()
+	result = hURL.String()
+
+	return
+}
+
 func (r *Replacer) patchWildcard(rep []string) (prep []string) {
 
 	rep = ArmorDomain(rep)

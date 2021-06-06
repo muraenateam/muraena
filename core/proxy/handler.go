@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/evilsocket/islazy/tui"
 	. "github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
 
@@ -168,7 +169,16 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 	request.Host = muraena.Target.Host
 	for _, header := range sess.Config.Transform.Request.Headers {
 		if request.Header.Get(header) != "" {
-			request.Header.Set(header, replacer.Transform(request.Header.Get(header), true, base64))
+			hURL, err := replacer.transformUrl(request.Header.Get(header), base64)
+			if err != nil {
+				log.Warning("Error transforming request URL:\n%+v", err)
+				continue
+			}
+
+			if request.Header.Get(header) != hURL {
+				request.Header.Set(header, hURL)
+				log.Debug("Patched URL: %s in %s header", tui.Bold(tui.Red(request.Header.Get(header))), tui.Bold(tui.Red(header)))
+			}
 		}
 	}
 
