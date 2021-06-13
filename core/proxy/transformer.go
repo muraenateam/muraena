@@ -219,7 +219,7 @@ func (r *Replacer) transformUrl(URL string, base64 Base64) (result string, err e
 	hURL.RawQuery = query.Encode()
 	result = hURL.String()
 
-	return
+	return result
 }
 
 func (r *Replacer) patchWildcard(rep []string) (prep []string) {
