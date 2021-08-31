@@ -1,7 +1,9 @@
 package crawler
 
 import (
+	"crypto/tls"
 	"fmt"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
@@ -100,13 +102,21 @@ func Load(s *session.Session) (m *Crawler, err error) {
 func (module *Crawler) explore() {
 	waitGroup.Wait()
 
+	// Custom client
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	collyClient := &http.Client{Transport: tr}
+
 	c := colly.NewCollector(
 		colly.UserAgent("Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"),
-
 		// MaxDepth is by default 1, so only the links on the scraped page are visited,
 		// and no further links are followed
 		colly.MaxDepth(module.Depth),
+		colly.CheckHead(),
 	)
+
+	c.SetClient(collyClient)
 
 	numVisited := 0
 	c.OnRequest(func(r *colly.Request) {
