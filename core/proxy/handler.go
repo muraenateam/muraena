@@ -366,7 +366,6 @@ func (muraena *MuraenaProxy) ProxyErrHandler(response http.ResponseWriter, reque
 }
 
 func (init *MuraenaProxyInit) Spawn() *MuraenaProxy {
-
 	sess := init.Session
 
 	destination, err := url.Parse(init.Target)
@@ -406,9 +405,7 @@ func (init *MuraenaProxyInit) Spawn() *MuraenaProxy {
 	proxy.ErrorHandler = muraena.ProxyErrHandler
 	proxy.Transport = &http.Transport{}
 
-	if *sess.Options.Debug {
-		// Extra support for debugging the proxy.
-		//
+	if *sess.Options.Proxy {
 		// If HTTP_PROXY or HTTPS_PROXY env variables are defined
 		// all the proxy traffic will be forwarded to the defined proxy.
 		// Basically a MiTM of the MiTM :)

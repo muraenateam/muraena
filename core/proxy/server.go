@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 
 	"github.com/evilsocket/islazy/tui"
 
@@ -133,6 +134,21 @@ func Run(sess *session.Session) {
 
 	lline := fmt.Sprintf("Muraena is alive on %s \n[ %s ] ==> [ %s ]", tui.Green(listeningAddress), tui.Yellow(sess.Config.Proxy.Phishing), tui.Green(sess.Config.Proxy.Target))
 	log.Info(lline)
+
+
+
+	if *sess.Options.Proxy {
+		// If HTTP_PROXY or HTTPS_PROXY env variables are defined
+		// all the proxy traffic will be forwarded to the defined proxy.
+		// Basically a MiTM of the MiTM :)
+
+		env := os.Getenv("HTTP_PROXY")
+		if env == "" {
+			env = os.Getenv("HTTPS_PROXY")
+		}
+
+		log.Info("Muraena will be proxied to: %s", env)
+	}
 
 	if sess.Config.TLS.Enabled == false {
 		// HTTP only
