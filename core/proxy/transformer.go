@@ -201,7 +201,7 @@ func transformBase64(input string, b64 Base64, decode bool) (output string, base
 func (r *Replacer) transformUrl(URL string, base64 Base64) (result string, err error) {
 	result = r.Transform(URL, true, base64)
 
-	hURL, err := url.Parse(URL)
+	hURL, err := url.Parse(result)
 	if err != nil || hURL.Scheme == "" || hURL.Host == "" {
 		return
 	}
