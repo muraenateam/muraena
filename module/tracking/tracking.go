@@ -417,10 +417,14 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 	}
 
 	// Investigate body only if the current URL.Path is related to credentials/keys to intercept
-	// given UrlsOfInterest.Credentials URLs, intercept username/password using patterns defined in the JSON configuration
+	// given UrlsOfInterest.Credentials URLs, intercept username/password using patterns defined in the configuration
 	for _, c := range t.Session.Config.Tracking.Urls.Credentials {
 		if request.URL.Path == c {
+
+			t.Debug("[%s] there might be credentials here.")
+
 			for _, p := range t.Session.Config.Tracking.Patterns {
+
 				// Case *sensitive* matching
 				if strings.Contains(body, p.Matching) {
 
