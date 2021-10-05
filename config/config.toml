@@ -214,7 +214,7 @@
 	# Monitor rules file changes and reload
 	dynamic = true
 	rules = "./config/watchdog.rules"
-	geoDb = "./config/geodb.mmdb"
+	geoDB = "./config/geoDB.mmdb"
 
 #
 # TRACKING
