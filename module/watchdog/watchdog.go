@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/evilsocket/islazy/tui"
 	"github.com/fsnotify/fsnotify"
 	"github.com/manifoldco/promptui"
 	"github.com/oschwald/geoip2-golang"
@@ -42,14 +43,15 @@ type Watchdog struct {
 
 // Rule is a structure that represents the rules of a blacklist
 type Rule struct {
-	Raw      string
-	All      bool
-	Negation bool
-	IP       net.IP
-	Network  *net.IPNet
-	Hostname string
-	Regexp   string
-	Geofence *Geofence
+	Raw       string
+	All       bool
+	Negation  bool
+	IP        net.IP
+	Network   *net.IPNet
+	Hostname  string
+	Regexp    string
+	Geofence  *Geofence
+	UserAgent string
 }
 
 // Blacklist is a list of Rules
@@ -444,6 +446,28 @@ func ParseRules(rules string) Blacklist {
 			item.Regexp = line
 			blacklist.Add(item)
 			continue
+
+		case '>':
+			// An optional prefix ">" indicates a user-agent match.
+			line = strings.TrimSpace(line[1:])
+			item.UserAgent = line
+
+			// If > is followed by ~, a regular expression will be applied: e.g. >~ .*curl.*
+			if line[0] == '~' {
+				line = strings.TrimSpace(line[1:])
+				_, err := regexp.Compile(line)
+				if core.IsError(err) {
+					item.UserAgent = line
+					blacklist.Add(item)
+					continue
+				}
+
+				item.UserAgent = line
+				item.Regexp = line
+			}
+
+			blacklist.Add(item)
+			continue
 		}
 
 		// If a CIDR notation is given, then parse that as an IP network.
@@ -470,7 +494,11 @@ func ParseRules(rules string) Blacklist {
 }
 
 // Allow decides whether the Blacklist permits the selected IP address.
-func (module *Watchdog) Allow(ip net.IP) bool {
+//func (module *Watchdog) Allow(ip net.IP) bool {
+func (module *Watchdog) Allow(r *http.Request) bool {
+
+	ip := GetRealAddr(r)
+	ua := GetUserAgent(r)
 
 	// TODO: Hardcoded default ALLOW policy, consider to make it customizable.
 	allow := true
@@ -516,7 +544,6 @@ func (module *Watchdog) Allow(ip net.IP) bool {
 			}
 
 		} else if item.Regexp != "" {
-
 			// Regular Expression
 			regex, err := regexp.Compile(item.Regexp)
 			if core.IsError(err) {
@@ -524,16 +551,29 @@ func (module *Watchdog) Allow(ip net.IP) bool {
 				continue
 			}
 
-			names, err := net.LookupAddr(ip.String())
-			if !core.IsError(err) {
-				for _, name := range names {
-					name = strings.ToLower(name)
-					if regex.Match([]byte(name)) {
-						match = true
-						break
+			// Regex can apply to:
+			// - UserAgent
+			// - IP/Network/Etc.
+
+			if item.UserAgent != "" {
+				if regex.Match([]byte(ua)) {
+					match = true
+				}
+			} else {
+				names, err := net.LookupAddr(ip.String())
+				if !core.IsError(err) {
+					for _, name := range names {
+						name = strings.ToLower(name)
+						if regex.Match([]byte(name)) {
+							match = true
+						}
 					}
 				}
 			}
+
+		} else if item.UserAgent != "" {
+			// User-Agent
+			match = item.UserAgent == ua
 
 		} else if item.Geofence != nil {
 
@@ -589,6 +629,10 @@ func (module *Watchdog) Allow(ip net.IP) bool {
 
 	}
 
+	if !allow {
+		module.Error("Blocked visitor [%s/%s]", tui.Red(ip.String()), tui.Red(ua))
+	}
+
 	return allow
 }
 
@@ -631,7 +675,7 @@ func (module *Watchdog) MonitorRules() {
 }
 
 // GetRealAddr returns the IP address from an http.Request
-func (module *Watchdog) GetRealAddr(r *http.Request) net.IP {
+func GetRealAddr(r *http.Request) net.IP {
 
 	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
 		if parts := strings.Split(forwarded, ","); len(parts) > 0 {
@@ -646,4 +690,9 @@ func (module *Watchdog) GetRealAddr(r *http.Request) net.IP {
 	}
 
 	return net.ParseIP(r.RemoteAddr)
+}
+
+// GetUserAgent returns the User-Agent string from an http.Request
+func GetUserAgent(r *http.Request) string {
+	return r.UserAgent()
 }

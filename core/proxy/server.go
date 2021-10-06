@@ -99,8 +99,7 @@ func Run(sess *session.Session) {
 	// Start the reverse proxy
 	//
 	http.HandleFunc("/", func(response http.ResponseWriter, request *http.Request) {
-
-		// TODO: Move this out of here
+		// TODO: Configure properly middlewares.
 		if sess.Config.Watchdog.Enabled {
 			m, err := sess.Module("watchdog")
 			if err != nil {
@@ -109,11 +108,7 @@ func Run(sess *session.Session) {
 
 			wd, ok := m.(*watchdog.Watchdog)
 			if ok {
-				// get the real IP of the user, see below
-				addr := wd.GetRealAddr(request)
-
-				if !wd.Allow(addr) {
-					wd.Error("[%s blocked]", addr.String())
+				if !wd.Allow(request) {
 					wd.CustomResponse(response, request)
 					return
 				}

@@ -66,6 +66,7 @@ func (module *Watchdog) PromptResponseAction() {
 
 // BlockRequest takes action and send the visitor to a chosen destination, i.e. blocks or trolls him
 func (module *Watchdog) CustomResponse(response http.ResponseWriter, request *http.Request) {
+
 	switch module.Action.Code {
 
 	case rNginx404:
@@ -110,7 +111,9 @@ func (module *Watchdog) NginxNotFound(w http.ResponseWriter, r *http.Request) {
 
 		defer func() {
 			err := gz.Close()
-			module.Err(err)
+			if core.IsError(err) {
+				module.Err(err)
+			}
 		}()
 	}
 

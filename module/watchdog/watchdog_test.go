@@ -1,7 +1,9 @@
 package watchdog
 
 import (
+	"fmt"
 	"net"
+	"net/http"
 	"regexp"
 	"strings"
 	"testing"
@@ -11,6 +13,7 @@ import (
 )
 
 var w *Watchdog
+var r *http.Request
 
 // init test
 func init() {
@@ -22,6 +25,8 @@ func init() {
 		RulesFilePath: "",
 		GeoDBFilePath: "../../config/GeoLite2-City.mmdb",
 	}
+
+	r = &http.Request{}
 }
 
 // TestModuleName ensures the module is the same, just in case :)
@@ -152,17 +157,26 @@ func TestDefaultDenyIP(t *testing.T) {
 	// Default deny (*)
 	// allow only 127.0.0.1 (!127.0.0.1)
 	w.Raw = `*
-			  !127.0.0.1`
+             !127.0.0.1`
 	w.Reload()
 
-	allowed := w.Allow(net.ParseIP("127.0.0.1"))
-	if allowed == false {
-		t.Fatalf(`%q should be allowed. result: %v`, "127.0.0.1", allowed)
+	var tests = []struct {
+		rAddr string
+		want  bool
+	}{
+		{"127.0.0.1", true},
+		{"10.0.0.1", false},
 	}
 
-	allowed = w.Allow(net.ParseIP("10.0.0.0"))
-	if allowed == true {
-		t.Fatalf(`%q should be blocked. result: %v`, "10.0.0.0", allowed)
+	for _, tt := range tests {
+		testname := fmt.Sprintf("%s", tt.rAddr)
+		t.Run(testname, func(t *testing.T) {
+			r.RemoteAddr = tt.rAddr
+			ans := w.Allow(r)
+			if ans != tt.want {
+				t.Errorf("got %t, want %t", ans, tt.want)
+			}
+		})
 	}
 }
 
@@ -175,14 +189,23 @@ func TestDefaultAllowIP(t *testing.T) {
 			  127.0.0.1`
 	w.Reload()
 
-	allowed := w.Allow(net.ParseIP("127.0.0.1"))
-	if allowed == true {
-		t.Fatalf(`%q should be blocked. result: %v`, "127.0.0.1", allowed)
+	var tests = []struct {
+		rAddr string
+		want  bool
+	}{
+		{"127.0.0.1", false},
+		{"10.0.0.1", true},
 	}
 
-	allowed = w.Allow(net.ParseIP("10.0.0.0"))
-	if allowed == false {
-		t.Fatalf(`%q should be allowed. result: %v`, "10.0.0.0", allowed)
+	for _, tt := range tests {
+		testname := fmt.Sprintf("%s", tt.rAddr)
+		t.Run(testname, func(t *testing.T) {
+			r.RemoteAddr = tt.rAddr
+			ans := w.Allow(r)
+			if ans != tt.want {
+				t.Errorf("got %t, want %t", ans, tt.want)
+			}
+		})
 	}
 }
 
@@ -190,10 +213,24 @@ func TestBlockHostnameRegex(t *testing.T) {
 	w.Raw = `~ ^.*\.1e100\.net`
 	w.Reload()
 
-	IP, _ := net.LookupIP("google.com")
-	allowed := w.Allow(IP[0])
-	if allowed {
-		t.Fatalf(`Blacklist regex: %q should be blocked, allowed: %v`, "google.com", allowed)
+	var tests = []struct {
+		rAddr string
+		want  bool
+	}{
+		{"google.com", false},
+	}
+
+	for _, tt := range tests {
+		testname := fmt.Sprintf("%s", tt.rAddr)
+		t.Run(testname, func(t *testing.T) {
+
+			IP, _ := net.LookupIP(tt.rAddr)
+			r.RemoteAddr = IP[0].String()
+			ans := w.Allow(r)
+			if ans != tt.want {
+				t.Errorf("got %t, want %t", ans, tt.want)
+			}
+		})
 	}
 }
 
@@ -201,10 +238,102 @@ func TestAllowHostnameRegex(t *testing.T) {
 	w.Raw = `!~ ^.*\.1e100\.net`
 	w.Reload()
 
-	IP, _ := net.LookupIP("google.com")
-	allowed := w.Allow(IP[0])
-	if !allowed {
-		t.Fatalf(`Blacklist regex: %q should be allowed, allowed: %v`, "google.com", allowed)
+	var tests = []struct {
+		rAddr string
+		want  bool
+	}{
+		{"google.com", true},
+	}
+
+	for _, tt := range tests {
+		testname := fmt.Sprintf("%s", tt.rAddr)
+		t.Run(testname, func(t *testing.T) {
+
+			IP, _ := net.LookupIP(tt.rAddr)
+			r.RemoteAddr = IP[0].String()
+			ans := w.Allow(r)
+			if ans != tt.want {
+				t.Errorf("got %t, want %t", ans, tt.want)
+			}
+		})
+	}
+}
+
+func TestAllowUserAgent(t *testing.T) {
+	w.Raw = `!> Mozilla/5.0`
+	w.Reload()
+
+	var tests = []struct {
+		UA   string
+		want bool
+	}{
+		{"Mozilla/5.0", true},
+	}
+
+	for _, tt := range tests {
+		testname := fmt.Sprintf("%s", tt.UA)
+		t.Run(testname, func(t *testing.T) {
+
+			r.Header = http.Header{
+				"User-Agent": []string{tt.UA},
+			}
+			ans := w.Allow(r)
+			if ans != tt.want {
+				t.Errorf("got %t, want %t", ans, tt.want)
+			}
+		})
+	}
+}
+
+func TestDenyUserAgent(t *testing.T) {
+	w.Raw = `> Mozilla/5.0`
+	w.Reload()
+
+	var tests = []struct {
+		UA   string
+		want bool
+	}{
+		{"Mozilla/5.0", false},
+	}
+
+	for _, tt := range tests {
+		testname := fmt.Sprintf("%s", tt.UA)
+		t.Run(testname, func(t *testing.T) {
+
+			r.Header = http.Header{
+				"User-Agent": []string{tt.UA},
+			}
+			ans := w.Allow(r)
+			if ans != tt.want {
+				t.Errorf("got %t, want %t", ans, tt.want)
+			}
+		})
+	}
+}
+
+func TestDenyUserAgentRegex(t *testing.T) {
+	w.Raw = `>~ Mozilla.*`
+	w.Reload()
+
+	var tests = []struct {
+		UA   string
+		want bool
+	}{
+		{"Mozilla/5.0", false},
+	}
+
+	for _, tt := range tests {
+		testname := fmt.Sprintf("%s", tt.UA)
+		t.Run(testname, func(t *testing.T) {
+
+			r.Header = http.Header{
+				"User-Agent": []string{tt.UA},
+			}
+			ans := w.Allow(r)
+			if ans != tt.want {
+				t.Errorf("got %t, want %t", ans, tt.want)
+			}
+		})
 	}
 }
 
@@ -216,16 +345,24 @@ func TestGeofenceByCoordinates(t *testing.T) {
 			  !@43.14,12.1 (600km)` // In a lake
 	w.Reload()
 
-	allowed := w.Allow(net.ParseIP("151.46.0.1"))
-	if allowed == false {
-		t.Fatalf(`%q should be allowed. result: %v`, "127.0.0.1", allowed)
+	var tests = []struct {
+		rAddr string
+		want  bool
+	}{
+		{"151.46.0.1", true},
+		{"172.217.21.78", false},
 	}
 
-	allowed = w.Allow(net.ParseIP("172.217.21.78"))
-	if allowed == true {
-		t.Fatalf(`%q should be blocked. result: %v`, "10.0.0.0", allowed)
+	for _, tt := range tests {
+		testname := fmt.Sprintf("%s", tt.rAddr)
+		t.Run(testname, func(t *testing.T) {
+			r.RemoteAddr = tt.rAddr
+			ans := w.Allow(r)
+			if ans != tt.want {
+				t.Errorf("got %t, want %t", ans, tt.want)
+			}
+		})
 	}
-
 }
 
 func TestGeofenceByParameters(t *testing.T) {
@@ -237,19 +374,24 @@ func TestGeofenceByParameters(t *testing.T) {
 			  !@City:Mountain View`
 	w.Reload()
 
-	allowed := w.Allow(net.ParseIP("151.46.0.1"))
-	if allowed == false {
-		t.Fatalf(`%q should be allowed. result: %v`, "151.46.0.1", allowed)
+	var tests = []struct {
+		rAddr string
+		want  bool
+	}{
+		{"151.46.0.1", true},
+		{"172.217.21.78", true},
+		{"178.0.0.1", false},
 	}
 
-	allowed = w.Allow(net.ParseIP("172.217.21.78"))
-	if allowed == false {
-		t.Fatalf(`%q should be allowed. result: %v`, "172.217.21.78", allowed)
-	}
-
-	allowed = w.Allow(net.ParseIP("178.0.0.1"))
-	if allowed == true {
-		t.Fatalf(`%q should be blocked. result: %v`, "178.0.0.1", allowed)
+	for _, tt := range tests {
+		testname := fmt.Sprintf("%s", tt.rAddr)
+		t.Run(testname, func(t *testing.T) {
+			r.RemoteAddr = tt.rAddr
+			ans := w.Allow(r)
+			if ans != tt.want {
+				t.Errorf("got %t, want %t", ans, tt.want)
+			}
+		})
 	}
 }
 
