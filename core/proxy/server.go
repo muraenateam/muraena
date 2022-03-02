@@ -142,7 +142,11 @@ func Run(sess *session.Session) {
 			env = os.Getenv("HTTPS_PROXY")
 		}
 
-		log.Info("Muraena will be proxied to: %s", env)
+		if env == "" {
+			log.Error( "Unable to find proxy setup from environment variables HTTP_PROXY and HTTPs_PROXY." )
+		} else {
+			log.Info("Muraena will be proxied to: %s", env)
+		}
 	}
 
 	if sess.Config.TLS.Enabled == false {
