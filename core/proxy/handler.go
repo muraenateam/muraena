@@ -13,6 +13,7 @@ import (
 
 	"github.com/evilsocket/islazy/tui"
 	. "github.com/logrusorgru/aurora"
+	"github.com/muraenateam/muraena/core"
 	"github.com/pkg/errors"
 
 	"github.com/muraenateam/muraena/core/db"
@@ -147,8 +148,8 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 	//
 	// HEADERS
 	//
-	// Transform query string
-	query, err := url.ParseQuery(request.URL.RawQuery)
+	// Transform query string using internal core.url instead of net.url
+	query, err := core.ParseQuery(request.URL.RawQuery)
 	if err != nil {
 		log.Error("URL: %s \n %s", request.URL, err.Error())
 	}
@@ -157,15 +158,6 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 		for k, v := range query[pKey] {
 			query[pKey][k] = replacer.Transform(v, true, base64)
 		}
-	}
-
-	// FIX #65. If the query string ends with a key without value, such as: victim.com/a?test
-	// the query.Encode() automatically adds an equal sign at the end it i.e. victim.com/a?test=
-	realLast := request.URL.RawQuery[len(request.URL.RawQuery)-1:]
-	request.URL.RawQuery = query.Encode()
-	newLast := request.URL.RawQuery[len(request.URL.RawQuery)-1:]
-	if newLast == "=" && realLast != "=" {
-		request.URL.RawQuery = strings.TrimSuffix(request.URL.RawQuery, "=")
 	}
 
 	// Remove headers
