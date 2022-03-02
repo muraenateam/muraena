@@ -165,7 +165,7 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 		request.Header.Del(header)
 	}
 
-	// Transform Host and other headers of interest
+	// Transform HTTP headers of interest
 	request.Host = muraena.Target.Host
 	for _, header := range sess.Config.Transform.Request.Headers {
 		if request.Header.Get(header) != "" {
@@ -177,7 +177,7 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 
 			if request.Header.Get(header) != hURL {
 				request.Header.Set(header, hURL)
-				log.Debug("Patched URL: %s in %s header", tui.Bold(tui.Red(request.Header.Get(header))), tui.Bold(tui.Red(header)))
+				log.Debug("Patched HTTP %s to %s", tui.Bold(tui.Red(header)), tui.Bold(tui.Red(request.Header.Get(header))))
 			}
 		}
 	}

