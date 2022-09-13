@@ -347,8 +347,11 @@ func (r *Replacer) MakeReplacements() {
 
 func (r *Replacer) DomainMapping() (err error) {
 
-	d := strings.Split(r.Target, ".")
-	baseDom := fmt.Sprintf("%s.%s", d[len(d)-2], d[len(d)-1])
+	// d := strings.Split(r.Target, ".")
+	//baseDom := fmt.Sprintf("%s.%s", d[len(d)-2], d[len(d)-1])
+
+	// Changing baseDom to be the actual Target domain.
+	baseDom := r.Target
 	log.Debug("Proxy destination: %s", tui.Bold(tui.Green("*."+baseDom)))
 
 	r.ExternalOrigin = ArmorDomain(r.ExternalOrigin)
