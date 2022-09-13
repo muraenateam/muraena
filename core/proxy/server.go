@@ -23,11 +23,7 @@ type tlsServer struct {
 	Key      string
 	CertPool string
 
-	MinVersion               string
-	PreferServerCipherSuites bool
-	SessionTicketsDisabled   bool
-	InsecureSkipVerify       bool
-	Renegotiation            string
+	Config *tls.Config
 }
 
 type muraenaServer struct {
@@ -35,33 +31,8 @@ type muraenaServer struct {
 	NetListener net.Listener
 }
 
-var tlsVersionToConst = map[string]uint16{
-	"SSL3.0": tls.VersionSSL30,
-	"TLS1.0": tls.VersionTLS10,
-	"TLS1.1": tls.VersionTLS11,
-	"TLS1.2": tls.VersionTLS12,
-	"TLS1.3": tls.VersionTLS13,
-}
-
-var tlsRenegotiationToConst = map[string]tls.RenegotiationSupport{
-	"NEVER":  tls.RenegotiateNever,
-	"ONCE":   tls.RenegotiateOnceAsClient,
-	"FREELY": tls.RenegotiateFreelyAsClient,
-}
-
 func (server *tlsServer) serveTLS() (err error) {
-
-	conf := &tls.Config{
-		MinVersion:               tlsVersionToConst[server.MinVersion],
-		PreferServerCipherSuites: server.PreferServerCipherSuites,
-		SessionTicketsDisabled:   server.SessionTicketsDisabled,
-		NextProtos:               []string{"http/1.1"},
-		Certificates:             make([]tls.Certificate, 1),
-		InsecureSkipVerify:       server.InsecureSkipVerify,
-		Renegotiation:            tlsRenegotiationToConst[server.Renegotiation],
-	}
-
-	conf.Certificates[0], err = tls.X509KeyPair([]byte(server.Cert), []byte(server.Key))
+	server.Config.Certificates[0], err = tls.X509KeyPair([]byte(server.Cert), []byte(server.Key))
 	if err != nil {
 		return err
 	}
@@ -71,10 +42,10 @@ func (server *tlsServer) serveTLS() (err error) {
 		if !certpool.AppendCertsFromPEM([]byte(server.CertPool)) {
 			log.Error("Error handling x509.NewCertPool()")
 		}
-		conf.ClientCAs = certpool
+		server.Config.ClientCAs = certpool
 	}
 
-	tlsListener := tls.NewListener(server.NetListener, conf)
+	tlsListener := tls.NewListener(server.NetListener, server.Config)
 	return server.Serve(tlsListener)
 }
 
@@ -176,11 +147,7 @@ func Run(sess *session.Session) {
 			Key:           cTLS.KeyContent,
 			CertPool:      cTLS.RootContent,
 
-			MinVersion:               cTLS.MinVersion,
-			PreferServerCipherSuites: cTLS.PreferServerCipherSuites,
-			SessionTicketsDisabled:   cTLS.SessionTicketsDisabled,
-			InsecureSkipVerify:       cTLS.InsecureSkipVerify,
-			Renegotiation:            cTLS.RenegotiationSupport,
+			Config: sess.GetTLSClientConfig(),
 		}
 		if err := tlsServer.serveTLS(); core.IsError(err) {
 			log.Fatal("Error binding Muraena on HTTPS: %s", err)

@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"bytes"
-	"crypto/tls"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -410,17 +409,17 @@ func (init *MuraenaProxyInit) Spawn() *MuraenaProxy {
 	}
 	proxy.ModifyResponse = muraena.ResponseProcessor
 	proxy.ErrorHandler = muraena.ProxyErrHandler
-	proxy.Transport = &http.Transport{}
 
+	// Attach TLS configurations to proxy
+	transport := http.Transport{TLSClientConfig: sess.GetTLSClientConfig()}
 	if *sess.Options.Proxy {
 		// If HTTP_PROXY or HTTPS_PROXY env variables are defined
 		// all the proxy traffic will be forwarded to the defined proxy.
 		// Basically a MiTM of the MiTM :)
-		proxy.Transport = &http.Transport{
-			Proxy:           http.ProxyFromEnvironment,
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
+		transport.Proxy = http.ProxyFromEnvironment
+		transport.TLSClientConfig.InsecureSkipVerify = true
 	}
+	proxy.Transport = &transport
 
 	return muraena
 }
