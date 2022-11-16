@@ -6,9 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/muraenateam/muraena/module/necrobrowser"
-
 	"github.com/evilsocket/islazy/tui"
+	"github.com/muraenateam/muraena/module/necrobrowser"
 
 	"github.com/muraenateam/muraena/core/db"
 	"github.com/muraenateam/muraena/log"

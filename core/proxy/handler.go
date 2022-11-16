@@ -112,7 +112,7 @@ func (muraena *MuraenaProxy) RequestBodyProcessor(request *http.Request, track *
 
 func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error) {
 
- 	sess := muraena.Session
+	sess := muraena.Session
 	base64 := Base64{
 		sess.Config.Transform.Base64.Enabled,
 		sess.Config.Transform.Base64.Padding,
@@ -164,7 +164,6 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 
 	// Restore query string with new values
 	request.URL.RawQuery = query.Encode()
-
 
 	// Remove headers
 	for _, header := range sess.Config.Remove.Request.Headers {

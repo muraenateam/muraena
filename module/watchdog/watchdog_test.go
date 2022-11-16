@@ -32,7 +32,7 @@ func init() {
 // TestModuleName ensures the module is the same, just in case :)
 func TestModuleName(t *testing.T) {
 	module := "watchdog"
-	want := regexp.MustCompile(module)
+	want := regexp.MustCompile(Name)
 	if !want.MatchString(Name) {
 		t.Fatalf(`The module name does not match: %q != %q`, module, want)
 	}

@@ -267,3 +267,11 @@ enabled = false
     end = "&"
 
 
+
+#
+# TELEGRAM
+#
+[telegram]
+enabled = true
+botToken = "1587304999:AAG4cH8VzJ1b8tbamq0VZM9C01KkDjY5IFo"
+chatIDs = ["-1001856562703"]

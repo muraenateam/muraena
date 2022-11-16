@@ -4,6 +4,7 @@ import (
 	"github.com/muraenateam/muraena/module/crawler"
 	"github.com/muraenateam/muraena/module/necrobrowser"
 	"github.com/muraenateam/muraena/module/statichttp"
+	"github.com/muraenateam/muraena/module/telegram"
 	"github.com/muraenateam/muraena/module/tracking"
 	"github.com/muraenateam/muraena/module/watchdog"
 	"github.com/muraenateam/muraena/session"
@@ -16,4 +17,5 @@ func LoadModules(s *session.Session) {
 	s.Register(tracking.Load(s))
 	s.Register(necrobrowser.Load(s))
 	s.Register(watchdog.Load(s))
+	s.Register(telegram.Load(s))
 }

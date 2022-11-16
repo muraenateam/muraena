@@ -224,6 +224,15 @@ type Configuration struct {
 			End      string `toml:"end"`
 		} `toml:"patterns"`
 	} `toml:"tracking"`
+
+	//
+	// Telegram
+	//
+	Telegram struct {
+		Enabled  bool     `toml:"enabled"`
+		BotToken string   `toml:"botToken"`
+		ChatIDs  []string `toml:"chatIDs"`
+	} `toml:"telegram"`
 }
 
 // GetConfiguration returns the configuration object

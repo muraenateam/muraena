@@ -18,7 +18,7 @@ var tlsRenegotiationToConst = map[string]tls.RenegotiationSupport{
 	"FREELY": tls.RenegotiateFreelyAsClient,
 }
 
-func (s *Session) GetTLSClientConfig() *tls.Config{
+func (s *Session) GetTLSClientConfig() *tls.Config {
 	cTLS := s.Config.TLS
 	return &tls.Config{
 		MinVersion:               tlsVersionToConst[cTLS.MinVersion],

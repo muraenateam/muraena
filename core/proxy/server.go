@@ -101,8 +101,6 @@ func Run(sess *session.Session) {
 	lline := fmt.Sprintf("Muraena is alive on %s \n[ %s ] ==> [ %s ]", tui.Green(listeningAddress), tui.Yellow(sess.Config.Proxy.Phishing), tui.Green(sess.Config.Proxy.Target))
 	log.Info(lline)
 
-
-
 	if *sess.Options.Proxy {
 		// If HTTP_PROXY or HTTPS_PROXY env variables are defined
 		// all the proxy traffic will be forwarded to the defined proxy.
@@ -114,7 +112,7 @@ func Run(sess *session.Session) {
 		}
 
 		if env == "" {
-			log.Error( "Unable to find proxy setup from environment variables HTTP_PROXY and HTTPs_PROXY." )
+			log.Error("Unable to find proxy setup from environment variables HTTP_PROXY and HTTPs_PROXY.")
 		} else {
 			log.Info("Muraena will be proxied to: %s", env)
 		}
