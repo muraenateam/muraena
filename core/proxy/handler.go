@@ -98,7 +98,7 @@ func (muraena *MuraenaProxy) RequestBodyProcessor(request *http.Request, track *
 			}
 
 			if found == true {
-				muraena.Tracker.ShowVictims()
+				// muraena.Tracker.ShowVictims()
 			}
 		}
 
