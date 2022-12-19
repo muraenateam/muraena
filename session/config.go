@@ -213,8 +213,9 @@ type Configuration struct {
 		RedirectTo string `toml:"redirectTo"`
 
 		Urls struct {
-			Credentials []string `toml:"credentials"`
-			AuthSession []string `toml:"authSession"`
+			Credentials         []string `toml:"credentials"`
+			AuthSession         []string `toml:"authSession"`
+			AuthSessionResponse []string `toml:"authSessionResponse"`
 		} `toml:"urls"`
 
 		Patterns []struct {

