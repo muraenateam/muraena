@@ -76,7 +76,7 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 	}
 
 	// Handling of base64 encoded data which should be decoded before transformation
-	input, base64Found := transformBase64(input, b64, true)
+	input, base64Found, padding := transformBase64(input, b64, true, Base64Padding)
 
 	// Replace transformation
 	replacer := strings.NewReplacer(replacements...)
@@ -88,7 +88,7 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 
 	// Re-encode if base64 encoded data was found
 	if base64Found {
-		result, _ = transformBase64(result, b64, false)
+		result, _, _ = transformBase64(result, b64, false, padding)
 	}
 
 	if original != result {
@@ -171,10 +171,9 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 	return
 }
 
-func transformBase64(input string, b64 Base64, decode bool) (output string, base64Found bool) {
+func transformBase64(input string, b64 Base64, decode bool, padding rune) (output string, base64Found bool, padding_out rune) {
 	// Handling of base64 encoded data, that should be decoded/transformed/re-encoded
 	base64Found = false
-	padding := Base64Padding
 	if b64.Enabled { // decode
 		if decode {
 			var decoded string
@@ -190,11 +189,11 @@ func transformBase64(input string, b64 Base64, decode bool) (output string, base
 			}
 		} else {
 			//encode
-			return base64Encode(input, padding), base64Found
+			return base64Encode(input, padding), base64Found, padding
 		}
 	}
 
-	return input, base64Found
+	return input, base64Found, padding
 }
 
 // TODO rename me to a more appropriate name . .it's not always URL we transform here, see cookies
