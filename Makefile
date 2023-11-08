@@ -26,10 +26,10 @@ update:
 	go get -u
 	go mod vendor
 	go mod tidy
-	@git commit go.mod go.sum -m "Bump dependencies 📈"
+	@git commit go.mod go.sum -S -m "Bump dependencies :chart_with_upwards_trend:"
 
 lint: fmt
-	@git add . && git commit -a -m "Code linting :star2:"
+	@git add . && git commit -a -S -m "Code linting :star2:"
 
 fmt:
 	gofmt -s -w $(PACKAGES)
