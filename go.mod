@@ -1,6 +1,6 @@
 module github.com/muraenateam/muraena
 
-go 1.17
+go 1.21
 
 require (
 	github.com/ditashi/jsbeautifier-go v0.0.0-20141206144643-2520a8026a9c
