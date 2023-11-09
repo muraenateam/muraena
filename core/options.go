@@ -1,7 +1,6 @@
 package core
 
 import (
-	"errors"
 	"flag"
 )
 
@@ -13,11 +12,11 @@ type Options struct {
 	ConfigFilePath *string
 }
 
-var ErrInterrupt = errors.New("^C")
+//var ErrInterrupt = errors.New("^C")
 
 func ParseOptions() (Options, error) {
 	o := Options{
-		ConfigFilePath: flag.String("config", "", "JSON configuration file path"),
+		ConfigFilePath: flag.String("config", "", "Path to config file."),
 		Debug:          flag.Bool("debug", false, "Print debug messages."),
 		Proxy:          flag.Bool("proxy", false, "Enable internal proxy."),
 		Version:        flag.Bool("version", false, "Print current version."),

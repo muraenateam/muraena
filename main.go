@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/evilsocket/islazy/tui"
+
 	"github.com/muraenateam/muraena/core/proxy"
 	"github.com/muraenateam/muraena/log"
 	"github.com/muraenateam/muraena/module"
 	"github.com/muraenateam/muraena/session"
-
-	"github.com/evilsocket/islazy/tui"
 )
 
 func main() {
