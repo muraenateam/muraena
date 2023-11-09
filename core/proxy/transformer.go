@@ -106,14 +106,13 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 					}
 
 					if strings.HasPrefix(element, wldPrefix) {
-						// log.Warning("Do you want to kill me?! [%s]", element)
 						continue
 					}
 
 					// Patch the wildcard
 					element = strings.ReplaceAll(element, "."+wldPrefix, "-"+wldPrefix)
 					rep = append(rep, element)
-					log.Info("[*] New wildcard %s", tui.Bold(tui.Red(element)))
+					log.Info("[*] New wildcard %s (%s)", tui.Bold(tui.Red(element)), tui.Green(element))
 				}
 
 				if urlEncoded {
@@ -131,7 +130,7 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 					// Fix the domains
 					patched := r.patchWildcard(rep)
 					// Re-do domain mapping
-					r.ExternalOrigin = ArmorDomain(append(r.ExternalOrigin, patched...))
+					r.SetExternalOrigins(patched)
 
 					if err := r.DomainMapping(); err != nil {
 						log.Error(err.Error())
@@ -143,15 +142,15 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 					}
 
 					r.MakeReplacements()
-					log.Debug("We need another transformation loop, because of this new domains: %s",
+					log.Info("We need another transformation loop, because of this new domains: %s",
 						tui.Green(fmt.Sprintf("%v", rep)))
 					r.loopCount++
-					if r.loopCount > 10 {
+					if r.loopCount > 30 {
 						log.Error("Too many transformation loops, aborting.")
 						return
 					}
 
-					return r.Transform(source, forward, b64)
+					return r.Transform(result, forward, b64)
 				}
 			}
 		}
@@ -339,12 +338,11 @@ func (r *Replacer) DomainMapping() (err error) {
 	baseDom := r.Target
 	log.Debug("Proxy destination: %s", tui.Bold(tui.Green("*."+baseDom)))
 
-	r.ExternalOrigin = ArmorDomain(r.ExternalOrigin)
 	origins := make(map[string]string)
 	r.WildcardMapping = make(map[string]string)
 
 	count, wildcards := 0, 0
-	for _, domain := range r.ExternalOrigin {
+	for _, domain := range r.GetExternalOrigins() {
 		if IsSubdomain(baseDom, domain) {
 			trim := strings.TrimSuffix(domain, baseDom)
 
