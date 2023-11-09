@@ -49,27 +49,51 @@ func (server *tlsServer) serveTLS() (err error) {
 	return server.Serve(tlsListener)
 }
 
+var replacer *Replacer
+
 func Run(sess *session.Session) {
 
-	// Load replacer rules
-	var replacer = &Replacer{
-		Phishing:                      sess.Config.Proxy.Phishing,
-		Target:                        sess.Config.Proxy.Target,
-		ExternalOrigin:                sess.Config.Crawler.ExternalOrigins,
-		ExternalOriginPrefix:          sess.Config.Crawler.ExternalOriginPrefix,
-		OriginsMapping:                sess.Config.Crawler.OriginsMapping,
-		CustomResponseTransformations: sess.Config.Transform.Response.Custom,
+	// Load the replacer
+	var err error
+	replacer = &Replacer{}
+	err = replacer.Load()
+	if err != nil {
+		log.Debug("Error loading replacer: %s", err)
+		log.Debug("Creating a new replacer")
+
+		replacer = &Replacer{
+			Phishing:                      sess.Config.Proxy.Phishing,
+			Target:                        sess.Config.Proxy.Target,
+			ExternalOrigin:                sess.Config.Crawler.ExternalOrigins,
+			ExternalOriginPrefix:          sess.Config.Crawler.ExternalOriginPrefix,
+			CustomResponseTransformations: sess.Config.Transform.Response.Custom,
+		}
+		replacer.SetOrigins(sess.Config.Crawler.OriginsMapping)
 	}
 
-	if err := replacer.DomainMapping(); err != nil {
+	if err = replacer.DomainMapping(); err != nil {
 		log.Fatal(err.Error())
 	}
+
+	err = replacer.Save()
+	if err != nil {
+		log.Error("Error saving replacer: %s", err)
+	}
+
 	replacer.MakeReplacements()
 
 	//
 	// Start the reverse proxy
 	//
 	http.HandleFunc("/", func(response http.ResponseWriter, request *http.Request) {
+
+		// Defer the recovery function in case of panic
+		defer func() {
+			if err := recover(); err != nil {
+				log.Error("Recovered from panic: %s", err)
+			}
+		}()
+
 		// TODO: Configure properly middlewares.
 		if sess.Config.Watchdog.Enabled {
 			m, err := sess.Module("watchdog")

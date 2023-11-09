@@ -1,5 +1,6 @@
 *.pem
 *.log
+*.json
 .DS_Store
 muraena
 build/

@@ -137,11 +137,12 @@ func isWildcard(s string) bool {
 	return strings.HasPrefix(s, "*.")
 }
 
-func IsSubdomain(domain string, toCheck string) bool {
-	if strings.HasSuffix(toCheck, domain) {
-		return true
-	}
-	return false
+// IsSubdomain checks if a string is a subdomain of another string.
+// It returns true if the given string is a subdomain of the root string.
+func IsSubdomain(root string, subdomain string) bool {
+
+	// TODO: add support for wildcard domains
+	return strings.HasSuffix(subdomain, root)
 }
 
 func base64Decode(input string, padding int32) (string, bool) {

