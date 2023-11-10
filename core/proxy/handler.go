@@ -2,12 +2,9 @@ package proxy
 
 import (
 	"bytes"
-	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -449,33 +446,6 @@ func (init *MuraenaProxyInit) Spawn() *MuraenaProxy {
 
 	// Attach TLS configurations to proxy
 	transport := http.Transport{TLSClientConfig: sess.GetTLSClientConfig()}
-	transport.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		dialer := &net.Dialer{}
-		conn, err := dialer.DialContext(ctx, network, addr)
-		if err != nil {
-			//log.Error("Error dialing: %v", err)
-			return nil, err
-		}
-
-		// Set up the TLS configuration
-		tlsConfig := &tls.Config{
-			InsecureSkipVerify: true, // WARNING: only use for debugging
-		}
-
-		// Establish the TLS connection over the existing connection
-		tlsConn := tls.Client(conn, tlsConfig)
-
-		// Perform the handshake explicitly if needed
-		err = tlsConn.HandshakeContext(ctx)
-		if err != nil {
-			//log.Error("TLS handshake failed: %v", err)
-			conn.Close()
-			return nil, err
-		}
-
-		return tlsConn, nil
-	}
-
 	if *sess.Options.Proxy {
 		// If HTTP_PROXY or HTTPS_PROXY env variables are defined
 		// all the proxy traffic will be forwarded to the defined proxy.
