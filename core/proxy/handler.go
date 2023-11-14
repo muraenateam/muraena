@@ -175,15 +175,17 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 
 	// Transform HTTP headers of interest
 	request.Host = muraena.Target.Host
+
 	for _, header := range sess.Config.Transform.Request.Headers {
 		if request.Header.Get(header) != "" {
-			hURL, err := replacer.transformUrl(request.Header.Get(header), base64)
+			hVal := request.Header.Get(header)
+			hURL, err := replacer.transformUrl(hVal, base64)
 			if err != nil {
 				log.Warning("Error transforming request URL:\n%+v", err)
 				continue
 			}
 
-			if request.Header.Get(header) != hURL {
+			if hVal != hURL {
 				request.Header.Set(header, hURL)
 				log.Debug("Patched HTTP %s to %s", tui.Bold(tui.Red(header)), tui.Bold(tui.Red(request.Header.Get(header))))
 			}
@@ -392,7 +394,8 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 	}
 
 	// process body and pack again
-	err = modResponse.Pack([]byte(replacer.Transform(string(responseBuffer), false, base64)))
+	newBody := replacer.Transform(string(responseBuffer), false, base64)
+	err = modResponse.Encode([]byte(newBody))
 	if err != nil {
 		log.Info("Error processing the body: %+v", err)
 		return err
@@ -459,7 +462,6 @@ func (init *MuraenaProxyInit) Spawn() *MuraenaProxy {
 }
 
 func (st SessionType) HandleFood(response http.ResponseWriter, request *http.Request) {
-
 	var destination string
 
 	if st.Session.Config.StaticServer.Enabled {
@@ -475,8 +477,11 @@ func (st SessionType) HandleFood(response http.ResponseWriter, request *http.Req
 	}
 
 	if destination == "" {
-		if strings.HasPrefix(request.Host, st.Replacer.ExternalOriginPrefix) { //external domain mapping
+		if strings.Contains(request.Host, st.Replacer.getCustomWildCardSeparator()) {
+			request.Host = st.Replacer.PatchComposedWildcardURL(request.Host)
+		}
 
+		if strings.HasPrefix(request.Host, st.Replacer.ExternalOriginPrefix) { //external domain mapping
 			for domain, subMapping := range st.Replacer.GetOrigins() {
 				// even if the resource is aa.bb.cc.dom.tld, the mapping is always one level as in www--2.phishing.tld.
 				// This is important since wildcard SSL certs do not handle N levels of nesting

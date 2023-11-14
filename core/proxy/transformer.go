@@ -19,9 +19,6 @@ var (
 const (
 	// Base64Padding is the padding to use within base64 operations
 	Base64Padding = '='
-
-	// WildcardPrefix is the prefix used to identify wildcard domains
-	WildcardPrefix = "wld"
 )
 
 // Base64 identifies if the transformation should consider base-64 data and the related padding rules
@@ -51,7 +48,32 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 	var replacements []string
 	var lastReplacements []string
 	if forward { // used in Requests
+
+		// if source contains ---XXwld, we need to patch the wildcard
+		wildCardSeparator := r.getCustomWildCardSeparator()
+		if strings.Contains(source, wildCardSeparator) {
+
+			// Extract all urls from the source containing ---XXwld
+			// and patch the wildcard
+			regex := fmt.Sprintf("[a-zA-Z0-9.-]+%s\\d+.%s", wildCardSeparator, r.Phishing)
+			re := regexp.MustCompile(regex)
+			matchSubdomains := re.FindAllString(source, -1)
+			matchSubdomains = ArmorDomain(matchSubdomains)
+			if len(matchSubdomains) > 0 {
+				log.Debug("Wildcard pattern: %v match %d!", re.String(), len(matchSubdomains))
+
+				for _, element := range matchSubdomains {
+					newDomain := r.PatchComposedWildcardURL(element)
+					source = strings.ReplaceAll(source, element, newDomain)
+				}
+
+				log.Debug("Source after wildcard patching: %s", source)
+			}
+
+		}
+
 		replacements = r.ForwardReplacements
+
 		lastReplacements = r.LastForwardReplacements
 	} else { // used in Responses
 		replacements = r.BackwardReplacements
@@ -75,10 +97,10 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 	if source != result {
 		// Find wildcard matching
 		if Wildcards {
-			var rep []string
 
 			wldPrefix := fmt.Sprintf("%s%s", r.ExternalOriginPrefix, WildcardPrefix)
 			if strings.Contains(result, "."+wldPrefix) {
+				var rep []string
 
 				// URL encoding handling
 				urlEncoded := false
@@ -111,8 +133,8 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 
 					// Patch the wildcard
 					element = strings.ReplaceAll(element, "."+wldPrefix, "-"+wldPrefix)
-					rep = append(rep, element)
 					log.Info("[*] New wildcard %s (%s)", tui.Bold(tui.Red(element)), tui.Green(element))
+					rep = append(rep, element)
 				}
 
 				if urlEncoded {
@@ -125,13 +147,9 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 				}
 
 				if len(rep) > 0 {
-					rep = ArmorDomain(rep)
-
-					// Fix the domains
-					patched := r.patchWildcard(rep)
-					// Re-do domain mapping
+					// Get the patched list of domains and update the replacer
+					patched := r.patchWildcardList(rep)
 					r.SetExternalOrigins(patched)
-
 					if err := r.DomainMapping(); err != nil {
 						log.Error(err.Error())
 						return
@@ -142,18 +160,52 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 					}
 
 					r.MakeReplacements()
-					log.Info("We need another transformation loop, because of this new domains: %s",
-						tui.Green(fmt.Sprintf("%v", rep)))
 					r.loopCount++
+					log.Info("We need another (#%d) transformation loop, because of this new domains:%s",
+						r.loopCount, tui.Green(fmt.Sprintf("%v", rep)))
 					if r.loopCount > 30 {
 						log.Error("Too many transformation loops, aborting.")
 						return
 					}
 
-					return r.Transform(result, forward, b64)
+					return r.Transform(input, forward, b64)
 				}
 			}
 		}
+	}
+
+	return
+}
+
+func (r *Replacer) PatchComposedWildcardURL(URL string) (result string) {
+	result = URL
+
+	wldPrefix := fmt.Sprintf("%s%s", r.ExternalOriginPrefix, WildcardPrefix)
+	if strings.Contains(result, "---"+wldPrefix) {
+
+		subdomain := strings.Split(result, "---")[0]
+		wildcard := strings.Split(result, "---")[1]
+
+		path := ""
+		if strings.Contains(URL, r.Phishing+"/") {
+			path = "/" + strings.Split(URL, r.Phishing+"/")[1]
+		}
+		wildcard = strings.Split(wildcard, "/")[0]
+
+		wildcard = strings.TrimSuffix(wildcard, fmt.Sprintf(".%s", r.Phishing))
+
+		domain := fmt.Sprintf("%s.%s", subdomain, r.patchWildcard(wildcard))
+		log.Info("Wildcard to patch: %s (%s)", tui.Bold(tui.Red(result)), tui.Green(domain))
+
+		// remove the protocol, anything befgore ://
+		protocol := ""
+		if strings.Contains(domain, "://") {
+			protocol = strings.Split(domain, "://")[0] + "://"
+			domain = strings.Split(domain, "://")[1]
+		}
+		r.SetExternalOrigins([]string{domain})
+
+		result = fmt.Sprintf("%s%s%s", protocol, domain, path)
 	}
 
 	return
@@ -184,13 +236,16 @@ func transformBase64(input string, b64 Base64, decode bool, padding rune) (outpu
 	return input, base64Found, padding
 }
 
-// TODO rename me to a more appropriate name . .it's not always URL we transform here, see cookies
 func (r *Replacer) transformUrl(URL string, base64 Base64) (result string, err error) {
+
+	if strings.Contains(URL, r.getCustomWildCardSeparator()) {
+		URL = r.PatchComposedWildcardURL(URL)
+	}
+
 	result = r.Transform(URL, true, base64)
 
 	// After initial transformation round.
 	// If the input is a valid URL proceed by transforming also the query string
-
 	hURL, err := url.Parse(result)
 	if err != nil || hURL.Scheme == "" || hURL.Host == "" {
 		// Not valid URL, but continue anyway it might be the case of different values.
@@ -212,33 +267,41 @@ func (r *Replacer) transformUrl(URL string, base64 Base64) (result string, err e
 	}
 	hURL.RawQuery = query.Encode()
 	result = hURL.String()
+
 	return
 }
 
-func (r *Replacer) patchWildcard(rep []string) (prep []string) {
-
+// PatchWildcardList patches the wildcard domains in the list
+// and returns the patched list of domains to be used in the replacer
+func (r *Replacer) patchWildcardList(rep []string) (prep []string) {
 	rep = ArmorDomain(rep)
 	for _, s := range rep {
-		found := false
-		newDomain := strings.TrimSuffix(s, fmt.Sprintf(".%s", r.Phishing))
-		for w, d := range r.WildcardMapping {
-			if strings.HasSuffix(newDomain, d) {
-				newDomain = strings.TrimSuffix(newDomain, d)
-				newDomain = strings.TrimSuffix(newDomain, "-")
-				if newDomain != "" {
-					newDomain = newDomain + "."
-				}
-				newDomain = newDomain + w
+		w := r.patchWildcard(s)
+		if w != "" {
+			prep = append(prep, w)
+		}
+	}
 
-				//log.Info("[*] New wildcard %s (%s)", tui.Bold(tui.Red(s)), tui.Green(newDomain))
-				prep = append(prep, newDomain)
-				found = true
+	return prep
+}
+
+func (r *Replacer) patchWildcard(rep string) (prep string) {
+	found := false
+	newDomain := strings.TrimSuffix(rep, fmt.Sprintf(".%s", r.Phishing))
+	for w, d := range r.WildcardMapping {
+		if strings.HasSuffix(newDomain, d) {
+			newDomain = strings.TrimSuffix(newDomain, d)
+			newDomain = strings.TrimSuffix(newDomain, "-")
+			if newDomain != "" {
+				newDomain = newDomain + "."
 			}
+			prep = newDomain + w
+			found = true
 		}
+	}
 
-		if !found {
-			log.Error("Unknown wildcard domain: %s within %s", tui.Bold(tui.Red(s)), rep)
-		}
+	if !found {
+		log.Error("Unknown wildcard domain: %s within %s", tui.Bold(tui.Red(rep)), rep)
 	}
 
 	return prep

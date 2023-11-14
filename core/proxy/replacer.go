@@ -12,6 +12,8 @@ import (
 )
 
 const ReplaceFile = "session.json"
+const CustomWildcardSeparator = "---"
+const WildcardPrefix = "wld"
 
 // Replacer structure used to populate the transformation rules
 type Replacer struct {
@@ -33,8 +35,10 @@ type Replacer struct {
 	mu        sync.RWMutex
 }
 
+// Init initializes the Replacer struct.
+// If session.json is found, it loads the data from it.
+// Otherwise, it creates a new Replacer struct.
 func (r *Replacer) Init(s session.Session) error {
-
 	err := r.Load()
 	if err != nil {
 		log.Debug("Error loading replacer: %s", err)
@@ -77,6 +81,11 @@ func (r *Replacer) SetCustomResponseTransformations(newTransformations [][]strin
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// Append to newTransformations the wildcard custom patch:
+	// any ".wldXXXXX.domain" should be replaced with:
+	// ".wldXXXXX.domain" -> "---wldXXXX.domain"
+	// this to address dynamic JS code that uses the wildcard domain
+
 	if r.CustomResponseTransformations == nil {
 		r.CustomResponseTransformations = newTransformations
 		return
@@ -98,6 +107,7 @@ func (r *Replacer) SetCustomResponseTransformations(newTransformations [][]strin
 			existing[key] = struct{}{} // Add to the map to ensure uniqueness for future additions
 		}
 	}
+
 }
 
 // GetExternalOrigins returns the ExternalOrigins used in the transformation rules.
@@ -116,7 +126,6 @@ func (r *Replacer) GetExternalOrigins() []string {
 // SetExternalOrigins sets the ExternalOrigins used in the transformation rules.
 func (r *Replacer) SetExternalOrigins(newOrigins []string) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 
 	if r.ExternalOrigin == nil {
 		r.ExternalOrigin = make([]string, 0)
@@ -124,10 +133,21 @@ func (r *Replacer) SetExternalOrigins(newOrigins []string) {
 
 	// merge newOrigins to r.ExternalOrigin and avoid duplicate
 	for _, v := range newOrigins {
+		//if strings.HasPrefix(v, "-") {
+		//	continue
+		//}
+
+		if strings.Contains(v, r.getCustomWildCardSeparator()) {
+			continue
+		}
+
 		r.ExternalOrigin = append(r.ExternalOrigin, v)
 	}
 
 	r.ExternalOrigin = ArmorDomain(r.ExternalOrigin)
+	r.mu.Unlock()
+
+	r.MakeReplacements()
 }
 
 // GetOrigins returns the Origins mapping used in the transformation rules.
@@ -161,6 +181,7 @@ func (r *Replacer) SetOrigins(newOrigins map[string]string) {
 	defer r.mu.Unlock()
 	// merge newOrigins to r.newOrigins and avoid duplicate
 	for k, v := range newOrigins {
+		k = strings.ToLower(k)
 		r.Origins[k] = v
 	}
 }
@@ -170,6 +191,11 @@ func (r *Replacer) Save() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return saveToJSON(ReplaceFile, r)
+}
+
+func (r *Replacer) getCustomWildCardSeparator() string {
+	// ---XXXwld
+	return fmt.Sprintf("%s%s%s", CustomWildcardSeparator, r.ExternalOriginPrefix, WildcardPrefix)
 }
 
 // saveToJSON saves the Replacer struct to a file as JSON.
@@ -183,10 +209,6 @@ func saveToJSON(filename string, replacer *Replacer) error {
 
 // Load loads the Replacer data from a JSON file.
 func (r *Replacer) Load() error {
-	r.mu.Lock()
-	mutex := r.mu
-	defer mutex.Unlock()
-
 	rep, err := loadFromJSON(ReplaceFile)
 	if err != nil {
 		return err
@@ -194,7 +216,6 @@ func (r *Replacer) Load() error {
 
 	// update the current replacer pointer
 	*r = *rep
-
 	return nil
 }
 

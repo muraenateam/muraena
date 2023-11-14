@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -56,7 +57,7 @@ func (response *Response) Unpack() (buffer []byte, err error) {
 	return
 }
 
-func (response *Response) Pack(buffer []byte) (err error) {
+func (response *Response) Encode(buffer []byte) (err error) {
 
 	switch response.Header.Get("Content-Encoding") {
 	case "x-gzip":
@@ -73,7 +74,7 @@ func (response *Response) Pack(buffer []byte) (err error) {
 	}
 
 	if err != nil {
-		ll.Error("[Pack] Error packing with %s: %s", response.Header.Get("Content-Encoding"), err)
+		ll.Error("[Encode] Error packing with %s: %s", response.Header.Get("Content-Encoding"), err)
 	}
 
 	body := ioutil.NopCloser(bytes.NewReader(buffer))
@@ -84,7 +85,6 @@ func (response *Response) Pack(buffer []byte) (err error) {
 }
 
 func packGzip(i []byte) ([]byte, error) {
-
 	var b bytes.Buffer
 	gz := gzip.NewWriter(&b)
 	if _, err := gz.Write(i); err != nil {
@@ -100,7 +100,6 @@ func packGzip(i []byte) ([]byte, error) {
 }
 
 func packDeflate(i []byte) ([]byte, error) {
-
 	var b bytes.Buffer
 	zz, err := flate.NewWriter(&b, 0)
 
@@ -127,6 +126,28 @@ func ArmorDomain(slice []string) []string {
 	for _, entry := range slice {
 		if _, value := keys[entry]; !value {
 			keys[entry] = true
+
+			// make it lowercase
+			entry = strings.ToLower(entry)
+
+			// if string is URL encoded, decode it
+			if strings.Contains(entry, "%") {
+				decodedURL, err := url.QueryUnescape(entry)
+				if err == nil {
+					entry = decodedURL
+				}
+			}
+
+			// if string contains protocol, remove it
+			if strings.Contains(entry, "://") {
+				entry = strings.Split(entry, "://")[1]
+			}
+
+			// remove anything after the / (if any)
+			if strings.Contains(entry, "/") {
+				entry = strings.Split(entry, "/")[0]
+			}
+
 			list = append(list, entry)
 		}
 	}
