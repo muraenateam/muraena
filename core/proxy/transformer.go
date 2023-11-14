@@ -60,14 +60,14 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 			matchSubdomains := re.FindAllString(source, -1)
 			matchSubdomains = ArmorDomain(matchSubdomains)
 			if len(matchSubdomains) > 0 {
-				log.Debug("Wildcard pattern: %v match %d!", re.String(), len(matchSubdomains))
+				log.Verbose("Wildcard pattern: %v match %d", re.String(), len(matchSubdomains))
 
 				for _, element := range matchSubdomains {
 					newDomain := r.PatchComposedWildcardURL(element)
 					source = strings.ReplaceAll(source, element, newDomain)
 				}
 
-				log.Debug("Source after wildcard patching: %s", source)
+				log.Verbose("Source after wildcard patching: %s", source)
 			}
 
 		}
@@ -115,7 +115,7 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 				matchSubdomains := re.FindAllString(result, -1)
 				matchSubdomains = ArmorDomain(matchSubdomains)
 				if len(matchSubdomains) > 0 {
-					log.Debug("Wildcard pattern: %v match %d!", re.String(), len(matchSubdomains))
+					log.Verbose("Wildcard pattern: %v match %d!", re.String(), len(matchSubdomains))
 				}
 
 				for _, element := range matchSubdomains {
@@ -133,7 +133,6 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 
 					// Patch the wildcard
 					element = strings.ReplaceAll(element, "."+wldPrefix, "-"+wldPrefix)
-					log.Info("[*] New wildcard %s (%s)", tui.Bold(tui.Red(element)), tui.Green(element))
 					rep = append(rep, element)
 				}
 
@@ -161,10 +160,10 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64) (result str
 
 					r.MakeReplacements()
 					r.loopCount++
-					log.Info("We need another (#%d) transformation loop, because of this new domains:%s",
+					log.Verbose("We need another (#%d) transformation loop, because of this new domains:%s",
 						r.loopCount, tui.Green(fmt.Sprintf("%v", rep)))
 					if r.loopCount > 30 {
-						log.Error("Too many transformation loops, aborting.")
+						log.Debug("Too many transformation loops, aborting.")
 						return
 					}
 
@@ -204,6 +203,12 @@ func (r *Replacer) PatchComposedWildcardURL(URL string) (result string) {
 			domain = strings.Split(domain, "://")[1]
 		}
 		r.SetExternalOrigins([]string{domain})
+		//origins := r.GetOrigins()
+		//if sub, ok := origins[domain]; ok {
+		//	log.Info("%s is mapped to %s", tui.Bold(tui.Red(domain)), tui.Green(sub))
+		//	result = fmt.Sprintf("%s%s.%s%s", protocol, sub, r.Phishing, path)
+		//	return
+		//}
 
 		result = fmt.Sprintf("%s%s%s", protocol, domain, path)
 	}
@@ -334,7 +339,7 @@ func (r *Replacer) MakeReplacements() {
 		r.ForwardReplacements = append(r.ForwardReplacements, rep...)
 
 		count++
-		log.Debug("[Forward | replacements #%d]: %s > %s", count, tui.Yellow(rep[0]), tui.Green(to))
+		log.Verbose("[Forward | replacements #%d]: %s > %s", count, tui.Yellow(rep[0]), tui.Green(to))
 	}
 
 	// Append wildcards at the end
@@ -345,7 +350,7 @@ func (r *Replacer) MakeReplacements() {
 		r.ForwardReplacements = append(r.ForwardReplacements, rep...)
 
 		count++
-		log.Debug("[Wild Forward | replacements #%d]: %s > %s", count, tui.Yellow(rep[0]), tui.Green(to))
+		log.Verbose("[Wild Forward | replacements #%d]: %s > %s", count, tui.Yellow(rep[0]), tui.Green(to))
 	}
 
 	//
@@ -359,7 +364,7 @@ func (r *Replacer) MakeReplacements() {
 
 		if strings.HasPrefix(subMapping, WildcardPrefix) {
 			// Ignoring wildcard at this stage
-			log.Debug("[Wildcard] %s - %s", tui.Yellow(subMapping), tui.Green(include))
+			log.Verbose("[Wildcard] %s - %s", tui.Yellow(subMapping), tui.Green(include))
 			continue
 		}
 
@@ -369,7 +374,7 @@ func (r *Replacer) MakeReplacements() {
 		r.BackwardReplacements = append(r.BackwardReplacements, rep...)
 
 		count++
-		log.Debug("[Backward | replacements #%d]: %s < %s", count, tui.Green(rep[0]), tui.Yellow(to))
+		log.Verbose("[Backward | replacements #%d]: %s < %s", count, tui.Green(rep[0]), tui.Yellow(to))
 	}
 
 	// Append wildcards at the end
@@ -380,17 +385,16 @@ func (r *Replacer) MakeReplacements() {
 		r.BackwardReplacements = append(r.BackwardReplacements, rep...)
 
 		count++
-		log.Debug("[Wild Backward | replacements #%d]: %s < %s", count, tui.Green(rep[0]), tui.Yellow(to))
+		log.Verbose("[Wild Backward | replacements #%d]: %s < %s", count, tui.Green(rep[0]), tui.Yellow(to))
 	}
 
-	//
 	// These should be done as Final replacements
 	r.LastBackwardReplacements = []string{}
 
 	// Custom HTTP response replacements
 	for _, tr := range r.CustomResponseTransformations {
 		r.LastBackwardReplacements = append(r.LastBackwardReplacements, tr...)
-		log.Debug("[Custom Replacements] %+v", tr)
+		log.Verbose("[Custom Replacements] %+v", tr)
 	}
 
 	r.BackwardReplacements = append(r.BackwardReplacements, r.LastBackwardReplacements...)
@@ -411,7 +415,7 @@ func (r *Replacer) DomainMapping() (err error) {
 
 			// We don't map 1-level subdomains ..
 			if strings.Count(trim, ".") < 2 {
-				log.Warning("Ignore: %s [%s]", domain, trim)
+				log.Verbose("Ignore: %s [%s]", domain, trim)
 				continue
 			}
 		}
@@ -428,16 +432,14 @@ func (r *Replacer) DomainMapping() (err error) {
 			o := fmt.Sprintf("%s%d", prefix, wildcards)
 			r.WildcardDomain = o
 			r.WildcardMapping[domain] = o
-			//log.Info("Wild Including [%s]=%s", domain, o)
-			log.Debug(fmt.Sprintf("Wild Including [%s]=%s", domain, o))
+			log.Debug(fmt.Sprintf("*.%s=%s", domain, o))
 
 		} else {
 			count++
 			// Extra domains or nested subdomains
 			o := fmt.Sprintf("%s%d", r.ExternalOriginPrefix, count)
 			origins[domain] = o
-			//log.Info("Including [%s]=%s", domain, o)
-			log.Debug(fmt.Sprintf("Including [%s]=%s", domain, o))
+			log.Debug(fmt.Sprintf("%s=%s", domain, o))
 		}
 
 	}

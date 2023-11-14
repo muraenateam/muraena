@@ -5,6 +5,7 @@ import (
 )
 
 type Options struct {
+	Verbose        *bool
 	Debug          *bool
 	Proxy          *bool
 	Version        *bool
@@ -17,6 +18,7 @@ type Options struct {
 func ParseOptions() (Options, error) {
 	o := Options{
 		ConfigFilePath: flag.String("config", "", "Path to config file."),
+		Verbose:        flag.Bool("verbose", false, "Print verbose messages."),
 		Debug:          flag.Bool("debug", false, "Print debug messages."),
 		Proxy:          flag.Bool("proxy", false, "Enable internal proxy."),
 		Version:        flag.Bool("version", false, "Print current version."),

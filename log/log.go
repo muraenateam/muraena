@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	ll "github.com/evilsocket/islazy/log"
 	"github.com/evilsocket/islazy/tui"
 
 	"github.com/muraenateam/muraena/core"
@@ -17,12 +16,13 @@ import (
 
 type logger struct {
 	Writer       *os.File
-	Level        ll.Verbosity
+	Level        Verbosity
 	FormatConfig FormatConfig
 	NoEffects    bool
 }
 
 var (
+	NoEffects = false
 	lock      = &sync.Mutex{}
 	loggers   = map[string]logger{}
 	reEffects = []*regexp.Regexp{
@@ -34,9 +34,8 @@ var (
 
 func Init(opt core.Options, isLogToFile bool, logFilePath string) {
 
-	noEffects := false
 	if !tui.Effects() {
-		noEffects = true
+		NoEffects = true
 		if *opt.NoColors {
 			fmt.Printf("\n\nWARNING: Terminal colors have been disabled, view will be very limited.\n\n")
 		} else {
@@ -44,15 +43,17 @@ func Init(opt core.Options, isLogToFile bool, logFilePath string) {
 		}
 	}
 
-	logLevel := ll.INFO
-	if *opt.Debug {
-		logLevel = ll.DEBUG
+	logLevel := INFO
+	if *opt.Verbose {
+		logLevel = VERBOSE
+	} else if *opt.Debug {
+		logLevel = DEBUG
 	}
 
 	config := FormatConfigBasic
 	config.Format = "{datetime} {level:color}{level:name}{reset} {message}"
 	// Console Log
-	err := AddOutput("", logLevel, config, noEffects)
+	err := AddOutput("", logLevel, config, NoEffects)
 	if err != nil {
 		panic(err)
 	}
@@ -66,7 +67,7 @@ func Init(opt core.Options, isLogToFile bool, logFilePath string) {
 	}
 }
 
-func AddOutput(path string, level ll.Verbosity, config FormatConfig, noEffects bool) (err error) {
+func AddOutput(path string, level Verbosity, config FormatConfig, NoEffects bool) (err error) {
 	var writer *os.File
 	if path == "" {
 		writer = os.Stdout
@@ -77,7 +78,7 @@ func AddOutput(path string, level ll.Verbosity, config FormatConfig, noEffects b
 		}
 	}
 	lock.Lock()
-	loggers[path] = logger{writer, level, config, noEffects}
+	loggers[path] = logger{writer, level, config, NoEffects}
 	lock.Unlock()
 	return
 }
@@ -97,7 +98,7 @@ func (l *logger) emit(s string) {
 
 }
 
-func do(v ll.Verbosity, format string, args ...interface{}) {
+func do(v Verbosity, format string, args ...interface{}) {
 	lock.Lock()
 	defer lock.Unlock()
 
@@ -130,10 +131,10 @@ func do(v ll.Verbosity, format string, args ...interface{}) {
 				return strconv.Itoa(int(v))
 			},
 			"{level:name}": func() string {
-				return ll.LevelNames[v]
+				return LevelNames[v]
 			},
 			"{level:color}": func() string {
-				return ll.LevelColors[v]
+				return LevelColors[v]
 			},
 			"{message}": func() string {
 				return currMessage
@@ -171,33 +172,38 @@ func Raw(format string, args ...interface{}) {
 	}
 }
 
+// Verbose emits a verbose message.
+func Verbose(format string, args ...interface{}) {
+	do(VERBOSE, format, args...)
+}
+
 // Debug emits a debug message.
 func Debug(format string, args ...interface{}) {
-	do(ll.DEBUG, format, args...)
+	do(DEBUG, format, args...)
 }
 
 // Info emits an informative message.
 func Info(format string, args ...interface{}) {
-	do(ll.INFO, format, args...)
+	do(INFO, format, args...)
 }
 
 // Important emits an important informative message.
 func Important(format string, args ...interface{}) {
-	do(ll.IMPORTANT, format, args...)
+	do(IMPORTANT, format, args...)
 }
 
 // Warning emits a warning message.
 func Warning(format string, args ...interface{}) {
-	do(ll.WARNING, format, args...)
+	do(WARNING, format, args...)
 }
 
 // Error emits an error message.
 func Error(format string, args ...interface{}) {
-	do(ll.ERROR, format, args...)
+	do(ERROR, format, args...)
 }
 
-// Fatal emits a fatal error message and calls the ll.OnFatal callback.
+// Fatal emits a fatal error message and calls the OnFatal callback.
 func Fatal(format string, args ...interface{}) {
-	do(ll.FATAL, format, args...)
+	do(FATAL, format, args...)
 	os.Exit(1)
 }

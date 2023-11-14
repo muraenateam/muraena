@@ -35,6 +35,10 @@ func NewSessionModule(name string, s *Session) SessionModule {
 	return m
 }
 
+func (m *SessionModule) Verbose(format string, args ...interface{}) {
+	log.Verbose(m.tag+format, args...)
+}
+
 func (m *SessionModule) Debug(format string, args ...interface{}) {
 	log.Debug(m.tag+format, args...)
 }
