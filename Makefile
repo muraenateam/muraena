@@ -1,13 +1,13 @@
 BUILD     ?= build
 TARGET    ?= muraena
-PACKAGES  ?= core log session module module/crawler module/necrobrowser module/statichttp module/tracking module/watchdog
+PACKAGES  ?= core log session module module/crawler module/necrobrowser module/statichttp module/tracking module/watchdog module/telegram
 GO        ?= go
 
 all: build
 
 # This will be triggered before any command, or when just calling $ make
+# mkdir $(BUILD)
 pre:
-	mkdir -p $(BUILD)
     # GO111MODULE is required only when inside GOPATH
 	env GO111MODULE=on go get -d ./
 
