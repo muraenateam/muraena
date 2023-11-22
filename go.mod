@@ -17,6 +17,7 @@ require (
 	github.com/oschwald/geoip2-golang v1.9.0
 	github.com/pelletier/go-toml v1.9.5
 	github.com/pkg/errors v0.9.1
+	golang.org/x/net v0.18.0
 	gopkg.in/resty.v1 v1.12.0
 	mvdan.cc/xurls/v2 v2.5.0
 )
@@ -39,7 +40,6 @@ require (
 	github.com/saintfish/chardet v0.0.0-20230101081208-5e3ef4b5456d // indirect
 	github.com/temoto/robotstxt v1.1.2 // indirect
 	github.com/ziutek/mymysql v1.5.4 // indirect
-	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/sys v0.14.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
