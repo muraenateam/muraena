@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 
@@ -130,23 +129,15 @@ func ArmorDomain(slice []string) []string {
 			// make it lowercase
 			entry = strings.ToLower(entry)
 
-			// if string is URL encoded, decode it
-			if strings.Contains(entry, "%") {
-				decodedURL, err := url.QueryUnescape(entry)
-				if err == nil {
-					entry = decodedURL
-				}
+			// if string begins with a protocol, remove it
+			if strings.HasPrefix(entry, "http://") {
+				entry = strings.TrimPrefix(entry, "http://")
+			} else if strings.HasPrefix(entry, "https://") {
+				entry = strings.TrimPrefix(entry, "https://")
 			}
 
-			// if string contains protocol, remove it
-			if strings.Contains(entry, "://") {
-				entry = strings.Split(entry, "://")[1]
-			}
-
-			// remove anything after the / (if any)
-			if strings.Contains(entry, "/") {
-				entry = strings.Split(entry, "/")[0]
-			}
+			// remove everything after the / (if any)
+			entry = strings.Split(entry, "/")[0]
 
 			list = append(list, entry)
 		}
@@ -161,7 +152,6 @@ func isWildcard(s string) bool {
 // IsSubdomain checks if a string is a subdomain of another string.
 // It returns true if the given string is a subdomain of the root string.
 func IsSubdomain(root string, subdomain string) bool {
-
 	// TODO: add support for wildcard domains
 	return strings.HasSuffix(subdomain, root)
 }

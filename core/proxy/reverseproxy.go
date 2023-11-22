@@ -4,10 +4,8 @@
 
 // HTTP reverse proxy handler
 
-//
 // NOTE:
 // This version has been modified for the Muraena needs, for instance removing the X-Forwarded-For header
-//
 package proxy
 
 import (
@@ -29,7 +27,7 @@ type ReverseProxy struct {
 	// the request into a new request to be sent
 	// using Transport. Its response is then copied
 	// back to the original client unmodified.
-	// Director must not access the provided Request
+	// Director must not access the provided RequestTemplate
 	// after returning.
 	Director func(*http.Request)
 

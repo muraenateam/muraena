@@ -41,11 +41,11 @@ func (module *Tracker) ShowCredentials() {
 
 	victims, err := db.GetAllVictims()
 	if err != nil {
-		module.Debug("error fetching all victims: %s", err)
+		module.Error("error fetching all victims: %s", err)
 		return
 	}
 
-	module.Debug("There are %d victims", len(victims))
+	module.Verbose("There are %d victims", len(victims))
 	for _, vID := range victims {
 		for _, c := range vID.Credentials {
 			rows = append(rows, []string{tui.Bold(tui.Green(vID.ID)), c.Key, c.Value, c.Time})
@@ -141,6 +141,5 @@ func (module *Tracker) PushCookie(victim *db.Victim, cookie db.VictimCookie) {
 		return
 	}
 
-	module.Debug("[%s] New cookie: %s on %s",
-		victim.ID, tui.Bold(cookie.Name), tui.Bold(cookie.Domain))
+	module.Debug("[%s][+] cookie: %s (%s)", victim.ID, tui.Bold(tui.Green(cookie.Name)), tui.Bold(tui.Green(cookie.Domain)))
 }

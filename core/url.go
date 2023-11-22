@@ -65,7 +65,7 @@ func parseQuery(m Values, query string) (err error) {
 	return err
 }
 
-// Encode encodes the values into ``URL encoded'' form
+// Encode encodes the values into "URL encoded" form
 // ("bar=baz&foo=quux") NOT sorted by key.
 func (v Values) Encode() string {
 	if v == nil {

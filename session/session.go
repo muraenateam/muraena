@@ -64,7 +64,8 @@ func New() (*Session, error) {
 
 	// Load Redis
 	if err = s.InitRedis(); err != nil {
-		log.Fatal("%s", err)
+		log.Error("%s", err)
+		return nil, err
 	}
 
 	log.Info("Connected to Redis")

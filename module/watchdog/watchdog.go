@@ -318,12 +318,13 @@ func (b *Blacklist) Concatenate(items []*Rule) {
 }
 
 // ParseRules parses a raw blacklist (text) and returns a Blacklist struct.
-// 	Match All [*] (Useful for creating a whitelist)
-// 	Match IP [e.g. 203.0.113.6 or 2001:db8::68]
-// 	Match IP Network [e.g.: 192.0.2.0/24 or ::1/128]
-// 	Match Hostname [e.g. crawl-66-249-66-1.googlebot.com]
-// 	Match Hostname RegExp [e.g.: ~ .*\.cox\.net]
-// 	Match Geofence [e.g.: @ 39.377297 -74.451082 (7km)] or [ @ Country:IT ] or [ @ City:Rome ]
+//
+//	Match All [*] (Useful for creating a whitelist)
+//	Match IP [e.g. 203.0.113.6 or 2001:db8::68]
+//	Match IP Network [e.g.: 192.0.2.0/24 or ::1/128]
+//	Match Hostname [e.g. crawl-66-249-66-1.googlebot.com]
+//	Match Hostname RegExp [e.g.: ~ .*\.cox\.net]
+//	Match Geofence [e.g.: @ 39.377297 -74.451082 (7km)] or [ @ Country:IT ] or [ @ City:Rome ]
 func ParseRules(rules string) Blacklist {
 	lines := strings.Split(rules, "\n")
 	blacklist := Blacklist{List: []*Rule{}}
@@ -494,7 +495,7 @@ func ParseRules(rules string) Blacklist {
 }
 
 // Allow decides whether the Blacklist permits the selected IP address.
-//func (module *Watchdog) Allow(ip net.IP) bool {
+// func (module *Watchdog) Allow(ip net.IP) bool {
 func (module *Watchdog) Allow(r *http.Request) bool {
 
 	ip := GetRealAddr(r)

@@ -67,7 +67,7 @@ func Run(sess *session.Session) {
 		// Defer the recovery function in case of panic
 		defer func() {
 			if err := recover(); err != nil {
-				log.Error("Recovered from panic: %s", err)
+				log.Warning("Recovered from panic: %s", err)
 			}
 		}()
 

@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/evilsocket/islazy/tui"
+
 	"github.com/muraenateam/muraena/log"
 	"github.com/muraenateam/muraena/session"
 )
@@ -116,10 +117,7 @@ func (module *Telegram) Send(message string) {
 }
 
 func (module *Telegram) sendToChat(chat, message string) (err error) {
-
 	var response *http.Response
-
-	//module.Debug(`curl https://api.telegram.org/bot%s/sendMessage -H "Content-Type: application/json" -v -d '{"chat_id":"%s","text":"%s"}'`, module.BotToken, chat, message)
 
 	// Send the message
 	url := fmt.Sprintf("%s/sendMessage", module.getUrl())
@@ -136,15 +134,16 @@ func (module *Telegram) sendToChat(chat, message string) (err error) {
 		return err
 	}
 
-	// Close the request at the end
 	defer response.Body.Close()
-
-	// Body
 	body, err = ioutil.ReadAll(response.Body)
 	if err != nil {
 		return
 	}
 
-	module.Debug("%s", string(body))
+	if response.StatusCode != 200 {
+		return fmt.Errorf("telegram error: [%s] %s", response.Status, body)
+	}
+
+	module.Verbose("%s", body)
 	return
 }

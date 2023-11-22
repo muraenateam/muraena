@@ -67,6 +67,7 @@ func (m *SessionModule) Raw(format string, args ...interface{}) {
 	log.Raw(m.tag+format, args...)
 }
 
-func (m *SessionModule) Fatal(format string, args ...interface{}) {
-	log.Fatal(m.tag+format, args...)
-}
+// NO Fatal() here, we want to keep the session alive
+//func (m *SessionModule) Fatal(format string, args ...interface{}) {
+//	log.Fatal(m.tag+format, args...)
+//}
