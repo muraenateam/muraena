@@ -36,7 +36,7 @@ type VictimCredential struct {
 	Time  string `redis:"time"`
 }
 
-// VictimCookie: a victim has N cookies associated with its web session
+// VictimCookie a victim has N cookies associated with its web session
 // KEY scheme:
 // victim:<ID>:cookiejar:<COOKIE_NAME>
 type VictimCookie struct {

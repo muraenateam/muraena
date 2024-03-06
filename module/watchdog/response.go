@@ -10,6 +10,7 @@ import (
 	"github.com/manifoldco/promptui"
 
 	"github.com/muraenateam/muraena/core"
+	"github.com/muraenateam/muraena/log"
 )
 
 type ResponseCode string
@@ -64,15 +65,17 @@ func (module *Watchdog) PromptResponseAction() {
 	}
 }
 
-// BlockRequest takes action and send the visitor to a chosen destination, i.e. blocks or trolls him
+// CustomResponse takes action and send the visitor to a chosen destination, i.e. blocks or trolls him
 func (module *Watchdog) CustomResponse(response http.ResponseWriter, request *http.Request) {
 
 	switch module.Action.Code {
 
 	case rNginx404:
+		log.Debug("Sending Nginx 404 page")
 		module.NginxNotFound(response, request)
 
 	case rCustom301:
+		log.Debug("Sending custom 301 page: %s", module.Action.TargetURL)
 		module.CustomMovedPermanently(response, request, module.Action.TargetURL)
 	}
 }

@@ -13,7 +13,6 @@ import (
 )
 
 func main() {
-
 	sess, err := session.New()
 	if err != nil {
 		fmt.Println(err)

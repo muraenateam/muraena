@@ -27,6 +27,7 @@ type Replacer struct {
 	ExternalOriginPrefix          string
 	Origins                       map[string]string
 	WildcardMapping               map[string]string
+	SubdomainMap                  [][]string
 	CustomResponseTransformations [][]string
 	ForwardReplacements           []string `json:"-"`
 	ForwardWildcardReplacements   []string `json:"-"`
@@ -39,10 +40,20 @@ type Replacer struct {
 	mu sync.RWMutex
 }
 
+// GetSessionFileName returns the session file name
+// It generates the value from the Target domain, adding google.com.session.json at the end
+func (r *Replacer) GetSessionFileName() string {
+	return fmt.Sprintf("%s.session.json", r.Target)
+}
+
 // Init initializes the Replacer struct.
 // If session.json is found, it loads the data from it.
 // Otherwise, it creates a new Replacer struct.
 func (r *Replacer) Init(s session.Session) error {
+	if r.Target == "" {
+		r.Target = s.Config.Proxy.Target
+	}
+
 	err := r.Load()
 	if err != nil {
 		log.Debug("Error loading replacer: %s", err)
@@ -58,17 +69,18 @@ func (r *Replacer) Init(s session.Session) error {
 	}
 
 	if r.ExternalOriginPrefix == "" {
-		r.ExternalOriginPrefix = s.Config.Crawler.ExternalOriginPrefix
+		r.ExternalOriginPrefix = s.Config.Origins.ExternalOriginPrefix
 	}
 
-	r.SetExternalOrigins(s.Config.Crawler.ExternalOrigins)
-	r.SetOrigins(s.Config.Crawler.OriginsMapping)
+	r.SubdomainMap = s.Config.Origins.SubdomainMap
+	r.SetExternalOrigins(s.Config.Origins.ExternalOrigins)
+	r.SetOrigins(s.Config.Origins.OriginsMapping)
 
 	if err = r.DomainMapping(); err != nil {
 		return err
 	}
 
-	r.SetCustomResponseTransformations(s.Config.Transform.Response.Custom)
+	r.SetCustomResponseTransformations(s.Config.Transform.Response.CustomContent)
 	r.MakeReplacements()
 
 	// Save the replacer
@@ -327,7 +339,9 @@ func contains(slice []string, s string) bool {
 func (r *Replacer) Save() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return saveToJSON(ReplaceFile, r)
+
+	return saveToJSON(r.GetSessionFileName(), r)
+	// return saveToJSON(ReplaceFile, r)
 }
 
 // saveToJSON saves the Replacer struct to a file as JSON.
@@ -341,7 +355,8 @@ func saveToJSON(filename string, replacer *Replacer) error {
 
 // Load loads the Replacer data from a JSON file.
 func (r *Replacer) Load() error {
-	rep, err := loadFromJSON(ReplaceFile)
+	rep, err := loadFromJSON(r.GetSessionFileName())
+	// rep, err := loadFromJSON(ReplaceFile)
 	if err != nil {
 		return err
 	}

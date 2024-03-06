@@ -72,18 +72,18 @@ func (module *Crawler) Prompt() {
 // Load configures the module by initializing its main structure and variables
 func Load(s *session.Session) (m *Crawler, err error) {
 
-	config := s.Config.Crawler
+	config := s.Config
 	m = &Crawler{
 		SessionModule: session.NewSessionModule(Name, s),
-		Enabled:       config.Enabled,
-		UpTo:          config.UpTo,
-		Depth:         config.Depth,
+		Enabled:       config.Crawler.Enabled,
+		UpTo:          config.Crawler.UpTo,
+		Depth:         config.Crawler.Depth,
 	}
 
 	rgxURLS = xurls.Strict()
 
 	// Armor domains
-	config.ExternalOrigins = proxy.ArmorDomain(config.ExternalOrigins)
+	config.Origins.ExternalOrigins = proxy.ArmorDomain(config.Origins.ExternalOrigins)
 	if !m.Enabled {
 		m.Debug("is disabled")
 		return
@@ -91,7 +91,7 @@ func Load(s *session.Session) (m *Crawler, err error) {
 
 	m.explore()
 	m.SimplifyDomains()
-	config.ExternalOrigins = m.Domains
+	config.Origins.ExternalOrigins = m.Domains
 
 	m.Info("Domain crawling stats:")
 	err = s.UpdateConfiguration(&m.Domains)
@@ -102,7 +102,7 @@ func Load(s *session.Session) (m *Crawler, err error) {
 func (module *Crawler) explore() {
 	waitGroup.Wait()
 
-	// Custom client
+	// CustomContent client
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
@@ -174,7 +174,7 @@ func (module *Crawler) explore() {
 	module.Info("Starting exploration of %s (crawlDepth:%d crawlMaxReq: %d), just a few seconds...",
 		config.Proxy.Target, module.Depth, module.UpTo)
 
-	dest := fmt.Sprintf("%s%s", config.Protocol, config.Proxy.Target)
+	dest := fmt.Sprintf("%s%s", config.Proxy.Protocol, config.Proxy.Target)
 	err := c.Visit(dest)
 	if err != nil {
 		module.Info("Exploration error visiting %s: %s", dest, tui.Red(err.Error()))

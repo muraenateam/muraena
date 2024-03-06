@@ -3,9 +3,13 @@ package statichttp
 
 import (
 	"fmt"
+	"log"
+	"net"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/evilsocket/islazy/tui"
 
@@ -26,15 +30,9 @@ const (
 // StaticHTTP module
 type StaticHTTP struct {
 	session.SessionModule
-
-	Enabled       bool
-	mux           *http.ServeMux
-	address       string
-	listeningPort int
-	Protocol      string
-	ListeningHost string
-	LocalPath     string
-	URLPath       string
+	config  session.StaticHTTPConfig
+	mux     *http.ServeMux `toml:"-"`
+	address string         `toml:"-"`
 }
 
 // Name returns the module name
@@ -62,24 +60,16 @@ func Load(s *session.Session) (m *StaticHTTP, err error) {
 
 	m = &StaticHTTP{
 		SessionModule: session.NewSessionModule(Name, s),
-		Enabled:       s.Config.StaticServer.Enabled,
+		config:        s.Config.StaticServer,
 	}
 
-	if !m.Enabled {
+	if !m.config.Enabled {
 		m.Debug("is disabled")
 		return
 	}
 
-	config := s.Config.StaticServer
-	m.Protocol = "http://"
-	m.ListeningHost = "localhost"
-	m.listeningPort = config.Port
-	m.LocalPath = config.LocalPath
-	m.URLPath = config.URLPath
-
 	// Enable static server module
-	if err = m.Start(); err != nil {
-		m.Debug("Dying")
+	if err = m.start(); err != nil {
 		return
 	}
 
@@ -87,29 +77,59 @@ func Load(s *session.Session) (m *StaticHTTP, err error) {
 	return
 }
 
-func (module *StaticHTTP) configure() error {
+// Debugging wrapper around the file server
+func (module *StaticHTTP) logFileServer(handler http.Handler, localPath string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		filePath := filepath.Join(localPath, r.URL.Path)
+		module.Info("Requested %s", filePath)
+		handler.ServeHTTP(w, r)
+	}
+}
 
-	module.address = fmt.Sprintf("127.0.0.1:%d", module.listeningPort)
+func (module *StaticHTTP) configure() error {
+	config := module.config
+
+	// :0 means "assign an available port"
+	module.address = fmt.Sprintf("%s:%d", config.ListeningHost, config.ListeningPort)
 	module.mux = http.NewServeMux()
 
-	path := http.Dir(module.LocalPath)
+	path := http.Dir(config.LocalPath)
 	module.Debug("[Static Server] Requested resource: %s", path)
-	fileServer := http.FileServer(FileSystem{path})
-	module.mux.Handle(module.URLPath, http.StripPrefix(strings.TrimRight(module.URLPath, "/"), fileServer))
 
+	fileServer := http.FileServer(FileSystem{path})
+	debugFS := module.logFileServer(fileServer, config.LocalPath)
+	module.mux.Handle(config.URLPath, http.StripPrefix(strings.TrimRight(config.URLPath, "/"), debugFS))
 	return nil
 }
 
-// Start runs the Static HTTP server module
-func (module *StaticHTTP) Start() (err error) {
-
-	if err := module.configure(); err != nil {
-		return err
+// start runs the Static HTTP server module
+func (module *StaticHTTP) start() (err error) {
+	if err = module.configure(); err != nil {
+		return
 	}
 
-	go http.ListenAndServe(module.address, module.mux)
+	listener, err := net.Listen("tcp", module.address)
+	if err != nil {
+		log.Fatalf("Error creating listener: %v", err)
+	}
 
-	return nil
+	// Retrieve the actual address & port assigned by the system
+	module.address = listener.Addr().String()
+	module.Info("listening on %s", module.address)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		wg.Done() // Signal the server is ready
+
+		if err := http.Serve(listener, module.mux); err != nil {
+			module.Error("%v", err)
+		}
+	}()
+
+	// Wait for the server to start
+	wg.Wait()
+	return
 }
 
 // FileSystem custom file system handler
@@ -135,11 +155,10 @@ func (fs FileSystem) Open(path string) (http.File, error) {
 	return f, nil
 }
 
-func (module *StaticHTTP) MakeDestinationURL(URL *url.URL) (destination string) {
-
-	destination = ""
-	if strings.HasPrefix(URL.Path, module.URLPath) {
-		destination = fmt.Sprintf("%s%s:%d", module.Protocol, module.ListeningHost, module.listeningPort)
+// GetNewDestination returns the destination URL for the given request
+func (module *StaticHTTP) GetNewDestination(URL *url.URL) (destination string) {
+	if strings.HasPrefix(URL.Path, module.config.URLPath) {
+		destination = fmt.Sprintf("http://%s", module.address)
 	}
 
 	return

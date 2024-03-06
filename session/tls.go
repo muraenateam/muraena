@@ -20,8 +20,10 @@ var tlsRenegotiationToConst = map[string]tls.RenegotiationSupport{
 
 func (s *Session) GetTLSClientConfig() *tls.Config {
 	cTLS := s.Config.TLS
+
 	return &tls.Config{
 		MinVersion:               tlsVersionToConst[cTLS.MinVersion],
+		MaxVersion:               tlsVersionToConst[cTLS.MaxVersion],
 		PreferServerCipherSuites: cTLS.PreferServerCipherSuites,
 		SessionTicketsDisabled:   cTLS.SessionTicketsDisabled,
 		NextProtos:               []string{"http/1.1"},

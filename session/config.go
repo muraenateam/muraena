@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/pelletier/go-toml"
@@ -12,34 +13,61 @@ import (
 	"github.com/muraenateam/muraena/core"
 )
 
-const (
-	DefaultIP        = "0.0.0.0"
-	DefaultListener  = "tcp"
-	DefaultHTTPPort  = 80
-	DefaultHTTPSPort = 443
+var (
+	DefaultIP              = "0.0.0.0"
+	DefaultListener        = "tcp"
+	DefaultHTTPPort        = 80
+	DefaultHTTPSPort       = 443
+	DefaultBase64Padding   = []string{"=", "."}
+	DefaultSkipContentType = []string{"font/*", "image/*"}
 )
 
-// Configuration
-type Configuration struct {
-	Protocol       string   `toml:"-"`
-	SkipExtensions []string `toml:"-"`
+type Redirect struct {
+	Hostname       string `toml:"hostname"`
+	Path           string `toml:"path"`
+	Query          string `toml:"query"`
+	RedirectTo     string `toml:"redirectTo"`
+	HTTPStatusCode int    `toml:"httpStatusCode"`
+}
 
+type StaticHTTPConfig struct {
+	Enabled       bool   `toml:"enable"`
+	LocalPath     string `toml:"localPath"`
+	URLPath       string `toml:"urlPath"`
+	ListeningHost string `toml:"listeningHost"`
+	ListeningPort int    `toml:"listeningPort"`
+}
+
+// Configuration struct
+type Configuration struct {
 	//
 	// Proxy rules
 	//
 	Proxy struct {
-		Phishing string `toml:"phishing"`
-		Target   string `toml:"destination"`
-		IP       string `toml:"IP"`
-		Listener string `toml:"listener"`
-		Port     int    `toml:"port"`
-		PortMap  string `toml:"portmapping"`
-
+		Phishing    string `toml:"phishing"`
+		Target      string `toml:"destination"`
+		IP          string `toml:"IP"`
+		Listener    string `toml:"listener"`
+		Port        int    `toml:"port"`
+		PortMap     string `toml:"portmapping"`
 		HTTPtoHTTPS struct {
 			Enabled  bool `toml:"enabled"`
-			HTTPport int  `toml:"HTTPport"`
+			HTTPport int  `toml:"port"`
 		} `toml:"HTTPtoHTTPS"`
+
+		Protocol string `toml:"-"`
 	} `toml:"proxy"`
+
+	//
+	// Origins
+	//
+	Origins struct {
+		ExternalOriginPrefix string            `toml:"externalOriginPrefix"`
+		ExternalOrigins      []string          `toml:"externalOrigins"`
+		OriginsMapping       map[string]string `toml:"-"`
+
+		SubdomainMap [][]string `toml:"subdomainMap"`
+	} `toml:"origins"`
 
 	//
 	// Transforming rules
@@ -50,60 +78,51 @@ type Configuration struct {
 			Padding []string `toml:"padding"`
 		} `toml:"base64"`
 
-		SkipContentType []string `toml:"skipContentType"`
-
 		Request struct {
+			SkipExtensions []string `toml:"-"`
+
+			UserAgent string `toml:"userAgent"`
+			// Headers list to consider for the transformation
 			Headers []string `toml:"headers"`
+
+			Remove struct {
+				Headers []string `toml:"headers"`
+			} `toml:"remove"`
+
+			Add struct {
+				Headers []struct {
+					Name  string `toml:"name"`
+					Value string `toml:"value"`
+				} `toml:"headers"`
+			} `toml:"add"`
 		} `toml:"request"`
 
 		Response struct {
-			Headers []string   `toml:"headers"`
-			Custom  [][]string `toml:"content"`
+			SkipContentType []string `toml:"skipContentType"`
+
+			Headers []string `toml:"headers"`
+
+			// CustomContent Transformations
+			CustomContent [][]string `toml:"customContent"`
+
+			Cookie struct {
+				SameSite string `toml:"sameSite"`
+			} `toml:"cookie"`
+
+			Remove struct {
+				Headers []string `toml:"headers"`
+			} `toml:"remove"`
+
+			Add struct {
+				Headers []struct {
+					Name  string `toml:"name"`
+					Value string `toml:"value"`
+				} `toml:"headers"`
+			} `toml:"add"`
 		} `toml:"response"`
 	} `toml:"transform"`
 
-	//
-	// Wiping rules
-	//
-	Remove struct {
-		Request struct {
-			Headers []string `toml:"headers"`
-		} `toml:"request"`
-
-		Response struct {
-			Headers []string `toml:"headers"`
-		} `toml:"response"`
-	} `toml:"remove"`
-
-	//
-	// Crafting rules
-	// TODO: Merge this with Wiping rule in some standard approach
-	//
-	Craft struct {
-		Add struct {
-			Request struct {
-				Headers []struct {
-					Name  string `toml:"name"`
-					Value string `toml:"value"`
-				} `toml:"headers"`
-			} `toml:"request"`
-
-			Response struct {
-				Headers []struct {
-					Name  string `toml:"name"`
-					Value string `toml:"value"`
-				} `toml:"headers"`
-			} `toml:"response"`
-		} `toml:"add"`
-	} `toml:"craft"`
-
-	//
-	// Redirection rules
-	//
-	Drop []struct {
-		Path       string `toml:"path"`
-		RedirectTo string `toml:"redirectTo"`
-	} `toml:"drop"`
+	Redirects []Redirect `toml:"redirect"`
 
 	//
 	// Logging
@@ -117,9 +136,9 @@ type Configuration struct {
 	// DB (Redis)
 	//
 	Redis struct {
-		Host     string `toml:"host"`
-		Port     int    `toml:"port"`
-		Password string `toml:"password"`
+		Host     string `toml:"host"`     // default: 127.0.0.1
+		Port     int    `toml:"port"`     // default: 6379
+		Password string `toml:"password"` // default: ""
 	} `toml:"redis"`
 
 	//
@@ -131,6 +150,7 @@ type Configuration struct {
 		Certificate string `toml:"certificate"`
 		Key         string `toml:"key"`
 		Root        string `toml:"root"`
+		SSLKeyLog   string `toml:"sslKeyLog"`
 
 		CertificateContent string `toml:"-"`
 		KeyContent         string `toml:"-"`
@@ -138,6 +158,7 @@ type Configuration struct {
 
 		// Minimum supported TLS version: SSL3, TLS1, TLS1.1, TLS1.2, TLS1.3
 		MinVersion               string `toml:"minVersion"`
+		MaxVersion               string `toml:"maxVersion"`
 		PreferServerCipherSuites bool   `toml:"preferServerCipherSuites"`
 		SessionTicketsDisabled   bool   `toml:"SessionTicketsDisabled"`
 		InsecureSkipVerify       bool   `toml:"insecureSkipVerify"`
@@ -145,32 +166,63 @@ type Configuration struct {
 	} `toml:"tls"`
 
 	//
-	// Crawler & Origins
+	// Tracking
 	//
+	Tracking struct {
+		Enabled             bool `toml:"enable"`
+		TrackRequestCookies bool `toml:"trackRequestCookies"`
 
+		Trace struct {
+			Identifier     string `toml:"identifier"`
+			Header         string `toml:"header"`
+			Domain         string `toml:"domain"`
+			ValidatorRegex string `toml:"validator"`
+
+			Landing struct {
+				Type       string `toml:"type"` // path or query
+				Header     string `toml:"header"`
+				RedirectTo string `toml:"redirectTo"` // redirect url once the landing is detected (applicable only if type is path)
+			} `toml:"landing"`
+		} `toml:"trace"`
+
+		Secrets struct {
+			Paths []string `toml:"paths"`
+
+			Patterns []struct {
+				Label    string `toml:"label"`
+				Matching string `toml:"matching"`
+				Start    string `toml:"start"`
+				End      string `toml:"end"`
+			} `toml:"patterns"`
+		} `toml:"secrets"`
+	} `toml:"tracking"`
+
+	//
+	// Crawler
+	//
 	Crawler struct {
 		Enabled bool `toml:"enabled"`
 		Depth   int  `toml:"depth"`
 		UpTo    int  `toml:"upto"`
-
-		ExternalOriginPrefix string            `toml:"externalOriginPrefix"`
-		ExternalOrigins      []string          `toml:"externalOrigins"`
-		OriginsMapping       map[string]string `toml:"-"`
 	} `toml:"crawler"`
 
 	//
 	// Necrobrowser
 	//
-	NecroBrowser struct {
-		Enabled  bool   `toml:"enabled"`
-		Endpoint string `toml:"endpoint"`
-		Profile  string `toml:"profile"`
+	Necrobrowser struct {
+		Enabled bool `toml:"enabled"`
 
+		SensitiveLocations struct {
+			AuthSession         []string `toml:"authSession"`
+			AuthSessionResponse []string `toml:"authSessionResponse"`
+		} `toml:"urls"`
+
+		Endpoint  string `toml:"endpoint"`
+		Profile   string `toml:"profile"`
 		Keepalive struct {
 			Enabled bool `toml:"enabled"`
 			Minutes int  `toml:"minutes"`
 		} `toml:"keepalive"`
-
 		Trigger struct {
 			Type   string   `toml:"type"`
 			Values []string `toml:"values"`
@@ -178,15 +230,7 @@ type Configuration struct {
 		} `toml:"trigger"`
 	} `toml:"necrobrowser"`
 
-	//
-	// Static Server
-	//
-	StaticServer struct {
-		Enabled   bool   `toml:"enabled"`
-		Port      int    `toml:"port"`
-		LocalPath string `toml:"localPath"`
-		URLPath   string `toml:"urlPath"`
-	} `toml:"staticServer"`
+	StaticServer StaticHTTPConfig `toml:"staticServer"`
 
 	//
 	// Watchdog
@@ -197,34 +241,6 @@ type Configuration struct {
 		Rules   string `toml:"rules"`
 		GeoDB   string `toml:"geoDB"`
 	} `toml:"watchdog"`
-
-	//
-	// Tracking
-	//
-	Tracking struct {
-		Enabled    bool   `toml:"enabled"`
-		Type       string `toml:"type"`
-		Identifier string `toml:"identifier"`
-		Header     string `toml:"header"`
-		Landing    string `toml:"landing"`
-		Domain     string `toml:"domain"`
-		IPSource   string `toml:"ipSource"`
-		Regex      string `toml:"regex"`
-		RedirectTo string `toml:"redirectTo"`
-
-		Urls struct {
-			Credentials         []string `toml:"credentials"`
-			AuthSession         []string `toml:"authSession"`
-			AuthSessionResponse []string `toml:"authSessionResponse"`
-		} `toml:"urls"`
-
-		Patterns []struct {
-			Label    string `toml:"label"`
-			Matching string `toml:"matching"`
-			Start    string `toml:"start"`
-			End      string `toml:"end"`
-		} `toml:"patterns"`
-	} `toml:"tracking"`
 
 	//
 	// Telegram
@@ -274,8 +290,35 @@ func (s *Session) GetConfiguration() (err error) {
 		}
 	}
 
+	// HTTPtoHTTPS
+	if s.Config.Proxy.HTTPtoHTTPS.Enabled {
+		if s.Config.Proxy.HTTPtoHTTPS.HTTPport == 0 {
+			s.Config.Proxy.HTTPtoHTTPS.HTTPport = DefaultHTTPPort
+		}
+	}
+
+	//
+	// Origins
+	//
+
+	// ExternalOriginPrefix must match the a-zA-Z0-9\- regex pattern
+	if s.Config.Origins.ExternalOriginPrefix != "" {
+		m, err := regexp.MatchString("^[a-zA-Z0-9-]+$", s.Config.Origins.ExternalOriginPrefix)
+		if err != nil {
+			return errors.New(fmt.Sprintf("Error matching ExternalOriginPrefix %s: %s", s.Config.Origins.ExternalOriginPrefix, err))
+		}
+
+		if !m {
+			return errors.New(fmt.Sprintf("Invalid ExternalOriginPrefix %s. It must match the a-zA-Z0-9\\- regex pattern.", s.Config.Origins.ExternalOriginPrefix))
+		}
+	} else {
+		s.Config.Origins.ExternalOriginPrefix = "ext"
+	}
+
+	s.Config.Origins.OriginsMapping = make(map[string]string)
+
 	// Load TLS config
-	s.Config.Protocol = "http://"
+	s.Config.Proxy.Protocol = "http://"
 
 	if s.Config.TLS.Enabled {
 
@@ -325,12 +368,18 @@ func (s *Session) GetConfiguration() (err error) {
 			}
 		}
 
-		s.Config.Protocol = "https://"
+		s.Config.Proxy.Protocol = "https://"
 
 		s.Config.TLS.MinVersion = strings.ToUpper(s.Config.TLS.MinVersion)
 		if !core.StringContains(s.Config.TLS.MinVersion, []string{"SSL3.0", "TLS1.0", "TLS1.1", "TLS1.2", "TLS1.3"}) {
 			// Fallback to TLS1
 			s.Config.TLS.MinVersion = "TLS1.0"
+		}
+
+		s.Config.TLS.MaxVersion = strings.ToUpper(s.Config.TLS.MaxVersion)
+		if !core.StringContains(s.Config.TLS.MaxVersion, []string{"SSL3.0", "TLS1.0", "TLS1.1", "TLS1.2", "TLS1.3"}) {
+			// Fallback to TLS1.3
+			s.Config.TLS.MaxVersion = "TLS1.3"
 		}
 
 		s.Config.TLS.RenegotiationSupport = strings.ToUpper(s.Config.TLS.RenegotiationSupport)
@@ -341,10 +390,19 @@ func (s *Session) GetConfiguration() (err error) {
 
 	}
 
-	s.Config.Crawler.OriginsMapping = make(map[string]string)
+	//
+	// Transforming rules
+	//
+	if s.Config.Transform.Base64.Padding == nil {
+		s.Config.Transform.Base64.Padding = DefaultBase64Padding
+	}
 
-	s.Config.SkipExtensions = []string{
-		"ttf", "otf", "woff", "woff2", "eot", //fonts and images
+	if s.Config.Transform.Response.SkipContentType == nil {
+		s.Config.Transform.Response.SkipContentType = DefaultSkipContentType
+	}
+
+	s.Config.Transform.Request.SkipExtensions = []string{
+		"ttf", "otf", "woff", "woff2", "eot", // fonts and images
 		"ase", "art", "bmp", "blp", "cd5", "cit", "cpt", "cr2", "cut", "dds", "dib", "djvu", "egt", "exif", "gif",
 		"gpl", "grf", "icns", "ico", "iff", "jng", "jpeg", "jpg", "jfif", "jp2", "jps", "lbm", "max", "miff", "mng",
 		"msp", "nitf", "ota", "pbm", "pc1", "pc2", "pc3", "pcf", "pcx", "pdn", "pgm", "PI1", "PI2", "PI3", "pict",
@@ -355,23 +413,24 @@ func (s *Session) GetConfiguration() (err error) {
 		"pcx", "pgf", "sgi", "rgb", "rgba", "bw", "int", "inta", "sid", "ras", "sun", "tga"}
 
 	// Fix Craft config
-	slice := s.Config.Craft.Add.Response.Headers
-	for s, header := range s.Config.Craft.Add.Response.Headers {
+	slice := s.Config.Transform.Response.Add.Headers
+	for s, header := range s.Config.Transform.Response.Add.Headers {
 		if header.Name == "" {
 			slice = append(slice[:s], slice[s+1:]...)
 		}
 	}
-	s.Config.Craft.Add.Response.Headers = slice
+	s.Config.Transform.Response.Add.Headers = slice
 
-	slice = s.Config.Craft.Add.Request.Headers
-	for s, header := range s.Config.Craft.Add.Request.Headers {
+	slice = s.Config.Transform.Request.Add.Headers
+	for s, header := range s.Config.Transform.Request.Add.Headers {
 		if header.Name == "" {
 			slice = append(slice[:s], slice[s+1:]...)
 		}
 	}
-	s.Config.Craft.Add.Request.Headers = slice
+	s.Config.Transform.Request.Add.Headers = slice
 
-	return
+	// Final Checks
+	return s.DoChecks()
 }
 
 func (s *Session) UpdateConfiguration(domains *[]string) (err error) {
@@ -381,7 +440,7 @@ func (s *Session) UpdateConfiguration(domains *[]string) (err error) {
 	// Update config
 	//
 	// Disable crawler and update external domains
-	config.Crawler.ExternalOrigins = *domains
+	config.Origins.ExternalOrigins = *domains
 	config.Crawler.Enabled = false
 
 	// Update TLS accordingly
@@ -397,4 +456,102 @@ func (s *Session) UpdateConfiguration(domains *[]string) (err error) {
 	}
 
 	return ioutil.WriteFile(*s.Options.ConfigFilePath, newConf, 0644)
+}
+
+func (s *Session) DoChecks() (err error) {
+
+	// Check Redirect
+	s.CheckRedirect()
+
+	// Check Log
+	err = s.CheckLog()
+	if err != nil {
+		return
+	}
+
+	// Check Tracking
+	err = s.CheckTracking()
+	if err != nil {
+		return
+	}
+
+	// Check Static Server
+	err = s.CheckStaticServer()
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+// CheckRedirect checks the redirect rules and removes invalid ones.
+func (s *Session) CheckRedirect() {
+	var redirects []Redirect
+	for _, drop := range s.Config.Redirects {
+		if drop.RedirectTo == "" {
+			continue
+		}
+
+		if drop.Hostname == "" && drop.Path == "" && drop.Query == "" {
+			continue
+		}
+
+		// Unset HTTPStatusCode will default to 302
+		if drop.HTTPStatusCode == 0 {
+			drop.HTTPStatusCode = 302
+		}
+
+		redirects = append(redirects, drop)
+	}
+
+	s.Config.Redirects = redirects
+}
+
+// CheckLog checks the log configuration and disables it if the file is not accessible.
+func (s *Session) CheckLog() (err error) {
+	if !s.Config.Log.Enabled {
+		return
+	}
+
+	if s.Config.Log.FilePath == "" {
+		s.Config.Log.FilePath = "muraena.log"
+	}
+
+	// If the file doesn't exist, create it, or append to the file
+	f, err := os.OpenFile(s.Config.Log.FilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		s.Config.Log.Enabled = false
+		return errors.New(fmt.Sprintf("Error opening log file %s: %s", s.Config.Log.FilePath, err))
+	}
+	defer f.Close()
+
+	return
+}
+
+// CheckTracking checks the tracking configuration and disables it if the file is not accessible.
+func (s *Session) CheckTracking() (err error) {
+	if !s.Config.Tracking.Enabled {
+		return
+	}
+
+	return
+}
+
+// CheckStaticServer checks the static server configuration and disables it if the file is not accessible.
+func (s *Session) CheckStaticServer() (err error) {
+	if !s.Config.StaticServer.Enabled {
+		return
+	}
+
+	if s.Config.StaticServer.LocalPath == "" {
+		s.Config.StaticServer.Enabled = false
+		return errors.New(fmt.Sprintf("Error opening static server local path %s: %s", s.Config.StaticServer.LocalPath, err))
+	}
+
+	if s.Config.StaticServer.URLPath == "" {
+		s.Config.StaticServer.Enabled = false
+		return errors.New(fmt.Sprintf("Error opening static server URL path %s: %s", s.Config.StaticServer.URLPath, err))
+	}
+
+	return
 }
