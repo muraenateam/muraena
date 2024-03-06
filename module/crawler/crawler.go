@@ -218,6 +218,7 @@ func (module *Crawler) fetchJS(waitGroup *sync.WaitGroup, res string) {
 	}
 }
 
+//goland:noinspection ALL
 func (module *Crawler) appendExternalDomain(res string) bool {
 	if strings.HasPrefix(res, "//") || strings.HasPrefix(res, "https://") || strings.HasPrefix(res, "http://") {
 		u, err := url.Parse(res)

@@ -15,7 +15,6 @@ import (
 	"github.com/muraenateam/muraena/session"
 )
 
-const ReplaceFile = "session.json"
 const CustomWildcardSeparator = "---"
 const WildcardLabel = "wld"
 
@@ -41,7 +40,7 @@ type Replacer struct {
 }
 
 // GetSessionFileName returns the session file name
-// It generates the value from the Target domain, adding google.com.session.json at the end
+// It generates the value from the Target domain, adding session.json at the end
 func (r *Replacer) GetSessionFileName() string {
 	return fmt.Sprintf("%s.session.json", r.Target)
 }
@@ -341,7 +340,6 @@ func (r *Replacer) Save() error {
 	defer r.mu.Unlock()
 
 	return saveToJSON(r.GetSessionFileName(), r)
-	// return saveToJSON(ReplaceFile, r)
 }
 
 // saveToJSON saves the Replacer struct to a file as JSON.
@@ -356,7 +354,6 @@ func saveToJSON(filename string, replacer *Replacer) error {
 // Load loads the Replacer data from a JSON file.
 func (r *Replacer) Load() error {
 	rep, err := loadFromJSON(r.GetSessionFileName())
-	// rep, err := loadFromJSON(ReplaceFile)
 	if err != nil {
 		return err
 	}
