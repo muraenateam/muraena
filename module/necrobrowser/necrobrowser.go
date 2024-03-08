@@ -40,7 +40,7 @@ type Necrobrowser struct {
 	RequestTemplate string
 }
 
-// Cookies
+// SessionCookie structure
 type SessionCookie struct {
 	Name     string `json:"name"`
 	Value    string `json:"value"`

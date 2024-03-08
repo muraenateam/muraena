@@ -451,15 +451,6 @@ func (module *Tracker) TrackResponse(response *http.Response) (t *Trace) {
 		t = module.makeTrace("")
 
 	}
-	// else {
-	//	var err error
-	//	victim, err = t.GetVictim(t)
-	//	if err != nil {
-	//		module.Warning("Error: cannot retrieve Victim from tracker: %s", err)
-	//	}
-	// }
-
-	// return victim
 
 	return
 }
@@ -525,12 +516,7 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 					}
 				}
 			}
-
-			// if found {
-			//	break
-			// }
 		}
-
 	}
 
 	if found {
@@ -595,10 +581,6 @@ func (t *Trace) ExtractCredentialsFromResponseHeaders(response *http.Response) (
 					}
 				}
 			}
-
-			// if found {
-			//	break
-			// }
 		}
 
 	}

