@@ -6,3 +6,4 @@ muraena
 build/
 static/
 vendor/
+/docs/_site/
