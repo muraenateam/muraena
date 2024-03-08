@@ -2,7 +2,8 @@
 layout: default
 title: Running Muraena
 permalink: /infra/run
-nav_order: 1
+nav_order: 3
+has_children: true
 has_toc: true
 ---
 
