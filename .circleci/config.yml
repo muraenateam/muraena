@@ -17,8 +17,8 @@ jobs:
 
 
       - run: make pre # pull and build dependencies for the project
-      - run: go get github.com/mitchellh/gox
-      - run: go get github.com/tcnksm/ghr
+      - run: go install github.com/mitchellh/gox@latest
+      - run: go install github.com/tcnksm/ghr@latest
 
       - run: gox -os="linux darwin windows" -arch="amd64" -ldflags "-X main.Version=$BUILD_VERSION -X main.BuildDate=$BUILD_DATE" -output "dist/muraena_{{.OS}}_{{.Arch}}"
       - run:
