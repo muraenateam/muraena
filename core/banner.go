@@ -2,7 +2,7 @@ package core
 
 const (
 	Name    = "Muraena"
-	Version = "1.20"
+	Version = "1.20.1"
 	Author  = "Muraena Team"
 	Website = "https://phishing.click/"
 	Banner  = `           ___   ____
