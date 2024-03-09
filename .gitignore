@@ -7,3 +7,4 @@ build/
 static/
 vendor/
 /docs/_site/
+/docs/.jekyll-metadata
