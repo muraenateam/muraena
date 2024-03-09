@@ -22,10 +22,10 @@ buildall: pre
 	env GO111MODULE=on GOOS=linux GOARCH=amd64 go build -o $(BUILD)/linux/$(TARGET) .
 	env GO111MODULE=on GOOS=windows GOARCH=amd64 go build -o  $(BUILD)/windows/$(TARGET).exe .
 
-update:
+update: fmt
 	go get -u
-	go mod vendor
 	go mod tidy
+	go vet ./...
 	@git commit go.mod go.sum -S -m "Bump dependencies :chart_with_upwards_trend:"
 
 lint: fmt
