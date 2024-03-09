@@ -2,7 +2,7 @@
 title: Static Server
 layout: default
 permalink: /modules/staticserver
-nav_order: 2
+nav_order: 3
 parent: Supported Modules
 ---
 

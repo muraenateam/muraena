@@ -1,6 +1,6 @@
 ---
 title: Origins
-permalink: /docs/origin
+permalink: /docs/origins
 nav_order: 2
 parent: Configuring Muraena
 ---

@@ -80,7 +80,7 @@ the legitimate site.
 
 ```toml
 [transform.request]
-add = [
+add.headers = [
     {name = "X-Phishing-Header", value = "Phishing"}
 ]
 ```
@@ -194,7 +194,7 @@ the legitimate site.
 
 ```toml
 [transform.request]
-add = [
+add.headers = [
     {name = "X-Phishing-Header", value = "Phishing"}
 ]
 ```
@@ -243,11 +243,11 @@ headers = [
 "X-Forwarded-For"
 ]
 
-remove = [
+remove.headers = [
   "X-Forwarded-For"
 ]
 
-add = [
+add.headers = [
   {name = "X-Phishing-Header", value = "Phishing"}
 ]
 

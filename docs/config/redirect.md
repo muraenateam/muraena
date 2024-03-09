@@ -45,21 +45,21 @@ The `httpStatusCode` field specifies the HTTP status code to use for the redirec
 ## Example
 ```toml
 
-[drop]
-    [[drop]]
+[redirect]
+    [[redirect]]
         hostname = "phishing.click"
         path = "/login"
         query = "id=123"
         redirectTo = "https://poor.victim/login"
         httpStatusCode = 301
     
-    [[drop]]
+    [[redirect]]
         hostname = "phishing.click"
         path = "/admin"
         redirectTo = "https://poor.victim/admin"
         httpStatusCode = 301
     
-    [[drop]]
+    [[redirect]]
         hostname = "analytics.local"
         redirectTo = "https://poor.victim"
         httpStatusCode = 301
