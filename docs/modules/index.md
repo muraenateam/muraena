@@ -12,6 +12,9 @@ has_toc: false
 Muraena supports the following modules: 
 
 - [Tracker](./tracker.md)
+- [Necrobrowser](./necrobrowser.md)
 - [Static Server](./staticserver.md)
+- [Watchdog](./watchdog.md)
+- [Telegram](./telegram.md)
 
 
