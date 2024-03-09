@@ -14,8 +14,7 @@ origin to be targeted, rather than maintaining and serving static pages.
 
 ## Documentation
 
-The project is documented in the [Wiki here](https://github.com/muraenateam/muraena/wiki).
-
+That the project is documented at https://muraena.phishing.click
 
 ## Contributing
 
