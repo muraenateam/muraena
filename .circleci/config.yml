@@ -21,6 +21,7 @@ jobs:
       - run: go install github.com/tcnksm/ghr@latest
 
       - run: gox -os="linux darwin windows" -arch="amd64" -ldflags "-X main.Version=$BUILD_VERSION -X main.BuildDate=$BUILD_DATE" -output "dist/muraena_{{.OS}}_{{.Arch}}"
+      - run: gox -os="linux darwin" -arch="arm64" -ldflags "-X main.Version=$BUILD_VERSION -X main.BuildDate=$BUILD_DATE" -output "dist/muraena_{{.OS}}_{{.Arch}}"
       - run:
           name: "Create release release"
           command: |
