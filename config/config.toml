@@ -215,15 +215,12 @@
 #
 #[necrobrowser]
 #    enable = true
-#
+#    endpoint = "http://10.0.0.2:3000/instrument"
+#    profile = "./config/instrument.necro"
+
 #    [necrobrowser.urls]
 #    authSession = ["/settings/profile"]
 #    authSessionResponse = ["/privacypolicy"]
-#
-#
-#    # Endpoint should be the internal one used via WG
-#    endpoint = "http://10.0.0.2:3000/instrument"
-#    profile = "./config/instrument.necro"
 #
 #    [necrobrowser.trigger]
 #    type = "cookie"
