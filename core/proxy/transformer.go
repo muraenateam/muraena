@@ -544,7 +544,17 @@ func (r *Replacer) MakeReplacements() {
 	// Responses
 	//
 	r.SetBackwardReplacements([]string{})
-	r.SetBackwardReplacements(append(r.BackwardReplacements, []string{r.Target, r.Phishing}...))
+
+	//
+	// Dirty fix for the case when the Victim domain is a subdomain of the Phishing domain:
+	// e.g. phishing.com and no-phishing.com
+	//
+	// Define potential boundaries around the domain
+	boundaries := []string{" ", ",", ".", ":", "/", "(", ")", "!", "'", "\"", ";", "<", ">", "\n", "\t"}
+	targetVariations, phishingVariations := createVariations(r.Target, r.Phishing, boundaries)
+	for i, variation := range targetVariations {
+		r.SetBackwardReplacements(append(r.BackwardReplacements, []string{variation, phishingVariations[i]}...))
+	}
 
 	// Add the SubdomainMap to the backward replacements
 	for _, sub := range r.SubdomainMap {
@@ -594,6 +604,19 @@ func (r *Replacer) MakeReplacements() {
 
 	r.SetLastBackwardReplacements(append(r.BackwardReplacements, r.LastBackwardReplacements...))
 
+}
+
+// createVariations generates all possible variations of the target and phishing strings with boundaries
+func createVariations(target, phishing string, boundaries []string) ([]string, []string) {
+	var targetVariations, phishingVariations []string
+
+	// Generate variations with each boundary preceding and following the target
+	for _, boundary := range boundaries {
+		targetVariations = append(targetVariations, boundary+target)
+		phishingVariations = append(phishingVariations, boundary+phishing)
+	}
+
+	return targetVariations, phishingVariations
 }
 
 func (r *Replacer) DomainMapping() (err error) {
