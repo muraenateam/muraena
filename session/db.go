@@ -36,7 +36,7 @@ func (s *Session) InitRedis() error {
 	// init a new Redis db Pool
 	RedisPool = newRedisPool()
 	if _, err := RedisPool.Dial(); err != nil {
-		return errors.New(fmt.Sprintf("%s %s", tui.Wrap(tui.BACKLIGHTBLUE, tui.Wrap(tui.FOREBLACK, "redis")), err.Error()))
+		return errors.New(fmt.Sprintf("Error initializing Redis connection: %s %s", tui.Wrap(tui.BACKLIGHTBLUE, tui.Wrap(tui.FOREBLACK, "redis")), err.Error()))
 	}
 
 	return nil

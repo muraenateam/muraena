@@ -62,10 +62,12 @@ func New() (*Session, error) {
 		return nil, err
 	}
 
-	// Load Redis
-	if err = s.InitRedis(); err != nil {
-		log.Error("%s", err)
-		return nil, err
+	// Load Redis only if tracking is enabled
+	if s.Config.Tracking.Enabled {
+		if err = s.InitRedis(); err != nil {
+			log.Error("%s", err)
+			return nil, err
+		}
 	}
 
 	log.Info("Connected to Redis")
