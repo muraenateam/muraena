@@ -68,9 +68,9 @@ func New() (*Session, error) {
 			log.Error("%s", err)
 			return nil, err
 		}
-	}
 
-	log.Info("Connected to Redis")
+		log.Info("Connected to Redis")
+	}
 
 	// Load prompt
 	go Prompt(s)
