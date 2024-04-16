@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/evilsocket/islazy/tui"
-
 	"github.com/muraenateam/muraena/core/proxy"
 	"github.com/muraenateam/muraena/log"
 	"github.com/muraenateam/muraena/module"
@@ -17,14 +15,6 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
-	}
-
-	if !tui.Effects() {
-		if *sess.Options.NoColors {
-			fmt.Printf("\n\nWARNING: Terminal colors have been disabled, view will be very limited.\n\n")
-		} else {
-			fmt.Printf("\n\nWARNING: This terminal does not support colors, view will be very limited.\n\n")
-		}
 	}
 
 	// Init Log

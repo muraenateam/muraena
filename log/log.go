@@ -36,9 +36,7 @@ func Init(opt core.Options, isLogToFile bool, logFilePath string) {
 
 	if !tui.Effects() {
 		NoEffects = true
-		if *opt.NoColors {
-			fmt.Printf("\n\nWARNING: Terminal colors have been disabled, view will be very limited.\n\n")
-		} else {
+		if !*opt.NoColors {
 			fmt.Printf("\n\nWARNING: This terminal does not support colors, view will be very limited.\n\n")
 		}
 	}
