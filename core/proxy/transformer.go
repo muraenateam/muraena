@@ -158,14 +158,15 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64, repetitions
 
 			if strings.Contains(result, "."+wldPrefix) {
 				var rep []string
+				var err error
 
 				// URL encoding handling
-				urlEncoded := false
-				decodedValue, err := url.QueryUnescape(result)
-				if err == nil && result != decodedValue {
-					urlEncoded = true
-					result = decodedValue
-				}
+				// urlEncoded := false
+				// decodedValue, err := url.QueryUnescape(result)
+				// if err == nil && result != decodedValue {
+				// 	urlEncoded = true
+				// 	result = decodedValue
+				// }
 
 				domain := regexp.QuoteMeta(r.Phishing)
 				re := regexp.MustCompile(fmt.Sprintf(`%s\d+.%s`, r.WildcardRegex(false), domain))
@@ -193,14 +194,14 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64, repetitions
 					rep = append(rep, element)
 				}
 
-				if urlEncoded {
-					encodedValue, err := url.QueryUnescape(result)
-					if err != nil {
-						log.Error(err.Error())
-					} else {
-						result = encodedValue
-					}
-				}
+				// if urlEncoded {
+				// 	encodedValue, err := url.QueryUnescape(result)
+				// 	if err != nil {
+				// 		log.Error(err.Error())
+				// 	} else {
+				// 		result = encodedValue
+				// 	}
+				// }
 
 				if len(rep) > 0 {
 					// Get the patched list of domains and update the replacer
