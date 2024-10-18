@@ -85,6 +85,9 @@ type Configuration struct {
 			// Headers list to consider for the transformation
 			Headers []string `toml:"headers"`
 
+			// CustomContent Transformations
+			CustomContent [][]string `toml:"customContent"`
+
 			Remove struct {
 				Headers []string `toml:"headers"`
 			} `toml:"remove"`

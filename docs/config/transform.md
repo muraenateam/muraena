@@ -54,6 +54,13 @@ Commonly headers to transform include:
 - `Origin`
 - `X-Forwarded-For`
 
+#### `customContent`
+`customContent` defines a list of content transformation rules to be applied to body.
+
+The rules are defined as a list of pairs, where the first element is the search string and the second element is the
+replacement string. `customContent` works by searching for the `search` string in the response content and replacing it
+with the `replace` string.
+
 
 #### `remove`
 ##### `headers`

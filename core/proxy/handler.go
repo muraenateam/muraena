@@ -5,12 +5,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/evilsocket/islazy/tui"
 	. "github.com/logrusorgru/aurora"
@@ -132,6 +134,54 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 	// If specified in the configuration, set the User-Agent header
 	if sess.Config.Transform.Request.UserAgent != "" {
 		request.Header.Set("User-Agent", sess.Config.Transform.Request.UserAgent)
+	}
+
+	//
+	// BODY
+	//
+	// Transform body
+	if len(sess.Config.Transform.Request.CustomContent) > 0 {
+
+		// Make sure the content type is not binary
+
+		if request.Body != nil {
+			r := request.Body
+			buf, err := ioutil.ReadAll(r)
+			if err != nil {
+				log.Error("unable to transform request body: %s", err)
+				goto skip
+			}
+			err = request.Body.Close()
+			if err != nil {
+				log.Error("unable to transform request body: %s", err)
+				goto skip
+			}
+
+			defer r.Close()
+
+			// CustomContent is an [][]string containing the following:
+			// [0] is the string to be replaced
+			// [1] is the string to replace with
+			// Example: [["foo", "bar"], ["bar", "foo"]]
+			if !utf8.Valid(buf) {
+				log.Debug("skip binary content from request body replacement in %s", request.URL.Path)
+				goto skip
+			}
+
+			bodyString := string(buf)
+			for _, cc := range sess.Config.Transform.Request.CustomContent {
+				bodyString = strings.Replace(bodyString, cc[0], cc[1], -1)
+			}
+
+			request.Body = io.NopCloser(bytes.NewReader([]byte(bodyString)))
+			request.ContentLength = int64(len(bodyString))
+			request.Header.Set("Content-Length", strconv.Itoa(len(bodyString)))
+
+		}
+	}
+
+skip:
+	{
 	}
 
 	//
