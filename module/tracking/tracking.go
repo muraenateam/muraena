@@ -316,9 +316,8 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 		re := regexp.MustCompile(pathRegex)
 
 		match := re.FindStringSubmatch(request.URL.Path)
-		module.Info("tracking path match: %v", match)
-
 		if len(match) > 0 {
+			// module.Info("tracking path match: %v", match)
 			t = module.makeTrace(match[0])
 			if t.IsValid() {
 				request.Header.Set(module.LandingHeader, strings.ReplaceAll(request.URL.Path, t.ID, ""))
