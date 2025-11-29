@@ -81,6 +81,14 @@ func Run(sess *session.Session) {
 	}
 
 	//
+	// Bot handler for same-origin JavaScript requests
+	//
+	if sess.Config.BotHandler.Enabled {
+		log.Info("Bot handler enabled at path: %s", sess.Config.BotHandler.Path)
+		http.HandleFunc(sess.Config.BotHandler.Path, BotHandler(sess))
+	}
+
+	//
 	// start the reverse proxy
 	//
 	http.HandleFunc("/", func(response http.ResponseWriter, request *http.Request) {

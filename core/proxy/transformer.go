@@ -117,6 +117,24 @@ func (r *Replacer) Transform(input string, forward bool, b64 Base64, repetitions
 		result = strings.NewReplacer(lastReplacements...).Replace(result)
 	}
 
+	// Apply regex transformations for backward (response) transformations
+	if !forward {
+		regexTransformations := r.GetRegexResponseTransformations()
+		for _, tr := range regexTransformations {
+			if len(tr) == 2 {
+				pattern := tr[0]
+				replacement := tr[1]
+				re, err := regexp.Compile(pattern)
+				if err != nil {
+					log.Warning("Error compiling regex pattern %s: %s", pattern, err)
+					continue
+				}
+				result = re.ReplaceAllString(result, replacement)
+				log.Verbose("[RegexContent Replacements] Pattern: %s, Replacement: %s", pattern, replacement)
+			}
+		}
+	}
+
 	// Re-encode if base64 encoded data was found
 	if base64Found {
 		result, _, _ = transformBase64(result, b64, false, padding)

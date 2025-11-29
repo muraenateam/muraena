@@ -38,6 +38,11 @@ type StaticHTTPConfig struct {
 	ListeningPort int    `toml:"listeningPort"`
 }
 
+type BotHandlerConfig struct {
+	Enabled bool   `toml:"enable"`
+	Path    string `toml:"path"`
+}
+
 // Configuration struct
 type Configuration struct {
 	//
@@ -107,6 +112,9 @@ type Configuration struct {
 
 			// CustomContent Transformations
 			CustomContent [][]string `toml:"customContent"`
+
+			// RegexContent Transformations
+			RegexContent [][]string `toml:"regexContent"`
 
 			Cookie struct {
 				SameSite string `toml:"sameSite"`
@@ -232,6 +240,8 @@ type Configuration struct {
 	} `toml:"necrobrowser"`
 
 	StaticServer StaticHTTPConfig `toml:"staticServer"`
+
+	BotHandler BotHandlerConfig `toml:"botHandler"`
 
 	//
 	// Watchdog
@@ -482,6 +492,12 @@ func (s *Session) DoChecks() (err error) {
 		return
 	}
 
+	// Check Bot Handler
+	err = s.CheckBotHandler()
+	if err != nil {
+		return
+	}
+
 	return
 }
 
@@ -552,6 +568,20 @@ func (s *Session) CheckStaticServer() (err error) {
 	if s.Config.StaticServer.URLPath == "" {
 		s.Config.StaticServer.Enabled = false
 		return errors.New(fmt.Sprintf("Error opening static server URL path %s: %s", s.Config.StaticServer.URLPath, err))
+	}
+
+	return
+}
+
+// CheckBotHandler checks the bot handler configuration and disables it if the path is not set.
+func (s *Session) CheckBotHandler() (err error) {
+	if !s.Config.BotHandler.Enabled {
+		return
+	}
+
+	if s.Config.BotHandler.Path == "" {
+		s.Config.BotHandler.Enabled = false
+		return errors.New("bot handler path is required when bot handler is enabled")
 	}
 
 	return

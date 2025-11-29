@@ -28,6 +28,7 @@ type Replacer struct {
 	WildcardMapping               map[string]string
 	SubdomainMap                  [][]string
 	CustomResponseTransformations [][]string
+	RegexResponseTransformations  [][]string
 	ForwardReplacements           []string `json:"-"`
 	ForwardWildcardReplacements   []string `json:"-"`
 	BackwardReplacements          []string `json:"-"`
@@ -80,6 +81,7 @@ func (r *Replacer) Init(s session.Session) error {
 	}
 
 	r.SetCustomResponseTransformations(s.Config.Transform.Response.CustomContent)
+	r.SetRegexResponseTransformations(s.Config.Transform.Response.RegexContent)
 	r.MakeReplacements()
 
 	// Save the replacer
@@ -156,6 +158,29 @@ func (r *Replacer) SetCustomResponseTransformations(newTransformations [][]strin
 		}
 	}
 
+}
+
+// SetRegexResponseTransformations sets the RegexResponseTransformations used in the transformation rules.
+func (r *Replacer) SetRegexResponseTransformations(newTransformations [][]string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.RegexResponseTransformations = newTransformations
+}
+
+// GetRegexResponseTransformations returns the RegexResponseTransformations used in the transformation rules.
+func (r *Replacer) GetRegexResponseTransformations() [][]string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Make a copy of the transformations and return it
+	ret := make([][]string, len(r.RegexResponseTransformations))
+	for i, t := range r.RegexResponseTransformations {
+		ret[i] = make([]string, len(t))
+		copy(ret[i], t)
+	}
+
+	return ret
 }
 
 // GetExternalOrigins returns the ExternalOrigins used in the transformation rules.
