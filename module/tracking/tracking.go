@@ -40,7 +40,15 @@ const (
 )
 
 const (
-	blockExtension = "JS,CSS,MAP,WOFF,SVG,SVC,JSON,GIF,ICO"
+	// Static assets that should not be tracked
+	// NOTE: These files are still PROXIED and TRANSFORMED by muraena (domain replacements, etc.)
+	//       but the tracking module will not create victim entries or log requests for them.
+	// JavaScript: js (proxied and transformed, but not tracked)
+	// Fonts: woff, woff2, ttf, otf, eot
+	// Images: gif, ico, jpg, jpeg, png, webp, bmp, svg, avif, apng
+	// Styles: css, map
+	// Other: json, svc, xml, txt
+	blockExtension = "JS,CSS,MAP,WOFF,WOFF2,TTF,OTF,EOT,SVG,JSON,GIF,ICO,JPG,JPEG,PNG,WEBP,BMP,AVIF,APNG,XML,TXT,SVC"
 	blockMedia     = "image/*,audio/*,video/*,font/*"
 )
 
@@ -270,6 +278,25 @@ func isDisabledPath(requestPath string) bool {
 	return false
 }
 
+// isStaticAsset checks if the request is for a static asset (font, image, etc.)
+// These should ALWAYS be skipped from tracking, regardless of cookies/parameters
+func isStaticAsset(requestPath string) bool {
+	requestPath = strings.ToLower(requestPath)
+	requestPath = strings.Split(requestPath, "?")[0]
+
+	file := path.Base(requestPath)
+	ext := filepath.Ext(file)
+	ext = strings.ReplaceAll(ext, ".", "")
+
+	for _, disabled := range DisabledExtensions {
+		if ext == disabled {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (module *Tracker) makeTrace(id string) (t *Trace) {
 	t = &Trace{}
 	t.Tracker = module
@@ -320,7 +347,14 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 		return
 	}
 
-	// Check if there's an existing tracking parameter/cookie BEFORE applying path filters
+	// ALWAYS skip static assets (fonts, images, etc.) - these should NEVER be tracked
+	// even if the request has a tracking cookie from a previous page load
+	if isStaticAsset(request.URL.Path) {
+		module.Debug("[Static asset filter] Skipping tracking for static asset: %s", request.URL.Path)
+		return
+	}
+
+	// Check if there's an existing tracking parameter/cookie BEFORE applying directory path filters
 	// This ensures we don't skip requests with explicit tracking IDs (e.g., /?session=XXX)
 	hasExistingTracking := false
 	queryID := request.URL.Query().Get(module.Identifier)
@@ -341,10 +375,10 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 		}
 	}
 
-	// Only apply path filter if there's no existing tracking
-	// This prevents skipping important tracked requests like /?session=XXX
+	// For directory paths (ending with "/" or empty), only skip if there's no explicit tracking
+	// This allows /?session=XXX to work while skipping untracked requests like /assets/
 	if !hasExistingTracking && isDisabledPath(request.URL.Path) {
-		module.Debug("[Path filter] Skipping untracked request to: %s", request.URL.Path)
+		module.Debug("[Path filter] Skipping untracked directory path: %s", request.URL.Path)
 		return
 	}
 
