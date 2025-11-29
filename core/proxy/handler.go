@@ -438,18 +438,25 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 
 	// Media LandingType handling.
 	// Prevent processing of unwanted media types
+	// IMPORTANT: For redirects (3xx), we must ALWAYS process tracking even if Content-Type would be skipped
+	isRedirect := response.StatusCode >= 300 && response.StatusCode < 400
 	mediaType := strings.ToLower(response.Header.Get("Content-Type"))
-	for _, skip := range sess.Config.Transform.Response.SkipContentType {
-		skip = strings.ToLower(skip)
 
-		if mediaType == skip {
-			return
-		}
+	if !isRedirect {
+		for _, skip := range sess.Config.Transform.Response.SkipContentType {
+			skip = strings.ToLower(skip)
 
-		if strings.HasSuffix(skip, "/*") &&
-			strings.Split(mediaType, "/")[0] == strings.Split(skip, "/*")[0] {
-			return
+			if mediaType == skip {
+				return
+			}
+
+			if strings.HasSuffix(skip, "/*") &&
+				strings.Split(mediaType, "/")[0] == strings.Split(skip, "/*")[0] {
+				return
+			}
 		}
+	} else {
+		log.Debug("[ResponseProcessor] Redirect detected (status=%d), forcing tracking processing", response.StatusCode)
 	}
 
 	//
@@ -539,6 +546,13 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 
 		}
 
+	}
+
+	// For redirects (3xx), skip body processing since they typically have minimal/no body
+	// and we've already handled tracking above
+	if isRedirect {
+		log.Debug("[ResponseProcessor] Skipping body processing for redirect (status=%d)", response.StatusCode)
+		return nil
 	}
 
 	//

