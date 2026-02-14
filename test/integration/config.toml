@@ -38,6 +38,11 @@
     host = "127.0.0.1"
     port = 6379
 
+# Tests use plaintext HTTP (TLS disabled) to avoid self-signed cert complexity.
+# The test client uses InsecureSkipVerify=true so both modes work.
+# To enable TLS for testing, generate self-signed certs:
+#   openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj '/CN=evil-authtest.local'
+# Then set enable=true and provide certificate/key/root inline or as file paths.
 [tls]
     enable = false
 

