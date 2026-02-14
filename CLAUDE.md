@@ -142,6 +142,17 @@ Test files use the `_test.go` suffix and exist for most modules:
 
 When writing tests, follow the existing pattern using Go's standard testing package.
 
+### Integration Tests (HTTPS)
+
+Integration tests live in `test/integration/` and run against `authenticationtest.com` over HTTPS through Muraena. They require:
+
+- **dnsmasq** resolving `*.muraena.anti` to `127.0.0.1` (wildcard local TLD)
+- **mkcert** for locally-trusted TLS certificates (`*.muraena.anti`)
+- **Redis** on `localhost:6379`
+- `MURAENA_INTEGRATION=1` environment variable
+
+See `test/integration/README.md` for full setup instructions. Run with `bash test/integration/run_test.sh`.
+
 ## Configuration Notes
 
 - The main config is at `config/config.toml`

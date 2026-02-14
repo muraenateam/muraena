@@ -1,11 +1,19 @@
 #
 # Integration Test Configuration for Muraena
-# Target: authenticationtest.com
-# Phishing domain: evil-authtest.local:8443
+# Target: authenticationtest.com (HTTPS)
+# Phishing domain: evil-authtest.muraena.anti:8443
+#
+# IMPORTANT: Always use HTTPS when the target uses HTTPS.
+# HTTP proxying of HTTPS targets breaks Secure cookie flags, HSTS enforcement,
+# and mixed-content protections — causing false test results and detection
+# in production deployments.
+#
+# DNS: Resolved via dnsmasq (address=/muraena.anti/127.0.0.1)
+# TLS: Wildcard cert from mkcert (*.muraena.anti)
 #
 
 [proxy]
-    phishing = "evil-authtest.local"
+    phishing = "evil-authtest.muraena.anti"
     destination = "authenticationtest.com"
     IP = "127.0.0.1"
     port = 8443
@@ -38,13 +46,12 @@
     host = "127.0.0.1"
     port = 6379
 
-# Tests use plaintext HTTP (TLS disabled) to avoid self-signed cert complexity.
-# The test client uses InsecureSkipVerify=true so both modes work.
-# To enable TLS for testing, generate self-signed certs:
-#   openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj '/CN=evil-authtest.local'
-# Then set enable=true and provide certificate/key/root inline or as file paths.
+# TLS enabled with mkcert wildcard certificate.
+# Generate certs: cd test/integration/certs && mkcert "*.muraena.anti" "muraena.anti"
 [tls]
-    enable = false
+    enable = true
+    certificate = "./test/integration/certs/_wildcard.muraena.anti+1.pem"
+    key = "./test/integration/certs/_wildcard.muraena.anti+1-key.pem"
 
 #
 # Tracking

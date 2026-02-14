@@ -24,7 +24,7 @@ import (
 
 const (
 	// muraenaBase is the base URL of the Muraena proxy under test
-	muraenaBase = "https://evil-authtest.local:8443"
+	muraenaBase = "https://evil-authtest.muraena.anti:8443"
 
 	// trackingID is the test victim identifier
 	trackingID = "TESTID01"

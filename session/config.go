@@ -353,18 +353,20 @@ func (s *Session) GetConfiguration() (err error) {
 			}
 		}
 
-		// Load TLS Root CA Certificate
-		s.Config.TLS.RootContent = s.Config.TLS.Root
-		if !strings.HasPrefix(s.Config.TLS.Root, "-----BEGIN CERTIFICATE-----\n") {
-			er := errors.New(fmt.Sprintf("Error reading TLS cert pool %s: %s", s.Config.TLS.Root, err))
-			if _, err := os.Stat(s.Config.TLS.RootContent); err == nil {
-				crtp, err := ioutil.ReadFile(s.Config.TLS.RootContent)
-				if err != nil {
+		// Load TLS Root CA Certificate (optional — not needed when the CA is in the system trust store, e.g. mkcert)
+		if s.Config.TLS.Root != "" {
+			s.Config.TLS.RootContent = s.Config.TLS.Root
+			if !strings.HasPrefix(s.Config.TLS.Root, "-----BEGIN CERTIFICATE-----\n") {
+				er := errors.New(fmt.Sprintf("Error reading TLS cert pool %s: %s", s.Config.TLS.Root, err))
+				if _, err := os.Stat(s.Config.TLS.RootContent); err == nil {
+					crtp, err := ioutil.ReadFile(s.Config.TLS.RootContent)
+					if err != nil {
+						return er
+					}
+					s.Config.TLS.RootContent = string(crtp)
+				} else {
 					return er
 				}
-				s.Config.TLS.RootContent = string(crtp)
-			} else {
-				return er
 			}
 		}
 

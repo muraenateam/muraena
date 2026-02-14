@@ -305,6 +305,60 @@ func TestGetConfiguration_MissingPhishing(t *testing.T) {
 	}
 }
 
+func TestGetConfiguration_TLSWithoutRoot(t *testing.T) {
+	// TLS enabled with cert and key but NO root CA (mkcert use case:
+	// the root CA is in the system trust store, so root="" is valid).
+	configTOML := `
+[proxy]
+    phishing = "evil.com"
+    destination = "target.com"
+
+[tls]
+    enable = true
+    certificate = """
+-----BEGIN CERTIFICATE-----
+MIIBkTCB+wIJALRiMLAh/GLMMA0GCSqGSIb3DQEBCwUAMBExDzANBgNVBAMMBnRl
+c3RDQTAEFW0yMzAxMDEwMDAwMDBaFw0yNDAxMDEwMDAwMDBaMBExDzANBgNVBAMM
+BnRlc3RDQTBcMA0GCSqGSIb3DQEBAQUAAwsAMEgCQQDFgXFLJJFP0VHfi/m86GUb
+-----END CERTIFICATE-----
+"""
+    key = """
+-----BEGIN RSA PRIVATE KEY-----
+MIIBkTCB+wIJALRiMLAh/GLMMA0GCSqGSIb3DQEBCwUAMBExDzANBgNVBAMMBnRl
+-----END RSA PRIVATE KEY-----
+"""
+`
+	path := writeTestConfig(t, configTOML)
+
+	s := &Session{
+		Options: core.Options{
+			ConfigFilePath: &path,
+			Debug:          &[]bool{false}[0],
+			Verbose:        &[]bool{false}[0],
+			Proxy:          &[]bool{false}[0],
+			Version:        &[]bool{false}[0],
+			NoColors:       &[]bool{false}[0],
+		},
+	}
+
+	if err := s.GetConfiguration(); err != nil {
+		t.Fatalf("GetConfiguration with TLS and no root CA returned error: %s", err)
+	}
+
+	if s.Config.Proxy.Protocol != "https://" {
+		t.Errorf("Expected Protocol=%q with TLS, got %q", "https://", s.Config.Proxy.Protocol)
+	}
+	if s.Config.TLS.RootContent != "" {
+		t.Errorf("Expected empty RootContent when root is omitted, got %q", s.Config.TLS.RootContent)
+	}
+	if s.Config.TLS.CertificateContent == "" {
+		t.Error("Expected CertificateContent to be populated")
+	}
+	if s.Config.TLS.KeyContent == "" {
+		t.Error("Expected KeyContent to be populated")
+	}
+}
+
 func TestGetConfiguration_CustomPort(t *testing.T) {
 	configTOML := `
 [proxy]
