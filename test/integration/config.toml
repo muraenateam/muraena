@@ -1,0 +1,90 @@
+#
+# Integration Test Configuration for Muraena
+# Target: authenticationtest.com
+# Phishing domain: evil-authtest.local:8443
+#
+
+[proxy]
+    phishing = "evil-authtest.local"
+    destination = "authenticationtest.com"
+    IP = "127.0.0.1"
+    port = 8443
+    listener = "tcp4"
+
+    [proxy.HTTPtoHTTPS]
+    enable = false
+
+[transform]
+    [transform.base64]
+        enable = false
+        padding = ["=", "."]
+
+    [transform.request]
+        headers = ["Cookie", "Referer", "Origin"]
+
+    [transform.response]
+        skipContentType = ["font/*", "image/*"]
+        headers = [
+            "Location",
+            "Set-Cookie",
+            "Access-Control-Allow-Origin",
+        ]
+
+[log]
+    enable = true
+    filePath = "./test/integration/muraena-test.log"
+
+[redis]
+    host = "127.0.0.1"
+    port = 6379
+
+[tls]
+    enable = false
+
+#
+# Tracking
+#
+[tracking]
+    enable = true
+    trackRequestCookies = true
+
+    [tracking.trace]
+        identifier = "session"
+        validator = "[a-zA-Z0-9]{8}"
+        header = "X-Test-Track"
+
+        [tracking.trace.landing]
+            type = "query"
+            header = "X-Test-Landing"
+
+    [tracking.secrets]
+        paths = ["/login/"]
+
+        [[tracking.secrets.patterns]]
+        label = "Username"
+        matching = "email="
+        start = "email="
+        end = "&"
+
+        [[tracking.secrets.patterns]]
+        label = "Password"
+        matching = "password="
+        start = "password="
+        end = "&"
+
+#
+# NecroBrowser
+#
+[necrobrowser]
+    enable = false
+    endpoint = "http://127.0.0.1:3000/instrument"
+    profile = "./test/integration/instrument.necro"
+
+    [necrobrowser.urls]
+    authSession = ["/complexAuth/"]
+    authSessionResponse = ["/login/"]
+
+    [necrobrowser.trigger]
+    type = "cookies"
+    values = ["PHPSESSID"]
+    delay = 5

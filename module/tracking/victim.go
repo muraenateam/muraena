@@ -86,7 +86,7 @@ func (module *Tracker) ExportSession(id string) {
 			Path:     c.Path,
 			HTTPOnly: c.HTTPOnly,
 			Secure:   c.Secure,
-			Session:  t.Unix() < 1,
+			Session:  false,
 		}
 
 		cookieJar = append(cookieJar, nc)

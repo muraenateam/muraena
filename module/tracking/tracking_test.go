@@ -100,21 +100,21 @@ func TestTrackingIdentifierExtraction(t *testing.T) {
 			url:           "https://example.com/page?id=12345",
 			expectedID:    "",
 			shouldBeValid: false,
-			description:   "Should reject 5-digit ID and generate a new one",
+			description:   "Should return invalid trace for 5-digit ID",
 		},
 		{
 			name:          "Invalid 7-digit ID in query",
 			url:           "https://example.com/page?id=1234567",
 			expectedID:    "",
 			shouldBeValid: false,
-			description:   "Should reject 7-digit ID and generate a new one",
+			description:   "Should return invalid trace for 7-digit ID",
 		},
 		{
 			name:          "No ID in query",
 			url:           "https://example.com/page",
 			expectedID:    "",
 			shouldBeValid: false,
-			description:   "Should generate a new 6-digit ID",
+			description:   "Should return invalid trace when no ID present",
 		},
 	}
 
@@ -135,16 +135,9 @@ func TestTrackingIdentifierExtraction(t *testing.T) {
 					t.Errorf("Expected trace to be valid but it wasn't. ID: %s", trace.ID)
 				}
 			} else {
-				// Should have generated a new ID matching the validator
-				if trace.ID == "" {
-					t.Errorf("Expected a generated ID but got empty string")
-				}
-				if tt.expectedID != "" && trace.ID == tt.expectedID {
-					t.Errorf("Expected a different ID than %s (should have generated new one)", tt.expectedID)
-				}
-				// The generated ID should match the validator
-				if !tracker.ValidatorRegex.MatchString(trace.ID) {
-					t.Errorf("Generated ID %s doesn't match validator regex %s", trace.ID, tracker.ValidatorRegex.String())
+				// Without auto-generation, invalid/missing IDs should return an invalid trace
+				if trace.IsValid() {
+					t.Errorf("Expected invalid trace but got valid one with ID: %s. %s", trace.ID, tt.description)
 				}
 			}
 		})

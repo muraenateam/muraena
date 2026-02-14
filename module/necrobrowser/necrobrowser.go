@@ -212,7 +212,7 @@ func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCoo
 			Path:     c.Path,
 			HTTPOnly: c.HTTPOnly,
 			Secure:   c.Secure,
-			Session:  t.Unix() < 1,
+			Session:  false,
 		}
 
 		necroCookies = append(necroCookies, nc)

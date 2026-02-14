@@ -1,0 +1,11 @@
+{
+  "name": "%%%TRACKER%%%",
+  "task": {
+    "type": "generic",
+    "name": ["ScreenshotPages"],
+    "params": {
+      "urls": ["https://authenticationtest.com/complexAuth/"]
+    }
+  },
+  "cookie": %%%COOKIES%%%
+}

