@@ -59,6 +59,15 @@
         enable = false
         padding = [ "=", "." ]
 
+    # List of URL paths that should bypass all transformations
+    # These URLs will be proxied without any modifications
+    # Useful for WebSocket connections or other endpoints that require unchanged traffic
+#    bypassURLs = [
+#        "/websocket",
+#        "/ws/chat",
+#        "/api/stream"
+#    ]
+
     [transform.request]
 #        userAgent = "MuraenaProxy"
 #        headers = ["Cookie", "Referer", "Origin", "X-Forwarded-For"]

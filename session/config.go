@@ -83,6 +83,10 @@ type Configuration struct {
 			Padding []string `toml:"padding"`
 		} `toml:"base64"`
 
+		// BypassURLs is a list of URL paths that should bypass transformation
+		// These URLs will be proxied without any modifications
+		BypassURLs []string `toml:"bypassURLs"`
+
 		Request struct {
 			SkipExtensions []string `toml:"-"`
 

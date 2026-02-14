@@ -116,9 +116,28 @@ func (muraena *MuraenaProxy) RequestBodyProcessor(request *http.Request, track *
 	return
 }
 
+func (muraena *MuraenaProxy) shouldBypassURL(path string) bool {
+	// Check if the URL path is in the bypass list
+	for _, bypassPath := range muraena.Session.Config.Transform.BypassURLs {
+		if strings.HasPrefix(path, bypassPath) {
+			return true
+		}
+	}
+	return false
+}
+
 func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error) {
 
 	sess := muraena.Session
+
+	// Check if this URL should bypass transformation
+	if muraena.shouldBypassURL(request.URL.Path) {
+		log.Info("[Bypass] Skipping transformation for: %s", request.URL.Path)
+		// Only set the target host, no other transformations
+		request.Host = muraena.Target.Host
+		return nil
+	}
+
 	base64 := Base64{
 		sess.Config.Transform.Base64.Enabled,
 		sess.Config.Transform.Base64.Padding,
@@ -207,6 +226,19 @@ skip:
 
 	// Transform HTTP headers of interest
 	request.Host = muraena.Target.Host
+
+	// Check if this is a WebSocket upgrade request
+	isWebSocket := strings.ToLower(request.Header.Get("Upgrade")) == "websocket"
+
+	// For WebSocket requests, always transform the Origin header
+	if isWebSocket && request.Header.Get("Origin") != "" {
+		originVal := request.Header.Get("Origin")
+		transformedOrigin := replacer.Transform(originVal, true, base64)
+		if originVal != transformedOrigin {
+			request.Header.Set("Origin", transformedOrigin)
+			log.Info("[WebSocket] Transformed Origin: %s -> %s", originVal, transformedOrigin)
+		}
+	}
 
 	for _, header := range sess.Config.Transform.Request.Headers {
 		if request.Header.Get(header) != "" {
@@ -357,6 +389,13 @@ func GetSenderIP(req *http.Request) string {
 func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err error) {
 
 	sess := muraena.Session
+
+	// Check if this URL should bypass transformation
+	if muraena.shouldBypassURL(response.Request.URL.Path) {
+		log.Info("[Bypass] Skipping response transformation for: %s", response.Request.URL.Path)
+		return nil
+	}
+
 	base64 := Base64{
 		sess.Config.Transform.Base64.Enabled,
 		sess.Config.Transform.Base64.Padding,
