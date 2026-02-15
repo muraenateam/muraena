@@ -17,6 +17,7 @@
     destination = "authenticationtest.com"
     IP = "127.0.0.1"
     port = 8443
+    portmapping = "8443:443"
     listener = "tcp4"
 
     [proxy.HTTPtoHTTPS]

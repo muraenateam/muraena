@@ -469,8 +469,24 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 
 					log.Verbose("Set-Cookie: %s", response.Header["Set-Cookie"][k])
 				}
-				// } else if header == "Location" {
-				// 	response.Header.Set(header, replacer.Transform(response.Header.Get(header), false, base64))
+			} else if header == "Location" {
+				loc := replacer.Transform(response.Header.Get(header), false, base64)
+
+				// When the proxy listens on a non-standard port, inject it into Location URLs
+				// pointing to the phishing domain so redirects reach the proxy, not port 443/80.
+				port := sess.Config.Proxy.Port
+				isNonStandard := (sess.Config.TLS.Enabled && port != 443) || (!sess.Config.TLS.Enabled && port != 80)
+				if isNonStandard {
+					if locURL, err := url.Parse(loc); err == nil && locURL.Host != "" {
+						host := locURL.Hostname()
+						if strings.HasSuffix(host, replacer.Phishing) && locURL.Port() == "" {
+							locURL.Host = fmt.Sprintf("%s:%d", host, port)
+							loc = locURL.String()
+						}
+					}
+				}
+
+				response.Header.Set(header, loc)
 			} else {
 				response.Header.Set(header, replacer.Transform(response.Header.Get(header), false, base64))
 			}

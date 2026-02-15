@@ -114,8 +114,9 @@ func TestCookieExpiryIsValid(t *testing.T) {
 	}
 
 	// Step 2: POST login form with credentials
+	// NOTE: complexAuth requires complex@authenticationtest.com (not simpleAuth@)
 	formData := url.Values{
-		"email":       {"simpleAuth@authenticationtest.com"},
+		"email":       {"complex@authenticationtest.com"},
 		"password":    {"pa$$w0rd"},
 		"selectLogin": {"yes"},
 		"loveForm":    {"on"},
@@ -126,7 +127,15 @@ func TestCookieExpiryIsValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to POST login form: %v", err)
 	}
+	loginBody, _ := ioutil.ReadAll(resp.Body)
 	resp.Body.Close()
+
+	// Verify the login actually succeeded
+	if !strings.Contains(string(loginBody), "Login Success") {
+		t.Fatalf("Login failed — expected 'Login Success' in response body. Got (first 500 chars): %s",
+			string(loginBody[:min(len(loginBody), 500)]))
+	}
+	t.Log("Login succeeded: 'Login Success' found in response")
 
 	// Allow some time for cookie processing
 	time.Sleep(2 * time.Second)
