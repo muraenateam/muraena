@@ -1,0 +1,99 @@
+#
+# Integration Test Configuration for Muraena
+# Target: scoglio.muraena.anti:9443 (self-hosted test app)
+# Phishing domain: evil-scoglio.muraena.anti:8443
+#
+# DNS: Resolved via dnsmasq (address=/muraena.anti/127.0.0.1)
+# TLS: Wildcard cert from mkcert (*.muraena.anti)
+#
+
+[proxy]
+    phishing = "evil-scoglio.muraena.anti"
+    destination = "scoglio.muraena.anti"
+    IP = "127.0.0.1"
+    port = 8443
+    portmapping = "8443:9443"
+    listener = "tcp4"
+
+    [proxy.HTTPtoHTTPS]
+    enable = false
+
+[transform]
+    [transform.base64]
+        enable = false
+        padding = ["=", "."]
+
+    [transform.request]
+        headers = ["Cookie", "Referer", "Origin"]
+
+    [transform.response]
+        skipContentType = ["font/*", "image/*"]
+        headers = [
+            "Location",
+            "Set-Cookie",
+            "Access-Control-Allow-Origin",
+        ]
+
+[log]
+    enable = true
+    filePath = "./test/integration/muraena-scoglio-test.log"
+
+[redis]
+    host = "127.0.0.1"
+    port = 6379
+
+# TLS enabled with mkcert wildcard certificate.
+# Generate certs: cd test/integration/certs && mkcert "*.muraena.anti" "muraena.anti"
+[tls]
+    enable = true
+    certificate = "./test/integration/certs/_wildcard.muraena.anti+1.pem"
+    key = "./test/integration/certs/_wildcard.muraena.anti+1-key.pem"
+    # Skip verification of Scoglio's mkcert certificate when proxying to backend.
+    insecureSkipVerify = true
+
+#
+# Tracking
+#
+[tracking]
+    enable = true
+    trackRequestCookies = true
+
+    [tracking.trace]
+        identifier = "session"
+        validator = "[a-zA-Z0-9]{8}"
+        header = "X-Scoglio-Track"
+
+        [tracking.trace.landing]
+            type = "query"
+
+    [tracking.secrets]
+        paths = ["/login"]
+
+        [[tracking.secrets.patterns]]
+        label = "Username"
+        matching = "email="
+        start = "email="
+        end = "&"
+
+        [[tracking.secrets.patterns]]
+        label = "Password"
+        matching = "password="
+        start = "password="
+        end = "&"
+
+#
+# NecroBrowser
+#
+[necrobrowser]
+    enable = true
+    endpoint = "http://127.0.0.1:3000/instrument"
+    profile = "./test/integration/instrument-scoglio.necro"
+
+    [necrobrowser.urls]
+    authSession = []
+    authSessionResponse = ["/dashboard"]
+
+    [necrobrowser.trigger]
+    type = "cookies"
+    values = ["MURAENA_SESS", "NECRO_BRO", "JSESSIONID"]
+    delay = 5

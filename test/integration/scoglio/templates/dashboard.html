@@ -1,0 +1,23 @@
+{{define "title"}}Dashboard{{end}}
+{{define "content"}}
+<div class="bg-white shadow-md rounded-lg p-8 mt-8">
+    <h2 class="text-2xl font-bold text-gray-800 mb-6">Dashboard</h2>
+    <div class="space-y-4">
+        <div class="border-b pb-4">
+            <h3 class="text-lg font-semibold text-gray-700">User Info</h3>
+            <div class="mt-2 grid grid-cols-2 gap-2 text-sm">
+                <span class="text-gray-500">Email:</span>
+                <span class="text-gray-800">{{.User.Email}}</span>
+                <span class="text-gray-500">Role:</span>
+                <span class="text-gray-800">{{.User.Role}}</span>
+            </div>
+        </div>
+        <div>
+            <h3 class="text-lg font-semibold text-gray-700">Quick Links</h3>
+            <div class="mt-2 space-x-3">
+                <a href="/profile" class="text-indigo-600 hover:underline">View Profile</a>
+            </div>
+        </div>
+    </div>
+</div>
+{{end}}

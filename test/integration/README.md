@@ -99,12 +99,97 @@ To test the necrobrowser integration (post-phishing automation):
 - In production, obtain real TLS certificates (e.g., Let's Encrypt, Caddy auto-TLS)
 - Muraena and Necrobrowser MUST share the same exit IP
 
+## Scoglio (Self-Hosted Target)
+
+Scoglio is a self-contained Go web app that provides a controlled login flow for integration testing, replacing the dependency on external sites like `authenticationtest.com`. It gives full control over cookie behavior, credential forms, and post-auth pages — enabling reliable tests for credential harvesting, cookie capture, and necrobrowser session hijacking.
+
+### Why Scoglio Exists
+
+- **No external dependencies**: Tests don't break when third-party sites change
+- **Full cookie control**: 3 session cookies (`MURAENA_SESS`, `NECRO_BRO`, `JSESSIONID`) with known names and expiries
+- **Credential extraction testing**: Login form designed to work with Muraena's `InnerSubstring` extractor (hidden `submit_login` field ensures trailing `&` delimiter)
+- **Necrobrowser integration**: Dashboard and profile pages as screenshot targets
+
+### Building Scoglio
+
+Scoglio has its own `go.mod` (separate from muraena) to keep SQLite and bcrypt dependencies isolated.
+
+```bash
+cd test/integration/scoglio
+go build -o scoglio .
+```
+
+### Running Scoglio
+
+```bash
+./scoglio \
+    --cert ../certs/_wildcard.muraena.anti+1.pem \
+    --key ../certs/_wildcard.muraena.anti+1-key.pem \
+    --addr :9443
+```
+
+Scoglio starts on HTTPS port 9443. It uses the same `*.muraena.anti` wildcard certificate as Muraena.
+
+### DNS
+
+No additional DNS setup needed — the existing `*.muraena.anti` wildcard resolves `scoglio.muraena.anti` and `evil-scoglio.muraena.anti` to `127.0.0.1`.
+
+### Seeded Users
+
+| Email | Password | Role |
+|-------|----------|------|
+| `admin@scoglio.local` | `Admin123!` | admin |
+| `user@scoglio.local` | `User456!` | user |
+
+### Running Scoglio Tests
+
+#### Automatic (recommended)
+
+```bash
+bash test/integration/run_scoglio_test.sh
+```
+
+This builds Scoglio, starts it, builds and starts Muraena with the Scoglio config, runs the Scoglio-specific tests, and cleans up.
+
+#### Manual
+
+```bash
+# Terminal 1: Start Scoglio
+cd test/integration/scoglio && go build -o scoglio . && \
+./scoglio --cert ../certs/_wildcard.muraena.anti+1.pem --key ../certs/_wildcard.muraena.anti+1-key.pem --addr :9443
+
+# Terminal 2: Start Muraena
+./build/muraena -config test/integration/config-scoglio.toml -debug
+
+# Terminal 3: Run tests
+MURAENA_INTEGRATION=1 SCOGLIO_INTEGRATION=1 go test -v -count=1 -run TestScoglio ./test/integration/
+```
+
+### Scoglio Test Cases
+
+| Test | Description |
+|------|-------------|
+| `TestScoglioCookieCapture` | Login, verify all 3 cookies stored in Redis with valid expiry |
+| `TestScoglioCredentialCapture` | Login, verify username and password extracted and stored in Redis |
+| `TestScoglioNoPhantomVictims` | Hit public pages without tracking ID, verify zero victims |
+| `TestScoglioTrackedRequestCreatesVictim` | GET with tracking ID, verify victim created with correct ID and UA |
+| `TestScoglioPostAuthPageRequiresSession` | GET /dashboard without auth, verify redirect to /login |
+
+### Existing Tests Unaffected
+
+The original `authenticationtest.com` tests continue to use `MURAENA_INTEGRATION=1` alone. Scoglio tests require both `MURAENA_INTEGRATION=1` and `SCOGLIO_INTEGRATION=1`, so they never run unintentionally.
+
 ## Test Files
 
 | File | Description |
 |------|-------------|
 | `config.toml` | TOML config targeting `authenticationtest.com` over HTTPS |
+| `config-scoglio.toml` | TOML config targeting Scoglio (`scoglio.muraena.anti:9443`) |
 | `certs/` | mkcert wildcard certificates (gitignored, auto-generated) |
-| `instrument.necro` | Necrobrowser JSON template with placeholder tokens |
-| `run_test.sh` | Test runner: checks prereqs, generates certs, starts muraena, runs tests |
-| `integration_test.go` | Go integration test suite |
+| `instrument.necro` | Necrobrowser JSON template for authenticationtest.com |
+| `instrument-scoglio.necro` | Necrobrowser JSON template for Scoglio |
+| `run_test.sh` | Test runner for authenticationtest.com tests |
+| `run_scoglio_test.sh` | Test runner for Scoglio tests |
+| `integration_test.go` | Go integration test suite (authenticationtest.com) |
+| `scoglio_test.go` | Go integration test suite (Scoglio) |
+| `scoglio/` | Self-hosted test app (separate Go module) |

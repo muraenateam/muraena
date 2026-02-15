@@ -1,0 +1,16 @@
+{
+  "name": "%%%TRACKER%%%",
+  "task": {
+    "type": "generic",
+    "name": ["ScreenshotPages"],
+    "params": {
+      "urls": [
+        "https://scoglio.muraena.anti:9443/dashboard",
+        "https://scoglio.muraena.anti:9443/profile"
+      ],
+      "overrideCookieDomain": true
+    }
+  },
+  "cookie": %%%COOKIES%%%,
+  "userAgent": "%%%USERAGENT%%%"
+}

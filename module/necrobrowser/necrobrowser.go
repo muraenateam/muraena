@@ -46,7 +46,7 @@ type SessionCookie struct {
 	Name     string `json:"name"`
 	Value    string `json:"value"`
 	Domain   string `json:"domain"`
-	Expires  int64  `json:"expirationDate"`
+	Expires  int64  `json:"expires"`
 	Path     string `json:"path"`
 	HTTPOnly bool   `json:"httpOnly"`
 	Secure   bool   `json:"secure"`

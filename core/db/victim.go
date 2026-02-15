@@ -44,7 +44,7 @@ type VictimCookie struct {
 	Name     string `redis:"name" json:"name"`
 	Value    string `redis:"value" json:"value"`
 	Domain   string `redis:"domain" json:"domain"`
-	Expires  string `redis:"expires" json:"expirationDate"`
+	Expires  string `redis:"expires" json:"expires"`
 	Path     string `redis:"path" json:"path"`
 	HTTPOnly bool   `redis:"httpOnly" json:"httpOnly"`
 	Secure   bool   `redis:"secure" json:"secure"`

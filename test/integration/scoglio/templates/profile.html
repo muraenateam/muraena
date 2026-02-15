@@ -1,0 +1,29 @@
+{{define "title"}}Profile{{end}}
+{{define "content"}}
+<div class="bg-white shadow-md rounded-lg p-8 mt-8">
+    <h2 class="text-2xl font-bold text-gray-800 mb-6">Profile</h2>
+    <div class="space-y-4">
+        <div class="flex items-center space-x-4 border-b pb-4">
+            <div class="w-16 h-16 bg-indigo-200 rounded-full flex items-center justify-center text-indigo-700 text-2xl font-bold">
+                {{slice .User.Email 0 1}}
+            </div>
+            <div>
+                <p class="text-lg font-semibold text-gray-800">{{.User.Email}}</p>
+                <p class="text-sm text-gray-500">Role: {{.User.Role}}</p>
+            </div>
+        </div>
+        <div>
+            <h3 class="text-lg font-semibold text-gray-700 mb-2">Account Details</h3>
+            <div class="grid grid-cols-2 gap-2 text-sm">
+                <span class="text-gray-500">Email:</span>
+                <span class="text-gray-800">{{.User.Email}}</span>
+                <span class="text-gray-500">Role:</span>
+                <span class="text-gray-800">{{.User.Role}}</span>
+            </div>
+        </div>
+        <div class="pt-4">
+            <a href="/dashboard" class="text-indigo-600 hover:underline">Back to Dashboard</a>
+        </div>
+    </div>
+</div>
+{{end}}
