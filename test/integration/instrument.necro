@@ -4,7 +4,7 @@
     "type": "generic",
     "name": ["ScreenshotPages"],
     "params": {
-      "urls": ["https://authenticationtest.com/complexAuth/"]
+      "urls": ["https://authenticationtest.com/loginSuccess/"]
     }
   },
   "cookie": %%%COOKIES%%%,

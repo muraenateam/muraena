@@ -89,15 +89,16 @@
 # NecroBrowser
 #
 [necrobrowser]
-    enable = false
+    enable = true
     endpoint = "http://127.0.0.1:3000/instrument"
     profile = "./test/integration/instrument.necro"
 
     [necrobrowser.urls]
-    authSession = ["/complexAuth/"]
-    authSessionResponse = ["/login/"]
+#    authSession = ["/loginSuccess"]
+    authSessionResponse = ["/loginSuccess/"]
 
     [necrobrowser.trigger]
-    type = "cookies"
+    #type = "cookies"
+    type = "path"
     values = ["PHPSESSID"]
     delay = 5

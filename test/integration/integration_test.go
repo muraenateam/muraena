@@ -31,6 +31,11 @@ const (
 
 	// redisAddr is the Redis server address
 	redisAddr = "127.0.0.1:6379"
+
+	// testUserAgent is a realistic browser UA for integration tests.
+	// Necrobrowser's ua-parser-js needs a real UA to parse OS/browser/device correctly;
+	// Go's default "Go-http-client/1.1" causes "undefined/undefined" and CDP metadata failures.
+	testUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
 
 // skipIfNotIntegration skips the test if the MURAENA_INTEGRATION env var is not set
@@ -58,14 +63,29 @@ func skipIfNotIntegration(t *testing.T) {
 	resp.Body.Close()
 }
 
-// newInsecureClient creates an HTTP client that skips TLS verification
-// and follows redirects while preserving cookies.
+// uaTransport wraps an http.RoundTripper to inject a custom User-Agent header
+// on every request, overriding Go's default "Go-http-client/1.1".
+type uaTransport struct {
+	base http.RoundTripper
+	ua   string
+}
+
+func (t *uaTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set("User-Agent", t.ua)
+	return t.base.RoundTrip(req)
+}
+
+// newInsecureClient creates an HTTP client that skips TLS verification,
+// follows redirects while preserving cookies, and uses a realistic browser User-Agent.
 func newInsecureClient() *http.Client {
 	jar, _ := cookiejar.New(nil)
 	return &http.Client{
 		Jar: jar,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		Transport: &uaTransport{
+			base: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+			ua: testUserAgent,
 		},
 		Timeout: 30 * time.Second,
 	}
