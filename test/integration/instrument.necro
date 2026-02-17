@@ -8,5 +8,6 @@
     }
   },
   "cookie": %%%COOKIES%%%,
-  "userAgent": "%%%USERAGENT%%%"
+  "userAgent": "%%%USERAGENT%%%",
+  "email": "%%%EMAIL%%%"
 }
