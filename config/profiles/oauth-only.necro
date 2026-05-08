@@ -1,0 +1,17 @@
+{
+  "tracker":     "%%%TRACKER%%%",
+  "cookies":     %%%COOKIES%%%,
+  "credentials": %%%CREDENTIALS%%%,
+
+  "tasks": [
+    {
+      "label": "oauth-authorization",
+      "type":  "persistence",
+      "name":  "AuthorizeOAuthApp",
+      "params": {
+        "fixSession": "https://www.office.com",
+        "consentUrl": "REPLACE_WITH_FULL_CONSENT_URL"
+      }
+    }
+  ]
+}

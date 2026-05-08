@@ -794,6 +794,18 @@ write_compose_override() {
         info "Patched necrobrowser-ng/config.toml Redis host → redis"
     fi
 
+    # Inject persistence tasks into necrobrowser-ng so they are available at runtime
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local task_src="${script_dir}/necro-tasks/persistence/necrotask.js"
+    if [[ -f "$task_src" ]]; then
+        mkdir -p necrobrowser-ng/tasks/persistence
+        cp "$task_src" necrobrowser-ng/tasks/persistence/necrotask.js
+        info "Installed persistence tasks → necrobrowser-ng/tasks/persistence/necrotask.js"
+    else
+        warn "necro-tasks/persistence/necrotask.js not found — persistence tasks not installed."
+    fi
+
     # The override removes the `profiles:` restriction so plain `docker compose up -d`
     # starts necrobrowser.  It also adds the settings Chrome needs in Docker:
     #   shm_size  — Chrome defaults /dev/shm to 64 MB which causes it to crash;
