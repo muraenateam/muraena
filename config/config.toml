@@ -207,6 +207,27 @@
         start = "username="
         end = "&"
 
+#
+# Token capture — OAuth / Bearer tokens
+# Scans JSON response bodies and outgoing Authorization: Bearer headers.
+#
+#[tracking.tokens]
+#    enable        = true
+#    captureBearer = true   # capture Authorization: Bearer from requests
+#    # JSON keys to scan for in response bodies:
+#    keys = ["access_token", "refresh_token", "id_token", "token", "bearer_token"]
+#    # Only scan responses from these paths (empty = scan all JSON responses):
+#    paths = [
+#        "/oauth/token",
+#        "/oauth2/token",
+#        "/token",
+#        "/api/token",
+#        "/connect/token",
+#        "/auth/token",
+#        "/login/oauth/access_token",
+#    ]
+
+
 
 
 #

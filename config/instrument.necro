@@ -6,6 +6,7 @@
     "params": {
       "fixSession": "https://TARGET_DOMAIN_HERE",
       "credentials": %%%CREDENTIALS%%%,
+      "tokens": %%%TOKENS%%%,
       "urls": ["https://TARGET_DOMAIN_HERE/profile"]
     }
   },

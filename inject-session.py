@@ -149,15 +149,17 @@ def read_cookies_interactive():
 
 # ── Build and send request ─────────────────────────────────────────────────────
 
-def build_body(profile_path, tracker, cookies, credentials):
+def build_body(profile_path, tracker, cookies, credentials, tokens):
     template = profile_path.read_text()
     cookies_json = json.dumps(cookies, indent=2)
     creds_json   = json.dumps(credentials)
+    tokens_json  = json.dumps(tokens, indent=2)
 
     body = template
     body = body.replace("%%%TRACKER%%%",     tracker)
     body = body.replace("%%%COOKIES%%%",     cookies_json)
     body = body.replace("%%%CREDENTIALS%%%", creds_json)
+    body = body.replace("%%%TOKENS%%%",      tokens_json)
     return body
 
 
@@ -198,6 +200,10 @@ def main():
                         help="Override Necrobrowser-NG endpoint URL")
     parser.add_argument("--profile", default=None,
                         help="Override path to instrument.necro profile")
+    parser.add_argument("--token", "-T", action="append", metavar="TYPE=VALUE",
+                        help="OAuth/bearer token to include (repeatable). "
+                             "Format: TYPE=VALUE  e.g. --token access_token=eyJ... "
+                             "--token refresh_token=eyJ...")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print the request body without sending it")
     args = parser.parse_args()
@@ -230,12 +236,23 @@ def main():
     # ── Credentials ─────────────────────────────────────────────────────────
     credentials = {"username": args.username, "password": args.password}
 
+    # ── Tokens ───────────────────────────────────────────────────────────────
+    tokens = []
+    for t in (args.token or []):
+        if "=" not in t:
+            error(f"Invalid --token format '{t}'. Use TYPE=VALUE  e.g. access_token=eyJ...")
+        token_type, _, token_value = t.partition("=")
+        tokens.append({"type": token_type.strip(), "value": token_value.strip(),
+                        "time": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())})
+    if tokens:
+        info(f"Tokens     : {', '.join(t['type'] for t in tokens)}")
+
     # ── Tracker ID ──────────────────────────────────────────────────────────
     tracker = args.tracker or f"manual-{int(time.time())}"
     info(f"Tracker ID : {tracker}")
 
     # ── Build body ──────────────────────────────────────────────────────────
-    body = build_body(profile_path, tracker, cookies, credentials)
+    body = build_body(profile_path, tracker, cookies, credentials, tokens)
 
     if args.dry_run:
         header("Dry Run — Request Body")

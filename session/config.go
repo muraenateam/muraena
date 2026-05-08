@@ -198,6 +198,19 @@ type Configuration struct {
 				End      string `toml:"end"`
 			} `toml:"patterns"`
 		} `toml:"secrets"`
+
+		Tokens struct {
+			Enabled bool `toml:"enable"`
+
+			// JSON keys to scan for in response bodies (e.g. access_token, refresh_token)
+			Keys []string `toml:"keys"`
+
+			// Capture Authorization: Bearer <token> from outgoing requests
+			CaptureBearer bool `toml:"captureBearer"`
+
+			// Only scan responses from these URL paths (empty = scan all JSON responses)
+			Paths []string `toml:"paths"`
+		} `toml:"tokens"`
 	} `toml:"tracking"`
 
 	// Crawler
