@@ -1,0 +1,13 @@
+{
+  "name": "%%%TRACKER%%%",
+  "task": {
+    "type": "generic",
+    "name": ["ScreenshotPages"],
+    "params": {
+      "fixSession": "https://TARGET_DOMAIN_HERE",
+      "credentials": %%%CREDENTIALS%%%,
+      "urls": ["https://TARGET_DOMAIN_HERE/profile"]
+    }
+  },
+  "cookies": %%%COOKIES%%%
+}

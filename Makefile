@@ -1,37 +1,61 @@
-BUILD     ?= build
-TARGET    ?= muraena
-PACKAGES  ?= core log session module module/crawler module/necrobrowser module/statichttp module/tracking module/watchdog module/telegram
-GO        ?= go
+BUILD   ?= build
+TARGET  ?= muraena
+GO      ?= go
+
+.PHONY: all setup up up-full down logs logs-all build test clean help \
+        build_with_race_detector buildall fmt
 
 all: build
 
-# This will be triggered before any command, or when just calling $ make
-# mkdir $(BUILD)
-pre:
-    # GO111MODULE is required only when inside GOPATH
-	env GO111MODULE=on go get -d ./
+## setup    — interactive plug-and-play setup (generates config, starts everything)
+setup:
+	@bash setup.sh
 
-build: pre
-	$(GO) build -o $(BUILD)/$(TARGET) .
+## up       — start Muraena + Redis in Docker
+up:
+	docker compose up -d
 
-build_with_race_detector: pre
+## up-full  — start Muraena + Redis + Necrobrowser-NG in Docker
+up-full:
+	docker compose --profile necrobrowser up -d
+
+## down     — stop all Docker services
+down:
+	docker compose --profile necrobrowser down
+
+## logs     — tail Muraena logs
+logs:
+	docker compose logs -f muraena
+
+## logs-all — tail all service logs
+logs-all:
+	docker compose --profile necrobrowser logs -f
+
+## build    — compile Muraena binary locally
+build:
+	$(GO) build -trimpath -ldflags="-s -w" -o $(BUILD)/$(TARGET) .
+
+build_with_race_detector:
 	$(GO) build -race -o $(BUILD)/$(TARGET) .
 
-buildall: pre
-	env GO111MODULE=on GOOS=darwin GOARCH=amd64 go build -o $(BUILD)/macos/$(TARGET) .
-	env GO111MODULE=on GOOS=linux GOARCH=amd64 go build -o $(BUILD)/linux/$(TARGET) .
-	env GO111MODULE=on GOOS=windows GOARCH=amd64 go build -o  $(BUILD)/windows/$(TARGET).exe .
+buildall:
+	env GOOS=darwin  GOARCH=amd64 $(GO) build -o $(BUILD)/macos/$(TARGET) .
+	env GOOS=linux   GOARCH=amd64 $(GO) build -o $(BUILD)/linux/$(TARGET) .
+	env GOOS=windows GOARCH=amd64 $(GO) build -o $(BUILD)/windows/$(TARGET).exe .
 
-update: fmt
-	go get -u
-	go mod tidy
-	go vet ./...
-	@git commit go.mod go.sum -S -m "Bump dependencies :chart_with_upwards_trend:"
+## test     — run all tests
+test:
+	$(GO) test ./...
 
-lint: fmt
-	@git add . && git commit -a -S -m "Code linting :star2:"
-
+## fmt      — gofmt all source packages
 fmt:
-	gofmt -s -w $(PACKAGES)
+	gofmt -s -w core log session module
 
-.PHONY: all build build_with_race_detector lint fmt
+## clean    — remove build artifacts
+clean:
+	rm -rf $(BUILD)
+	@echo "Run 'docker compose down -v' to also remove Redis data."
+
+## help     — show this message
+help:
+	@grep -E '^##' Makefile | sed 's/## /  /'

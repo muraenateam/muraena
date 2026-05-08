@@ -21,13 +21,31 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "8080:8080"
     volumes:
-      # Mount your config dir (config.toml, certs, watchdog.rules, geoDB.mmdb …)
+      # config.toml, TLS certs, watchdog.rules, geoDB.mmdb, instrument.necro
       - ./config:/app/config:ro
-    # IMPORTANT: set [redis] host = "redis" in your config.toml when using Docker,
-    # because the Redis container is reachable by its service name, not 127.0.0.1.
     cap_add:
       - NET_BIND_SERVICE
+    # NOTE: set [redis] host = "redis" in config.toml when using Docker Compose
+
+  # ── Necrobrowser-NG ──────────────────────────────────────────────────────
+  # Included automatically when setup.sh clones + configures it.
+  # Start manually with:  docker compose --profile necrobrowser up -d
+  # Or just run:          ./setup.sh  (it handles everything)
+  necrobrowser:
+    profiles: [necrobrowser]
+    build:
+      context: ./necrobrowser-ng
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
 
 volumes:
   redis-data:
