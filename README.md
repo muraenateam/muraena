@@ -50,7 +50,7 @@ Answer the prompts:
 | Target domain to proxy | `accounts.google.com` |
 | TLS | `1` (Let's Encrypt), `2` (self-signed), `3` (HTTP/testing) |
 | Enable tracking | `Y` |
-| Enable Necrobrowser-NG | `Y` (optional) |
+| Session handling | `1` store only · `2` store + Necrobrowser-NG (Docker) · `3` store + existing Necrobrowser-NG |
 | Enable Telegram alerts | `Y` (optional) |
 
 `setup.sh` will:

