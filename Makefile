@@ -51,6 +51,26 @@ test:
 fmt:
 	gofmt -s -w core log session module
 
+## inject   — inject cookies manually into Necrobrowser-NG
+##            Usage: make inject COOKIES=exported.json
+##                   make inject COOKIES=exported.json USER=bob PASS=secret
+##                   make inject                        # interactive paste mode
+inject:
+	python3 inject-session.py $(if $(COOKIES),$(COOKIES)) \
+	  $(if $(USER),--username "$(USER)") \
+	  $(if $(PASS),--password "$(PASS)") \
+	  $(if $(TRACKER),--tracker "$(TRACKER)") \
+	  $(if $(ENDPOINT),--endpoint "$(ENDPOINT)")
+
+## inject-dry — preview the Necrobrowser-NG request without sending
+##              Usage: make inject-dry COOKIES=exported.json
+inject-dry:
+	python3 inject-session.py --dry-run $(if $(COOKIES),$(COOKIES)) \
+	  $(if $(USER),--username "$(USER)") \
+	  $(if $(PASS),--password "$(PASS)") \
+	  $(if $(TRACKER),--tracker "$(TRACKER)") \
+	  $(if $(ENDPOINT),--endpoint "$(ENDPOINT)")
+
 ## clean    — remove build artifacts
 clean:
 	rm -rf $(BUILD)
