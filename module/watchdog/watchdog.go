@@ -3,7 +3,7 @@ package watchdog
 // Parts of this module have been taken from ZeroDrop (https://github.com/oftn-oswg/zerodrop)
 
 import (
-	"io/ioutil"
+	
 	"net"
 	"net/http"
 	"os"
@@ -169,7 +169,7 @@ func Load(s *session.Session) (m *Watchdog, err error) {
 
 		// Parse raw rules
 		if _, err := os.Stat(config.Rules); err == nil {
-			rules, err := ioutil.ReadFile(config.Rules)
+			rules, err := os.ReadFile(config.Rules)
 			if err != nil {
 				m.Raw = string(rules)
 			}
@@ -253,7 +253,7 @@ func (module *Watchdog) loadRules() {
 		module.Debug("Loading rules at %s", module.RulesFilePath)
 
 		if _, err := os.Stat(module.RulesFilePath); err == nil {
-			rules, err := ioutil.ReadFile(module.RulesFilePath)
+			rules, err := os.ReadFile(module.RulesFilePath)
 			if err != nil {
 				module.Error(err.Error())
 				return
@@ -524,7 +524,7 @@ func (module *Watchdog) Allow(r *http.Request) bool {
 		} else if item.Hostname != "" {
 			// Hostname
 			addrs, err := net.LookupIP(item.Hostname)
-			if err != nil {
+			if err == nil {
 				for _, addr := range addrs {
 					if addr.Equal(ip) {
 						match = true
@@ -534,7 +534,7 @@ func (module *Watchdog) Allow(r *http.Request) bool {
 			}
 
 			names, err := net.LookupAddr(ip.String())
-			if err != nil {
+			if err == nil {
 				for _, name := range names {
 					name = strings.ToLower(name)
 					if name == item.Hostname {

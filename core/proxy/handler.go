@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
+	
 	"net/http"
 	"net/url"
 	"regexp"
@@ -76,7 +76,7 @@ func (muraena *MuraenaProxy) RequestBodyProcessor(request *http.Request, track *
 		replacer := muraena.Replacer
 
 		r := request.Body
-		buf, err := ioutil.ReadAll(r)
+		buf, err := io.ReadAll(r)
 		if err != nil {
 			log.Error("%s", err)
 			return err
@@ -109,7 +109,7 @@ func (muraena *MuraenaProxy) RequestBodyProcessor(request *http.Request, track *
 		}
 
 		transform := replacer.Transform(bodyString, true, base64)
-		request.Body = ioutil.NopCloser(bytes.NewReader([]byte(transform)))
+		request.Body = io.NopCloser(bytes.NewReader([]byte(transform)))
 		request.ContentLength = int64(len(transform))
 		request.Header.Set("Content-Length", strconv.Itoa(len(transform)))
 	}
@@ -146,7 +146,7 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 
 		if request.Body != nil {
 			r := request.Body
-			buf, err := ioutil.ReadAll(r)
+			buf, err := io.ReadAll(r)
 			if err != nil {
 				log.Error("unable to transform request body: %s", err)
 				goto skip

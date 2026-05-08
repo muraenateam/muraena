@@ -2,7 +2,7 @@ package session
 
 import (
 	"fmt"
-	"io/ioutil"
+	
 	"os"
 	"regexp"
 	"strings"
@@ -251,12 +251,21 @@ type Configuration struct {
 		BotToken string   `toml:"botToken"`
 		ChatIDs  []string `toml:"chatIDs"`
 	} `toml:"telegram"`
+
+	//
+	// Login Page Cloner
+	//
+	LoginCloner struct {
+		Enabled   bool   `toml:"enable"`
+		TargetURL string `toml:"targetUrl"`
+		OutputDir string `toml:"outputDir"`
+	} `toml:"logincloner"`
 }
 
 // GetConfiguration returns the configuration object
 func (s *Session) GetConfiguration() (err error) {
 
-	cb, err := ioutil.ReadFile(*s.Options.ConfigFilePath)
+	cb, err := os.ReadFile(*s.Options.ConfigFilePath)
 	if err != nil {
 		return errors.New(fmt.Sprintf("Error reading configuration file %s: %s", *s.Options.ConfigFilePath, err))
 	}
@@ -329,7 +338,7 @@ func (s *Session) GetConfiguration() (err error) {
 		if !strings.HasPrefix(s.Config.TLS.Certificate, "-----BEGIN CERTIFICATE-----\n") {
 			er := errors.New(fmt.Sprintf("Error reading TLS cert %s: %s", s.Config.TLS.Certificate, err))
 			if _, err := os.Stat(s.Config.TLS.CertificateContent); err == nil {
-				crt, err := ioutil.ReadFile(s.Config.TLS.CertificateContent)
+				crt, err := os.ReadFile(s.Config.TLS.CertificateContent)
 				if err != nil {
 					return er
 				}
@@ -344,7 +353,7 @@ func (s *Session) GetConfiguration() (err error) {
 		if !strings.HasPrefix(s.Config.TLS.Root, "-----BEGIN CERTIFICATE-----\n") {
 			er := errors.New(fmt.Sprintf("Error reading TLS cert pool %s: %s", s.Config.TLS.Root, err))
 			if _, err := os.Stat(s.Config.TLS.RootContent); err == nil {
-				crtp, err := ioutil.ReadFile(s.Config.TLS.RootContent)
+				crtp, err := os.ReadFile(s.Config.TLS.RootContent)
 				if err != nil {
 					return er
 				}
@@ -359,7 +368,7 @@ func (s *Session) GetConfiguration() (err error) {
 		if !strings.HasPrefix(s.Config.TLS.Key, "-----BEGIN") {
 			er := errors.New(fmt.Sprintf("Error reading TLS cert key %s: %s", s.Config.TLS.Key, err))
 			if _, err := os.Stat(s.Config.TLS.KeyContent); err == nil {
-				k, err := ioutil.ReadFile(s.Config.TLS.KeyContent)
+				k, err := os.ReadFile(s.Config.TLS.KeyContent)
 				if err != nil {
 					return er
 				}
@@ -456,7 +465,7 @@ func (s *Session) UpdateConfiguration(domains *[]string) (err error) {
 		return
 	}
 
-	return ioutil.WriteFile(*s.Options.ConfigFilePath, newConf, 0644)
+	return os.WriteFile(*s.Options.ConfigFilePath, newConf, 0644)
 }
 
 func (s *Session) DoChecks() (err error) {

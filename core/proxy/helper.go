@@ -6,7 +6,7 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	"io"
-	"io/ioutil"
+	
 	"net/http"
 	"strconv"
 	"strings"
@@ -32,7 +32,7 @@ func (response *Response) Unpack() (buffer []byte, err error) {
 	case "gzip":
 		rc, err = gzip.NewReader(response.Body)
 		if err != io.EOF {
-			buffer, _ = ioutil.ReadAll(rc)
+			buffer, _ = io.ReadAll(rc)
 			defer rc.Close()
 		} else {
 			err = nil
@@ -40,17 +40,17 @@ func (response *Response) Unpack() (buffer []byte, err error) {
 	case "br":
 		c := brotli.ReaderConfig{}
 		rc, err = brotli.NewReader(response.Body, &c)
-		buffer, _ = ioutil.ReadAll(rc)
+		buffer, _ = io.ReadAll(rc)
 		defer rc.Close()
 	case "deflate":
 		rc = flate.NewReader(response.Body)
-		buffer, _ = ioutil.ReadAll(rc)
+		buffer, _ = io.ReadAll(rc)
 		defer rc.Close()
 	case "compress":
 		fallthrough
 	default:
 		rc = response.Body
-		buffer, _ = ioutil.ReadAll(rc)
+		buffer, _ = io.ReadAll(rc)
 		defer rc.Close()
 	}
 	return
@@ -76,7 +76,7 @@ func (response *Response) Encode(buffer []byte) (err error) {
 		ll.Error("[Encode] Error packing with %s: %s", response.Header.Get("Content-Encoding"), err)
 	}
 
-	body := ioutil.NopCloser(bytes.NewReader(buffer))
+	body := io.NopCloser(bytes.NewReader(buffer))
 	response.Body = body
 	response.ContentLength = int64(len(buffer))
 	response.Header.Set("Content-Length", strconv.Itoa(len(buffer)))

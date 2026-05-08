@@ -1,0 +1,33 @@
+services:
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  muraena:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Mount your config dir (config.toml, certs, watchdog.rules, geoDB.mmdb …)
+      - ./config:/app/config:ro
+    # IMPORTANT: set [redis] host = "redis" in your config.toml when using Docker,
+    # because the Redis container is reachable by its service name, not 127.0.0.1.
+    cap_add:
+      - NET_BIND_SERVICE
+
+volumes:
+  redis-data:
