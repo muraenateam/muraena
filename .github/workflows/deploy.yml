@@ -25,11 +25,6 @@
 name: Deploy to VPS
 
 on:
-  push:
-    branches:
-      - claude/updated-v1.25
-      - main
-      - master
   workflow_dispatch:
     inputs:
       tls_mode:
