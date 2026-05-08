@@ -19,8 +19,8 @@ set -euo pipefail
 #   MURAENA_NECRO_ENDPOINT      required when SESSION_MODE=3
 #   MURAENA_NECRO_COOKIES       comma-separated trigger cookie names
 #   MURAENA_NECRO_TASK_TYPE     office365|github|generic (default: generic)
-#   MURAENA_REDIRECTOR_IP       optional — redirector VPS IP (hides Muraena's real IP)
-#   MURAENA_REDIRECTOR_TYPE     nginx|socat (default: nginx)
+#   MURAENA_REDIRECTOR_IP       optional — comma-separated redirector IPs (e.g. "1.2.3.4,5.6.7.8")
+#   MURAENA_REDIRECTOR_TYPE     comma-separated types matching each IP (default: nginx for each)
 #   MURAENA_TELEGRAM_TOKEN      optional
 #   MURAENA_TELEGRAM_CHAT_ID    optional
 # ─────────────────────────────────────────────────────────────────────────────
@@ -109,7 +109,10 @@ check_dns() {
 # ── firewall ──────────────────────────────────────────────────────────────────
 
 setup_firewall() {
-    local redirector_ip="${1:-}"
+    # Accepts zero or more redirector IPs as arguments
+    local -a redir_ips=("$@")
+    local has_redirectors=false
+    [[ ${#redir_ips[@]} -gt 0 ]] && has_redirectors=true
 
     section "Firewall"
 
@@ -119,13 +122,14 @@ setup_firewall() {
         ufw allow 22/tcp &>/dev/null || true
         ufw --force enable &>/dev/null || true
 
-        if [[ -n "$redirector_ip" ]]; then
-            # Redirector mode: only accept 80/443 from redirector IP
+        if [[ "$has_redirectors" == true ]]; then
             ufw delete allow 80/tcp  &>/dev/null || true
             ufw delete allow 443/tcp &>/dev/null || true
-            ufw allow from "$redirector_ip" to any port 80  proto tcp
-            ufw allow from "$redirector_ip" to any port 443 proto tcp
-            info "ufw: ports 80/443 restricted to redirector ${redirector_ip}"
+            for ip in "${redir_ips[@]}"; do
+                ufw allow from "$ip" to any port 80  proto tcp
+                ufw allow from "$ip" to any port 443 proto tcp
+                info "ufw: ports 80/443 allowed from redirector ${ip}"
+            done
         else
             ufw allow 80/tcp
             ufw allow 443/tcp
@@ -136,10 +140,12 @@ setup_firewall() {
     elif command -v firewall-cmd &>/dev/null; then
         info "Configuring firewalld..."
         systemctl start firewalld &>/dev/null || true
-        if [[ -n "$redirector_ip" ]]; then
-            firewall-cmd --permanent --add-rich-rule="rule family=ipv4 source address=${redirector_ip} port port=80  protocol=tcp accept"
-            firewall-cmd --permanent --add-rich-rule="rule family=ipv4 source address=${redirector_ip} port port=443 protocol=tcp accept"
-            info "firewalld: ports 80/443 restricted to redirector ${redirector_ip}"
+        if [[ "$has_redirectors" == true ]]; then
+            for ip in "${redir_ips[@]}"; do
+                firewall-cmd --permanent --add-rich-rule="rule family=ipv4 source address=${ip} port port=80  protocol=tcp accept"
+                firewall-cmd --permanent --add-rich-rule="rule family=ipv4 source address=${ip} port port=443 protocol=tcp accept"
+                info "firewalld: ports 80/443 allowed from redirector ${ip}"
+            done
         else
             firewall-cmd --permanent --add-service=http
             firewall-cmd --permanent --add-service=https
@@ -149,21 +155,22 @@ setup_firewall() {
 
     elif command -v iptables &>/dev/null; then
         info "Configuring iptables..."
-        if [[ -n "$redirector_ip" ]]; then
-            iptables -C INPUT -s "$redirector_ip" -p tcp --dport 80  -j ACCEPT 2>/dev/null \
-                || iptables -I INPUT -s "$redirector_ip" -p tcp --dport 80  -j ACCEPT
-            iptables -C INPUT -s "$redirector_ip" -p tcp --dport 443 -j ACCEPT 2>/dev/null \
-                || iptables -I INPUT -s "$redirector_ip" -p tcp --dport 443 -j ACCEPT
-            # Block 80/443 from all other sources
+        if [[ "$has_redirectors" == true ]]; then
+            for ip in "${redir_ips[@]}"; do
+                iptables -C INPUT -s "$ip" -p tcp --dport 80  -j ACCEPT 2>/dev/null \
+                    || iptables -I INPUT -s "$ip" -p tcp --dport 80  -j ACCEPT
+                iptables -C INPUT -s "$ip" -p tcp --dport 443 -j ACCEPT 2>/dev/null \
+                    || iptables -I INPUT -s "$ip" -p tcp --dport 443 -j ACCEPT
+                info "iptables: ports 80/443 allowed from redirector ${ip}"
+            done
+            # Drop 80/443 from all other sources
             iptables -C INPUT -p tcp --dport 80  -j DROP 2>/dev/null || iptables -A INPUT -p tcp --dport 80  -j DROP
             iptables -C INPUT -p tcp --dport 443 -j DROP 2>/dev/null || iptables -A INPUT -p tcp --dport 443 -j DROP
-            info "iptables: ports 80/443 restricted to redirector ${redirector_ip}"
         else
             iptables -C INPUT -p tcp --dport 80  -j ACCEPT 2>/dev/null || iptables -I INPUT -p tcp --dport 80  -j ACCEPT
             iptables -C INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || iptables -I INPUT -p tcp --dport 443 -j ACCEPT
             info "iptables: ports 80 and 443 opened."
         fi
-        # Persist rules
         command -v netfilter-persistent &>/dev/null && netfilter-persistent save &>/dev/null || true
         command -v iptables-save &>/dev/null        && iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
     else
@@ -366,18 +373,20 @@ SSLCFG
 setup_redirector() {
     local redirector_ip="$1"
     local redirector_type="${2:-nginx}"
+    local index="${3:-1}"        # label for multi-redirector configs
     local muraena_ip
     muraena_ip=$(get_public_ip)
 
-    section "Redirector Configuration"
+    section "Redirector ${index} — ${redirector_ip} (${redirector_type})"
     info "Muraena IP (keep this SECRET): ${muraena_ip}"
     info "Redirector IP (goes in DNS):   ${redirector_ip}"
 
-    mkdir -p config/redirector
+    local out_dir="config/redirector/redir-${index}"
+    mkdir -p "$out_dir"
 
     case "$redirector_type" in
         nginx)
-            cat > config/redirector/nginx.conf <<NGINX
+            cat > "${out_dir}/nginx.conf" <<NGINX
 # ── Muraena Redirector — nginx stream (TCP pass-through) ──
 # Deploy this on your redirector VPS (NOT the Muraena server).
 # DNS A record for ${PHISHING_DOMAIN} → ${redirector_ip}
@@ -404,7 +413,7 @@ stream {
 }
 NGINX
 
-            cat > config/redirector/setup-redirector.sh <<'RSETUP'
+            cat > "${out_dir}/setup-redirector.sh" <<'RSETUP'
 #!/usr/bin/env bash
 # Run this script ON YOUR REDIRECTOR VPS to install nginx as a TCP forwarder.
 set -euo pipefail
@@ -416,13 +425,13 @@ nginx -t && systemctl restart nginx && systemctl enable nginx
 echo "[+] Redirector nginx started."
 RSETUP
             # Inject the actual nginx.conf into the setup script
-            sed -i "s|NGINXCONF|$(cat config/redirector/nginx.conf | sed 's/[&/\]/\\&/g' | tr '\n' '~' | sed 's/~/\\n/g')|" \
-                config/redirector/setup-redirector.sh 2>/dev/null || true
-            chmod +x config/redirector/setup-redirector.sh
+            sed -i "s|NGINXCONF|$(sed 's/[&/\]/\\&/g' "${out_dir}/nginx.conf" | tr '\n' '~' | sed 's/~/\\n/g')|" \
+                "${out_dir}/setup-redirector.sh" 2>/dev/null || true
+            chmod +x "${out_dir}/setup-redirector.sh"
             ;;
 
         socat)
-            cat > config/redirector/socat-redirector.sh <<SOCAT
+            cat > "${out_dir}/socat-redirector.sh" <<SOCAT
 #!/usr/bin/env bash
 # Run this ON YOUR REDIRECTOR VPS to forward traffic to Muraena.
 # DNS A record for ${PHISHING_DOMAIN} → ${redirector_ip}
@@ -440,20 +449,20 @@ echo "[+] socat forwarders running (PID \$!)"
 echo "    443 → \${MURAENA_IP}:443"
 echo "     80 → \${MURAENA_IP}:80"
 SOCAT
-            chmod +x config/redirector/socat-redirector.sh
+            chmod +x "${out_dir}/socat-redirector.sh"
             ;;
     esac
 
-    info "Redirector configs written to config/redirector/"
-    info "  Copy and run on your redirector VPS:"
+    info "Redirector ${index} config written to ${out_dir}/"
+    info "  Copy and run on redirector VPS ${redirector_ip}:"
     case "$redirector_type" in
-        nginx) info "  → config/redirector/nginx.conf" ;;
-        socat) info "  → config/redirector/socat-redirector.sh" ;;
+        nginx) info "  → ${out_dir}/nginx.conf  (place at /etc/nginx/nginx.conf)" ;;
+        socat) info "  → ${out_dir}/socat-redirector.sh" ;;
     esac
     echo ""
-    warn "OPSEC checklist:"
+    warn "OPSEC — redirector ${index}:"
     warn "  1. DNS A record for ${PHISHING_DOMAIN} → ${redirector_ip}  (NOT ${muraena_ip})"
-    warn "  2. Muraena firewall allows 80/443 only from ${redirector_ip}"
+    warn "  2. Muraena firewall allows 80/443 only from redirector IPs"
     warn "  3. Never expose Muraena's IP in emails, certificates, or logs"
     warn "  4. Use DNS-01 challenge for Let's Encrypt (avoids port 80 exposure)"
 }
@@ -475,8 +484,13 @@ gather_config() {
         SESSION_MODE="${MURAENA_SESSION_MODE:-1}"
         NECRO_COOKIES="${MURAENA_NECRO_COOKIES:-sessionToken}"
         NECRO_TASK_TYPE="${MURAENA_NECRO_TASK_TYPE:-generic}"
-        REDIRECTOR_IP="${MURAENA_REDIRECTOR_IP:-}"
-        REDIRECTOR_TYPE="${MURAENA_REDIRECTOR_TYPE:-nginx}"
+        # Parse comma-separated redirector IPs and types into arrays
+        IFS=',' read -ra REDIRECTOR_IPS   <<< "${MURAENA_REDIRECTOR_IP:-}"
+        IFS=',' read -ra REDIRECTOR_TYPES <<< "${MURAENA_REDIRECTOR_TYPE:-}"
+        # Pad REDIRECTOR_TYPES with "nginx" if shorter than REDIRECTOR_IPS
+        while [[ ${#REDIRECTOR_TYPES[@]} -lt ${#REDIRECTOR_IPS[@]} ]]; do
+            REDIRECTOR_TYPES+=("nginx")
+        done
         TG_TOKEN="${MURAENA_TELEGRAM_TOKEN:-}"
         TG_CHAT_ID="${MURAENA_TELEGRAM_CHAT_ID:-}"
         TG_CHOICE="N"
@@ -488,7 +502,9 @@ gather_config() {
         info "  Domain   : ${PHISHING_DOMAIN} → ${TARGET_DOMAIN}"
         info "  TLS      : ${TLS_CHOICE}"
         info "  Sessions : ${SESSION_MODE}"
-        [[ -n "$REDIRECTOR_IP" ]] && info "  Redirector: ${REDIRECTOR_IP} (${REDIRECTOR_TYPE})"
+        for i in "${!REDIRECTOR_IPS[@]}"; do
+            info "  Redirector $((i+1)): ${REDIRECTOR_IPS[$i]} (${REDIRECTOR_TYPES[$i]})"
+        done
         return
     fi
 
@@ -502,27 +518,36 @@ gather_config() {
     read -r TARGET_DOMAIN
     [[ -z "$TARGET_DOMAIN" ]] && error "Target domain is required."
 
-    section "Opsec — Redirector"
-    echo "  A redirector sits in front of Muraena, hiding this server's real IP."
-    echo "  DNS points to the redirector. If it gets burned, spin up a new one."
+    section "Opsec — Redirectors"
+    echo "  Redirectors hide Muraena's real IP: DNS points to the redirector;"
+    echo "  it TCP-forwards all traffic here. Add as many as you like."
+    echo "  If one gets burned, swap it — Muraena stays untouched."
     echo ""
-    ask "Use a redirector VPS? [y/N]:"
-    read -r REDIR_CHOICE
-    REDIRECTOR_IP=""
-    REDIRECTOR_TYPE="nginx"
-    if [[ "${REDIR_CHOICE:-N}" =~ ^[Yy]$ ]]; then
-        ask "Redirector VPS IP address:"
-        read -r REDIRECTOR_IP
-        [[ -z "$REDIRECTOR_IP" ]] && error "Redirector IP is required."
+    REDIRECTOR_IPS=()
+    REDIRECTOR_TYPES=()
+    local redir_num=1
+    while true; do
+        ask "Add redirector VPS #${redir_num}? [y/N]:"
+        read -r REDIR_CHOICE
+        [[ ! "${REDIR_CHOICE:-N}" =~ ^[Yy]$ ]] && break
+        local _rip=""
+        ask "  Redirector #${redir_num} IP address:"
+        read -r _rip
+        [[ -z "$_rip" ]] && error "Redirector IP is required."
         echo "  1) nginx  (TCP stream proxy — recommended)"
         echo "  2) socat  (simple port forwarder)"
-        ask "Redirector type [1/2]:"
-        read -r rt
-        [[ "${rt:-1}" == "2" ]] && REDIRECTOR_TYPE="socat" || REDIRECTOR_TYPE="nginx"
-    fi
+        ask "  Type [1/2]:"
+        read -r _rt
+        local _rtype="nginx"
+        [[ "${_rt:-1}" == "2" ]] && _rtype="socat"
+        REDIRECTOR_IPS+=("$_rip")
+        REDIRECTOR_TYPES+=("$_rtype")
+        info "  Added redirector #${redir_num}: ${_rip} (${_rtype})"
+        redir_num=$((redir_num + 1))
+    done
 
     section "TLS / HTTPS"
-    if [[ -n "$REDIRECTOR_IP" ]]; then
+    if [[ ${#REDIRECTOR_IPS[@]} -gt 0 ]]; then
         echo "  Note: with a redirector, DNS-01 is recommended (no port 80 needed)."
         echo ""
     fi
@@ -794,8 +819,9 @@ launch() {
         2) echo -e "  ${BOLD}Sessions        :${RESET} Redis + Necrobrowser-NG (Docker)" ;;
         3) echo -e "  ${BOLD}Sessions        :${RESET} Redis + Necrobrowser-NG at ${NECRO_ENDPOINT}" ;;
     esac
-    [[ -n "${REDIRECTOR_IP:-}" ]] && \
-        echo -e "  ${BOLD}Redirector      :${RESET} ${REDIRECTOR_IP} (${REDIRECTOR_TYPE}) — see config/redirector/"
+    for i in "${!REDIRECTOR_IPS[@]}"; do
+        echo -e "  ${BOLD}Redirector $((i+1))     :${RESET} ${REDIRECTOR_IPS[$i]} (${REDIRECTOR_TYPES[$i]}) — config/redirector/redir-$((i+1))/"
+    done
     echo ""
     echo -e "  ${BOLD}Inspect Redis   :${RESET} docker compose exec redis redis-cli hgetall victim:<ID>"
     echo -e "  ${BOLD}Logs            :${RESET} docker compose logs -f muraena"
@@ -820,7 +846,7 @@ main() {
     check_dns "$PHISHING_DOMAIN"
 
     section "Firewall"
-    setup_firewall "${REDIRECTOR_IP:-}"
+    setup_firewall "${REDIRECTOR_IPS[@]+"${REDIRECTOR_IPS[@]}"}"
 
     section "TLS"
     case "$TLS_CHOICE" in
@@ -834,7 +860,9 @@ main() {
     write_config
     [[ "$SESSION_MODE" =~ ^[23]$ ]] && write_necro_profile
     [[ "$SESSION_MODE" =~ ^[23]$ ]] && write_compose_override
-    [[ -n "${REDIRECTOR_IP:-}" ]]   && setup_redirector "$REDIRECTOR_IP" "${REDIRECTOR_TYPE:-nginx}"
+    for i in "${!REDIRECTOR_IPS[@]}"; do
+        setup_redirector "${REDIRECTOR_IPS[$i]}" "${REDIRECTOR_TYPES[$i]}" "$((i+1))"
+    done
 
     launch
 }
