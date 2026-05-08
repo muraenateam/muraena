@@ -83,8 +83,11 @@ check_dns() {
     info "Server public IP: ${server_ip}"
 
     local resolved
-    resolved=$(dig +short "$domain" A 2>/dev/null | tail -1 || true)
-    resolved="${resolved:-$(host "$domain" 2>/dev/null | awk '/has address/{print $NF}' | head -1 || true)}"
+    resolved=$(dig +short "$domain" A 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | tail -1 || true)
+    # Fall back to `host` if dig is absent or returned no IP
+    if [[ -z "$resolved" ]]; then
+        resolved=$(host "$domain" 2>/dev/null | awk '/has address/{print $NF}' | head -1 || true)
+    fi
 
     if [[ -z "$resolved" ]]; then
         warn "Cannot resolve ${domain} — DNS not set up yet?"
@@ -112,6 +115,8 @@ setup_firewall() {
 
     if command -v ufw &>/dev/null; then
         info "Configuring ufw..."
+        # Allow SSH first — must come before enable so we don't lock ourselves out
+        ufw allow 22/tcp &>/dev/null || true
         ufw --force enable &>/dev/null || true
 
         if [[ -n "$redirector_ip" ]]; then
@@ -126,7 +131,6 @@ setup_firewall() {
             ufw allow 443/tcp
             info "ufw: ports 80 and 443 opened."
         fi
-        ufw allow 22/tcp &>/dev/null || true  # always keep SSH open
         ufw reload &>/dev/null || true
 
     elif command -v firewall-cmd &>/dev/null; then
@@ -231,10 +235,10 @@ setup_tls_letsencrypt_dns() {
 
     case "${DNS_PROVIDER:-manual}" in
         cloudflare)
-            local cf_ini="/tmp/cloudflare.ini"
-            cat > "$cf_ini" <<EOF
-dns_cloudflare_api_token = ${CF_API_TOKEN}
-EOF
+            local cf_ini="/tmp/cloudflare-$$.ini"
+            # Always remove the credentials file on exit, even if certbot fails
+            trap "rm -f '${cf_ini}'" RETURN
+            printf 'dns_cloudflare_api_token = %s\n' "${CF_API_TOKEN}" > "$cf_ini"
             chmod 600 "$cf_ini"
             info "Requesting certificate for ${PHISHING_DOMAIN} (DNS-01 via Cloudflare)..."
             certbot certonly \
@@ -244,7 +248,6 @@ EOF
                 --agree-tos \
                 --register-unsafely-without-email \
                 -d "$PHISHING_DOMAIN"
-            rm -f "$cf_ini"
             ;;
         route53)
             info "Requesting certificate for ${PHISHING_DOMAIN} (DNS-01 via Route53)..."
@@ -271,6 +274,7 @@ EOF
 }
 
 _copy_letsencrypt_certs() {
+    mkdir -p config
     local base="/etc/letsencrypt/live/${PHISHING_DOMAIN}"
     cp "${base}/cert.pem"      config/cert.pem
     cp "${base}/privkey.pem"   config/privkey.pem
@@ -279,17 +283,36 @@ _copy_letsencrypt_certs() {
 }
 
 _setup_cert_renewal() {
-    local renew_script="/etc/cron.d/muraena-certbot-renew"
     local repo_dir
     repo_dir="$(pwd)"
 
-    cat > "$renew_script" <<CRON
-# Muraena — Let's Encrypt auto-renewal (twice daily, as recommended)
-0 3,15 * * * root certbot renew --quiet --deploy-hook "cp /etc/letsencrypt/live/${PHISHING_DOMAIN}/cert.pem ${repo_dir}/config/cert.pem && cp /etc/letsencrypt/live/${PHISHING_DOMAIN}/privkey.pem ${repo_dir}/config/privkey.pem && cp /etc/letsencrypt/live/${PHISHING_DOMAIN}/fullchain.pem ${repo_dir}/config/fullchain.pem && docker compose -f ${repo_dir}/docker-compose.yml restart muraena"
+    # Write the deploy hook as a standalone script so spaces in paths are safe
+    local hook_script="/etc/letsencrypt/renewal-hooks/deploy/muraena-copy-certs.sh"
+    mkdir -p /etc/letsencrypt/renewal-hooks/deploy
+    cat > "$hook_script" <<HOOK
+#!/usr/bin/env bash
+# Muraena — certbot deploy hook: copy renewed certs and restart container
+set -euo pipefail
+DOMAIN="${PHISHING_DOMAIN}"
+REPO="${repo_dir}"
+cp "/etc/letsencrypt/live/\${DOMAIN}/cert.pem"      "\${REPO}/config/cert.pem"
+cp "/etc/letsencrypt/live/\${DOMAIN}/privkey.pem"   "\${REPO}/config/privkey.pem"
+cp "/etc/letsencrypt/live/\${DOMAIN}/fullchain.pem" "\${REPO}/config/fullchain.pem"
+docker compose -f "\${REPO}/docker-compose.yml" restart muraena
+HOOK
+    chmod 755 "$hook_script"
+
+    # Standard cron to trigger certbot renew twice daily
+    local cron_file="/etc/cron.d/muraena-certbot-renew"
+    cat > "$cron_file" <<CRON
+# Muraena — Let's Encrypt auto-renewal (twice daily, as recommended by EFF)
+0 3,15 * * * root certbot renew --quiet
 CRON
-    chmod 644 "$renew_script"
-    info "Auto-renewal cron installed → ${renew_script}"
-    info "Certs will renew automatically every 60 days and Muraena will restart."
+    chmod 644 "$cron_file"
+
+    info "Auto-renewal cron installed  → ${cron_file}"
+    info "Cert deploy hook installed   → ${hook_script}"
+    info "Certs will renew automatically; Muraena restarts on each renewal."
 }
 
 setup_tls_selfsigned() {
@@ -297,12 +320,43 @@ setup_tls_selfsigned() {
         info "Certificates already present — skipping."
         return
     fi
+    mkdir -p config
     info "Generating self-signed certificate for ${PHISHING_DOMAIN}..."
-    openssl req -x509 -newkey rsa:4096 -sha256 -days 825 -nodes \
-        -keyout config/privkey.pem \
-        -out    config/cert.pem \
-        -subj   "/CN=${PHISHING_DOMAIN}" \
-        -addext "subjectAltName=DNS:${PHISHING_DOMAIN}" 2>/dev/null
+
+    # --addext (SAN) requires OpenSSL >= 1.1.1; fall back to a config file on older versions
+    local ssl_ver
+    ssl_ver=$(openssl version | awk '{print $2}')
+    local major minor
+    major=$(echo "$ssl_ver" | cut -d. -f1)
+    minor=$(echo "$ssl_ver" | cut -d. -f2)
+
+    if [[ "$major" -gt 1 ]] || [[ "$major" -eq 1 && "$minor" -ge 1 ]]; then
+        openssl req -x509 -newkey rsa:4096 -sha256 -days 825 -nodes \
+            -keyout config/privkey.pem \
+            -out    config/cert.pem \
+            -subj   "/CN=${PHISHING_DOMAIN}" \
+            -addext "subjectAltName=DNS:${PHISHING_DOMAIN}" 2>/dev/null
+    else
+        # Legacy path: write a temporary openssl config with SAN extension
+        local tmp_cfg
+        tmp_cfg=$(mktemp)
+        cat > "$tmp_cfg" <<SSLCFG
+[req]
+distinguished_name = req_distinguished_name
+x509_extensions    = v3_req
+prompt             = no
+[req_distinguished_name]
+CN = ${PHISHING_DOMAIN}
+[v3_req]
+subjectAltName = DNS:${PHISHING_DOMAIN}
+SSLCFG
+        openssl req -x509 -newkey rsa:4096 -sha256 -days 825 -nodes \
+            -keyout config/privkey.pem \
+            -out    config/cert.pem \
+            -config "$tmp_cfg" 2>/dev/null
+        rm -f "$tmp_cfg"
+    fi
+
     cp config/cert.pem config/fullchain.pem
     warn "Self-signed cert generated — browsers will show a security warning."
 }
@@ -413,8 +467,11 @@ gather_config() {
         TLS_CHOICE="${MURAENA_TLS_MODE:-4}"
         DNS_PROVIDER="${MURAENA_DNS_PROVIDER:-manual}"
         CF_API_TOKEN="${MURAENA_CF_API_TOKEN:-}"
-        TRACKING_CHOICE="${MURAENA_TRACKING:-Y}"
-        TOKEN_CAPTURE="${MURAENA_TOKEN_CAPTURE:-N}"
+        # Normalise true/false → Y/N so write_config comparisons work in CI mode
+        local _t="${MURAENA_TRACKING:-true}"
+        [[ "$_t" == "true"  || "$_t" =~ ^[Yy]$ ]] && TRACKING_CHOICE="Y" || TRACKING_CHOICE="N"
+        local _tc="${MURAENA_TOKEN_CAPTURE:-false}"
+        [[ "$_tc" == "true" || "$_tc" =~ ^[Yy]$ ]] && TOKEN_CAPTURE="Y"  || TOKEN_CAPTURE="N"
         SESSION_MODE="${MURAENA_SESSION_MODE:-1}"
         NECRO_COOKIES="${MURAENA_NECRO_COOKIES:-sessionToken}"
         NECRO_TASK_TYPE="${MURAENA_NECRO_TASK_TYPE:-generic}"
@@ -488,7 +545,7 @@ gather_config() {
         case "${dp:-3}" in
             1) DNS_PROVIDER="cloudflare"
                ask "Cloudflare API token:"
-               read -r CF_API_TOKEN ;;
+               read -rs CF_API_TOKEN; echo ;;
             2) DNS_PROVIDER="route53" ;;
             *) DNS_PROVIDER="manual"  ;;
         esac
@@ -538,7 +595,7 @@ gather_config() {
     TG_CHAT_ID=""
     if [[ "$TG_CHOICE" =~ ^[Yy]$ ]]; then
         ask "Bot token:"
-        read -r TG_TOKEN
+        read -rs TG_TOKEN; echo
         ask "Chat ID (e.g. -1001234567890):"
         read -r TG_CHAT_ID
     fi
@@ -601,6 +658,7 @@ write_config() {
     chatIDs  = [\"${TG_CHAT_ID}\"]"
     fi
 
+    mkdir -p config
     cat > config/config.toml <<TOML
 # Generated by setup.sh — $(date -u +"%Y-%m-%d %H:%M UTC")
 
