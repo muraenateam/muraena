@@ -38,6 +38,57 @@ type StaticHTTPConfig struct {
 	ListeningPort int    `toml:"listeningPort"`
 }
 
+type ApiJWTConfig struct {
+	AccessMinutes int `toml:"accessMinutes"`
+	RefreshDays   int `toml:"refreshDays"`
+}
+
+type ApiTrafficConfig struct {
+	Enable        bool `toml:"enable"`
+	MaxFlows      int  `toml:"maxFlows"`
+	TTLMinutes    int  `toml:"ttlMinutes"`
+	MaxBodyKB     int  `toml:"maxBodyKB"`
+	CaptureBodies bool `toml:"captureBodies"`
+}
+
+type ApiConfig struct {
+	Enable  bool             `toml:"enable"`
+	Bind    string           `toml:"bind"`
+	Port    int              `toml:"port"`
+	JWT     ApiJWTConfig     `toml:"jwt"`
+	Traffic ApiTrafficConfig `toml:"traffic"`
+}
+
+type ReconConfig struct {
+	NodePath string `toml:"nodePath"`
+	Script   string `toml:"script"`
+}
+
+// applyDefaults fills unset API config fields with safe defaults.
+func (a *ApiConfig) applyDefaults() {
+	if a.Bind == "" {
+		a.Bind = "127.0.0.1"
+	}
+	if a.Port == 0 {
+		a.Port = 8443
+	}
+	if a.JWT.AccessMinutes == 0 {
+		a.JWT.AccessMinutes = 15
+	}
+	if a.JWT.RefreshDays == 0 {
+		a.JWT.RefreshDays = 7
+	}
+	if a.Traffic.MaxFlows == 0 {
+		a.Traffic.MaxFlows = 5000
+	}
+	if a.Traffic.TTLMinutes == 0 {
+		a.Traffic.TTLMinutes = 1440
+	}
+	if a.Traffic.MaxBodyKB == 0 {
+		a.Traffic.MaxBodyKB = 512
+	}
+}
+
 // Configuration struct
 type Configuration struct {
 	//
@@ -221,7 +272,7 @@ type Configuration struct {
 		Endpoint string `toml:"endpoint"`
 		Profile  string `toml:"profile"`
 		// Keepalive struct {
-		// 	Enabled bool `toml:"enable"`
+		// 	Enable bool `toml:"enable"`
 		// 	Minutes int  `toml:"minutes"`
 		// } `toml:"keepalive"`
 		Trigger struct {
@@ -251,6 +302,16 @@ type Configuration struct {
 		BotToken string   `toml:"botToken"`
 		ChatIDs  []string `toml:"chatIDs"`
 	} `toml:"telegram"`
+
+	//
+	// API control plane
+	//
+	Api ApiConfig `toml:"api"`
+
+	//
+	// Recon (puppeteer)
+	//
+	Recon ReconConfig `toml:"recon"`
 }
 
 // GetConfiguration returns the configuration object
@@ -429,6 +490,17 @@ func (s *Session) GetConfiguration() (err error) {
 		}
 	}
 	s.Config.Transform.Request.Add.Headers = slice
+
+	//
+	// API control plane
+	//
+	s.Config.Api.applyDefaults()
+	if s.Config.Recon.NodePath == "" {
+		s.Config.Recon.NodePath = "node"
+	}
+	if s.Config.Recon.Script == "" {
+		s.Config.Recon.Script = "puppeteer/recon.js"
+	}
 
 	// Final Checks
 	return s.DoChecks()

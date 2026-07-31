@@ -1,13 +1,16 @@
 module github.com/muraenateam/muraena
 
-go 1.21
+go 1.25.0
 
 require (
+	github.com/alicebob/miniredis/v2 v2.32.1
 	github.com/ditashi/jsbeautifier-go v0.0.0-20141206144643-2520a8026a9c
 	github.com/dsnet/compress v0.0.1
 	github.com/evilsocket/islazy v1.11.0
 	github.com/fsnotify/fsnotify v1.7.0
+	github.com/go-chi/chi/v5 v5.0.12
 	github.com/gocolly/colly/v2 v2.1.0
+	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/gomodule/redigo v1.9.2
 	github.com/icza/abcsort v0.0.0-20230330133725-d6ace6446f81
 	github.com/kellydunn/golang-geo v0.7.0
@@ -17,13 +20,15 @@ require (
 	github.com/oschwald/geoip2-golang v1.9.0
 	github.com/pelletier/go-toml v1.9.5
 	github.com/pkg/errors v0.9.1
-	golang.org/x/net v0.22.0
+	golang.org/x/crypto v0.53.0
+	golang.org/x/net v0.56.0
 	gopkg.in/resty.v1 v1.12.0
 	mvdan.cc/xurls/v2 v2.5.0
 )
 
 require (
 	github.com/PuerkitoBio/goquery v1.9.1 // indirect
+	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/andybalholm/cascadia v1.3.2 // indirect
 	github.com/antchfx/htmlquery v1.3.0 // indirect
 	github.com/antchfx/xmlquery v1.3.18 // indirect
@@ -39,9 +44,10 @@ require (
 	github.com/oschwald/maxminddb-golang v1.12.0 // indirect
 	github.com/saintfish/chardet v0.0.0-20230101081208-5e3ef4b5456d // indirect
 	github.com/temoto/robotstxt v1.1.2 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/ziutek/mymysql v1.5.4 // indirect
-	golang.org/x/sys v0.18.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect

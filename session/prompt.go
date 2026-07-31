@@ -85,7 +85,7 @@ func (s *Session) help() {
 	log.Raw("* Muraena menu")
 	log.Raw("* - h, help: %s", tui.Bold("Prints this help"))
 	log.Raw("* - e, exit: %s", tui.Bold("Exit from "+core.Name))
-	log.Raw("* Enabled modules:")
+	log.Raw("* Enable modules:")
 	for _, m := range s.GetModuleNames() {
 		log.Raw("* - %s: %s", m, tui.Bold("Interact with "+m+" module"))
 	}

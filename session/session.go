@@ -62,8 +62,8 @@ func New() (*Session, error) {
 		return nil, err
 	}
 
-	// Load Redis only if tracking is enabled
-	if s.Config.Tracking.Enabled {
+	// Load Redis when the API or tracking is enabled
+	if s.Config.Api.Enable || s.Config.Tracking.Enabled {
 		if err = s.InitRedis(); err != nil {
 			log.Error("%s", err)
 			return nil, err
@@ -92,7 +92,7 @@ func (s *Session) Module(name string) (mod Module, err error) {
 // Register appends the provided module to the session
 func (s *Session) Register(mod Module, err error) {
 	if err != nil {
-		log.Error(err.Error())
+		log.Error("%s", err.Error())
 	} else {
 		s.Modules = append(s.Modules, mod)
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/muraenateam/muraena/api"
 	"github.com/muraenateam/muraena/core/proxy"
 	"github.com/muraenateam/muraena/log"
 	"github.com/muraenateam/muraena/module"
@@ -22,6 +23,9 @@ func main() {
 
 	// Load all modules
 	module.LoadModules(sess)
+
+	// Start the API control plane (no-op if disabled)
+	go api.Run(sess)
 
 	// Run Muraena
 	proxy.Run(sess)
