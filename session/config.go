@@ -1,6 +1,7 @@
 package session
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -269,12 +270,13 @@ type Configuration struct {
 			AuthSessionResponse []string `toml:"authSessionResponse"`
 		} `toml:"urls"`
 
-		Endpoint string `toml:"endpoint"`
-		Profile  string `toml:"profile"`
-		// Keepalive struct {
-		// 	Enable bool `toml:"enable"`
-		// 	Minutes int  `toml:"minutes"`
-		// } `toml:"keepalive"`
+		Endpoint  string `toml:"endpoint"`
+		Profile   string `toml:"profile"`
+		Keepalive struct {
+			Enable  bool   `toml:"enable"`
+			Minutes int    `toml:"minutes"`
+			Profile string `toml:"profile"`
+		} `toml:"keepalive"`
 		Trigger struct {
 			Type   string   `toml:"type"`
 			Values []string `toml:"values"`
@@ -321,41 +323,39 @@ func (s *Session) GetConfiguration() (err error) {
 	if err != nil {
 		return errors.New(fmt.Sprintf("Error reading configuration file %s: %s", *s.Options.ConfigFilePath, err))
 	}
-	c := Configuration{}
-	if err := toml.Unmarshal(cb, &c); err != nil {
+	c := &Configuration{}
+	if err := toml.Unmarshal(cb, c); err != nil {
 		return errors.New(fmt.Sprintf("Error unmarshalling TOML configuration file %s: %s", *s.Options.ConfigFilePath,
 			err))
 	}
 
-	s.Config = &c
-
-	if s.Config.Proxy.Phishing == "" || s.Config.Proxy.Target == "" {
+	if c.Proxy.Phishing == "" || c.Proxy.Target == "" {
 		return errors.New(fmt.Sprintf("Missing phishing/destination from configuration!"))
 	}
 
 	// Listening
-	if s.Config.Proxy.IP == "" {
-		s.Config.Proxy.IP = DefaultIP
+	if c.Proxy.IP == "" {
+		c.Proxy.IP = DefaultIP
 	}
 
 	// Network Listener
-	if s.Config.Proxy.Listener == "" {
-		s.Config.Proxy.Listener = DefaultListener
-	} else if !core.StringContains(strings.ToLower(s.Config.Proxy.Listener), []string{"tcp", "tcp4", "tcp6"}) {
-		s.Config.Proxy.Listener = DefaultListener
+	if c.Proxy.Listener == "" {
+		c.Proxy.Listener = DefaultListener
+	} else if !core.StringContains(strings.ToLower(c.Proxy.Listener), []string{"tcp", "tcp4", "tcp6"}) {
+		c.Proxy.Listener = DefaultListener
 	}
 
-	if s.Config.Proxy.Port == 0 {
-		s.Config.Proxy.Port = DefaultHTTPPort
-		if s.Config.TLS.Enabled {
-			s.Config.Proxy.Port = DefaultHTTPSPort
+	if c.Proxy.Port == 0 {
+		c.Proxy.Port = DefaultHTTPPort
+		if c.TLS.Enabled {
+			c.Proxy.Port = DefaultHTTPSPort
 		}
 	}
 
 	// HTTPtoHTTPS
-	if s.Config.Proxy.HTTPtoHTTPS.Enabled {
-		if s.Config.Proxy.HTTPtoHTTPS.HTTPport == 0 {
-			s.Config.Proxy.HTTPtoHTTPS.HTTPport = DefaultHTTPPort
+	if c.Proxy.HTTPtoHTTPS.Enabled {
+		if c.Proxy.HTTPtoHTTPS.HTTPport == 0 {
+			c.Proxy.HTTPtoHTTPS.HTTPport = DefaultHTTPPort
 		}
 	}
 
@@ -364,90 +364,90 @@ func (s *Session) GetConfiguration() (err error) {
 	//
 
 	// ExternalOriginPrefix must match the a-zA-Z0-9\- regex pattern
-	if s.Config.Origins.ExternalOriginPrefix != "" {
-		m, err := regexp.MatchString("^[a-zA-Z0-9-]+$", s.Config.Origins.ExternalOriginPrefix)
+	if c.Origins.ExternalOriginPrefix != "" {
+		m, err := regexp.MatchString("^[a-zA-Z0-9-]+$", c.Origins.ExternalOriginPrefix)
 		if err != nil {
-			return errors.New(fmt.Sprintf("Error matching ExternalOriginPrefix %s: %s", s.Config.Origins.ExternalOriginPrefix, err))
+			return errors.New(fmt.Sprintf("Error matching ExternalOriginPrefix %s: %s", c.Origins.ExternalOriginPrefix, err))
 		}
 
 		if !m {
-			return errors.New(fmt.Sprintf("Invalid ExternalOriginPrefix %s. It must match the a-zA-Z0-9\\- regex pattern.", s.Config.Origins.ExternalOriginPrefix))
+			return errors.New(fmt.Sprintf("Invalid ExternalOriginPrefix %s. It must match the a-zA-Z0-9\\- regex pattern.", c.Origins.ExternalOriginPrefix))
 		}
 	} else {
-		s.Config.Origins.ExternalOriginPrefix = "ext"
+		c.Origins.ExternalOriginPrefix = "ext"
 	}
 
-	s.Config.Origins.OriginsMapping = make(map[string]string)
+	c.Origins.OriginsMapping = make(map[string]string)
 
 	// Load TLS config
-	s.Config.Proxy.Protocol = "http://"
+	c.Proxy.Protocol = "http://"
 
-	if s.Config.TLS.Enabled {
+	if c.TLS.Enabled {
 
 		// Load TLS Certificate
-		s.Config.TLS.CertificateContent = s.Config.TLS.Certificate
+		c.TLS.CertificateContent = c.TLS.Certificate
 
-		if !strings.HasPrefix(s.Config.TLS.Certificate, "-----BEGIN CERTIFICATE-----\n") {
-			er := errors.New(fmt.Sprintf("Error reading TLS cert %s: %s", s.Config.TLS.Certificate, err))
-			if _, err := os.Stat(s.Config.TLS.CertificateContent); err == nil {
-				crt, err := ioutil.ReadFile(s.Config.TLS.CertificateContent)
+		if !strings.HasPrefix(c.TLS.Certificate, "-----BEGIN CERTIFICATE-----\n") {
+			er := errors.New(fmt.Sprintf("Error reading TLS cert %s: %s", c.TLS.Certificate, err))
+			if _, err := os.Stat(c.TLS.CertificateContent); err == nil {
+				crt, err := ioutil.ReadFile(c.TLS.CertificateContent)
 				if err != nil {
 					return er
 				}
-				s.Config.TLS.CertificateContent = string(crt)
+				c.TLS.CertificateContent = string(crt)
 			} else {
 				return er
 			}
 		}
 
 		// Load TLS Root CA Certificate
-		s.Config.TLS.RootContent = s.Config.TLS.Root
-		if !strings.HasPrefix(s.Config.TLS.Root, "-----BEGIN CERTIFICATE-----\n") {
-			er := errors.New(fmt.Sprintf("Error reading TLS cert pool %s: %s", s.Config.TLS.Root, err))
-			if _, err := os.Stat(s.Config.TLS.RootContent); err == nil {
-				crtp, err := ioutil.ReadFile(s.Config.TLS.RootContent)
+		c.TLS.RootContent = c.TLS.Root
+		if !strings.HasPrefix(c.TLS.Root, "-----BEGIN CERTIFICATE-----\n") {
+			er := errors.New(fmt.Sprintf("Error reading TLS cert pool %s: %s", c.TLS.Root, err))
+			if _, err := os.Stat(c.TLS.RootContent); err == nil {
+				crtp, err := ioutil.ReadFile(c.TLS.RootContent)
 				if err != nil {
 					return er
 				}
-				s.Config.TLS.RootContent = string(crtp)
+				c.TLS.RootContent = string(crtp)
 			} else {
 				return er
 			}
 		}
 
 		// Load TLS Certificate Key
-		s.Config.TLS.KeyContent = s.Config.TLS.Key
-		if !strings.HasPrefix(s.Config.TLS.Key, "-----BEGIN") {
-			er := errors.New(fmt.Sprintf("Error reading TLS cert key %s: %s", s.Config.TLS.Key, err))
-			if _, err := os.Stat(s.Config.TLS.KeyContent); err == nil {
-				k, err := ioutil.ReadFile(s.Config.TLS.KeyContent)
+		c.TLS.KeyContent = c.TLS.Key
+		if !strings.HasPrefix(c.TLS.Key, "-----BEGIN") {
+			er := errors.New(fmt.Sprintf("Error reading TLS cert key %s: %s", c.TLS.Key, err))
+			if _, err := os.Stat(c.TLS.KeyContent); err == nil {
+				k, err := ioutil.ReadFile(c.TLS.KeyContent)
 				if err != nil {
 					return er
 				}
-				s.Config.TLS.KeyContent = string(k)
+				c.TLS.KeyContent = string(k)
 			} else {
 				return er
 			}
 		}
 
-		s.Config.Proxy.Protocol = "https://"
+		c.Proxy.Protocol = "https://"
 
-		s.Config.TLS.MinVersion = strings.ToUpper(s.Config.TLS.MinVersion)
-		if !core.StringContains(s.Config.TLS.MinVersion, []string{"SSL3.0", "TLS1.0", "TLS1.1", "TLS1.2", "TLS1.3"}) {
+		c.TLS.MinVersion = strings.ToUpper(c.TLS.MinVersion)
+		if !core.StringContains(c.TLS.MinVersion, []string{"SSL3.0", "TLS1.0", "TLS1.1", "TLS1.2", "TLS1.3"}) {
 			// Fallback to TLS1
-			s.Config.TLS.MinVersion = "TLS1.0"
+			c.TLS.MinVersion = "TLS1.0"
 		}
 
-		s.Config.TLS.MaxVersion = strings.ToUpper(s.Config.TLS.MaxVersion)
-		if !core.StringContains(s.Config.TLS.MaxVersion, []string{"SSL3.0", "TLS1.0", "TLS1.1", "TLS1.2", "TLS1.3"}) {
+		c.TLS.MaxVersion = strings.ToUpper(c.TLS.MaxVersion)
+		if !core.StringContains(c.TLS.MaxVersion, []string{"SSL3.0", "TLS1.0", "TLS1.1", "TLS1.2", "TLS1.3"}) {
 			// Fallback to TLS1.3
-			s.Config.TLS.MaxVersion = "TLS1.3"
+			c.TLS.MaxVersion = "TLS1.3"
 		}
 
-		s.Config.TLS.RenegotiationSupport = strings.ToUpper(s.Config.TLS.RenegotiationSupport)
-		if !core.StringContains(s.Config.TLS.RenegotiationSupport, []string{"NEVER", "ONCE", "FREELY"}) {
+		c.TLS.RenegotiationSupport = strings.ToUpper(c.TLS.RenegotiationSupport)
+		if !core.StringContains(c.TLS.RenegotiationSupport, []string{"NEVER", "ONCE", "FREELY"}) {
 			// Fallback to NEVER
-			s.Config.TLS.RenegotiationSupport = "NEVER"
+			c.TLS.RenegotiationSupport = "NEVER"
 		}
 
 	}
@@ -455,15 +455,15 @@ func (s *Session) GetConfiguration() (err error) {
 	//
 	// Transforming rules
 	//
-	if s.Config.Transform.Base64.Padding == nil {
-		s.Config.Transform.Base64.Padding = DefaultBase64Padding
+	if c.Transform.Base64.Padding == nil {
+		c.Transform.Base64.Padding = DefaultBase64Padding
 	}
 
-	if s.Config.Transform.Response.SkipContentType == nil {
-		s.Config.Transform.Response.SkipContentType = DefaultSkipContentType
+	if c.Transform.Response.SkipContentType == nil {
+		c.Transform.Response.SkipContentType = DefaultSkipContentType
 	}
 
-	s.Config.Transform.Request.SkipExtensions = []string{
+	c.Transform.Request.SkipExtensions = []string{
 		"ttf", "otf", "woff", "woff2", "eot", // fonts and images
 		"ase", "art", "bmp", "blp", "cd5", "cit", "cpt", "cr2", "cut", "dds", "dib", "djvu", "egt", "exif", "gif",
 		"gpl", "grf", "icns", "ico", "iff", "jng", "jpeg", "jpg", "jfif", "jp2", "jps", "lbm", "max", "miff", "mng",
@@ -475,39 +475,43 @@ func (s *Session) GetConfiguration() (err error) {
 		"pcx", "pgf", "sgi", "rgb", "rgba", "bw", "int", "inta", "sid", "ras", "sun", "tga"}
 
 	// Fix Craft config
-	slice := s.Config.Transform.Response.Add.Headers
-	for s, header := range s.Config.Transform.Response.Add.Headers {
+	slice := c.Transform.Response.Add.Headers
+	for s, header := range c.Transform.Response.Add.Headers {
 		if header.Name == "" {
 			slice = append(slice[:s], slice[s+1:]...)
 		}
 	}
-	s.Config.Transform.Response.Add.Headers = slice
+	c.Transform.Response.Add.Headers = slice
 
-	slice = s.Config.Transform.Request.Add.Headers
-	for s, header := range s.Config.Transform.Request.Add.Headers {
+	slice = c.Transform.Request.Add.Headers
+	for s, header := range c.Transform.Request.Add.Headers {
 		if header.Name == "" {
 			slice = append(slice[:s], slice[s+1:]...)
 		}
 	}
-	s.Config.Transform.Request.Add.Headers = slice
+	c.Transform.Request.Add.Headers = slice
 
 	//
 	// API control plane
 	//
-	s.Config.Api.applyDefaults()
-	if s.Config.Recon.NodePath == "" {
-		s.Config.Recon.NodePath = "node"
+	c.Api.applyDefaults()
+	if c.Recon.NodePath == "" {
+		c.Recon.NodePath = "node"
 	}
-	if s.Config.Recon.Script == "" {
-		s.Config.Recon.Script = "puppeteer/recon.js"
+	if c.Recon.Script == "" {
+		c.Recon.Script = "puppeteer/recon.js"
 	}
 
 	// Final Checks
-	return s.DoChecks()
+	if err := c.DoChecks(); err != nil {
+		return err
+	}
+	s.SwapConfig(c)
+	return nil
 }
 
 func (s *Session) UpdateConfiguration(domains *[]string) (err error) {
-	config := s.Config
+	config := s.Config()
 
 	//
 	// Update config
@@ -531,25 +535,26 @@ func (s *Session) UpdateConfiguration(domains *[]string) (err error) {
 	return ioutil.WriteFile(*s.Options.ConfigFilePath, newConf, 0644)
 }
 
-func (s *Session) DoChecks() (err error) {
+// DoChecks runs all configuration validation/normalization checks.
+func (c *Configuration) DoChecks() (err error) {
 
 	// Check Redirect
-	s.CheckRedirect()
+	c.CheckRedirect()
 
 	// Check Log
-	err = s.CheckLog()
+	err = c.CheckLog()
 	if err != nil {
 		return
 	}
 
 	// Check Tracking
-	err = s.CheckTracking()
+	err = c.CheckTracking()
 	if err != nil {
 		return
 	}
 
 	// Check Static Server
-	err = s.CheckStaticServer()
+	err = c.CheckStaticServer()
 	if err != nil {
 		return
 	}
@@ -558,9 +563,9 @@ func (s *Session) DoChecks() (err error) {
 }
 
 // CheckRedirect checks the redirect rules and removes invalid ones.
-func (s *Session) CheckRedirect() {
+func (c *Configuration) CheckRedirect() {
 	var redirects []Redirect
-	for _, drop := range s.Config.Redirects {
+	for _, drop := range c.Redirects {
 		if drop.RedirectTo == "" {
 			continue
 		}
@@ -577,24 +582,24 @@ func (s *Session) CheckRedirect() {
 		redirects = append(redirects, drop)
 	}
 
-	s.Config.Redirects = redirects
+	c.Redirects = redirects
 }
 
 // CheckLog checks the log configuration and disables it if the file is not accessible.
-func (s *Session) CheckLog() (err error) {
-	if !s.Config.Log.Enabled {
+func (c *Configuration) CheckLog() (err error) {
+	if !c.Log.Enabled {
 		return
 	}
 
-	if s.Config.Log.FilePath == "" {
-		s.Config.Log.FilePath = "muraena.log"
+	if c.Log.FilePath == "" {
+		c.Log.FilePath = "muraena.log"
 	}
 
 	// If the file doesn't exist, create it, or append to the file
-	f, err := os.OpenFile(s.Config.Log.FilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(c.Log.FilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		s.Config.Log.Enabled = false
-		return errors.New(fmt.Sprintf("Error opening log file %s: %s", s.Config.Log.FilePath, err))
+		c.Log.Enabled = false
+		return errors.New(fmt.Sprintf("Error opening log file %s: %s", c.Log.FilePath, err))
 	}
 	defer f.Close()
 
@@ -602,8 +607,8 @@ func (s *Session) CheckLog() (err error) {
 }
 
 // CheckTracking checks the tracking configuration and disables it if the file is not accessible.
-func (s *Session) CheckTracking() (err error) {
-	if !s.Config.Tracking.Enabled {
+func (c *Configuration) CheckTracking() (err error) {
+	if !c.Tracking.Enabled {
 		return
 	}
 
@@ -611,20 +616,33 @@ func (s *Session) CheckTracking() (err error) {
 }
 
 // CheckStaticServer checks the static server configuration and disables it if the file is not accessible.
-func (s *Session) CheckStaticServer() (err error) {
-	if !s.Config.StaticServer.Enabled {
+func (c *Configuration) CheckStaticServer() (err error) {
+	if !c.StaticServer.Enabled {
 		return
 	}
 
-	if s.Config.StaticServer.LocalPath == "" {
-		s.Config.StaticServer.Enabled = false
-		return errors.New(fmt.Sprintf("Error opening static server local path %s: %s", s.Config.StaticServer.LocalPath, err))
+	if c.StaticServer.LocalPath == "" {
+		c.StaticServer.Enabled = false
+		return errors.New(fmt.Sprintf("Error opening static server local path %s: %s", c.StaticServer.LocalPath, err))
 	}
 
-	if s.Config.StaticServer.URLPath == "" {
-		s.Config.StaticServer.Enabled = false
-		return errors.New(fmt.Sprintf("Error opening static server URL path %s: %s", s.Config.StaticServer.URLPath, err))
+	if c.StaticServer.URLPath == "" {
+		c.StaticServer.Enabled = false
+		return errors.New(fmt.Sprintf("Error opening static server URL path %s: %s", c.StaticServer.URLPath, err))
 	}
 
 	return
+}
+
+// CloneConfig returns a deep copy of c.
+func CloneConfig(c *Configuration) (*Configuration, error) {
+	b, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	var out Configuration
+	if err := json.Unmarshal(b, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }

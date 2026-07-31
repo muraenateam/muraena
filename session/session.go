@@ -5,6 +5,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync/atomic"
 
 	"github.com/evilsocket/islazy/log"
 	"github.com/evilsocket/islazy/tui"
@@ -17,9 +18,15 @@ type moduleList []Module
 // Session structure
 type Session struct {
 	Options core.Options
-	Config  *Configuration
+	cfg     atomic.Pointer[Configuration]
 	Modules moduleList
 }
+
+// Config returns the current configuration snapshot.
+func (s *Session) Config() *Configuration { return s.cfg.Load() }
+
+// SwapConfig atomically replaces the current configuration.
+func (s *Session) SwapConfig(c *Configuration) { s.cfg.Store(c) }
 
 // New session
 func New() (*Session, error) {
@@ -63,7 +70,7 @@ func New() (*Session, error) {
 	}
 
 	// Load Redis when the API or tracking is enabled
-	if s.Config.Api.Enable || s.Config.Tracking.Enabled {
+	if s.Config().Api.Enable || s.Config().Tracking.Enabled {
 		if err = s.InitRedis(); err != nil {
 			log.Error("%s", err)
 			return nil, err

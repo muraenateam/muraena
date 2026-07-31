@@ -19,7 +19,7 @@ var tlsRenegotiationToConst = map[string]tls.RenegotiationSupport{
 }
 
 func (s *Session) GetTLSClientConfig() *tls.Config {
-	cTLS := s.Config.TLS
+	cTLS := s.Config().TLS
 
 	return &tls.Config{
 		MinVersion:               tlsVersionToConst[cTLS.MinVersion],

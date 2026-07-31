@@ -19,7 +19,7 @@ func main() {
 	}
 
 	// Init Log
-	log.Init(sess.Options, sess.Config.Log.Enabled, sess.Config.Log.FilePath)
+	log.Init(sess.Options, sess.Config().Log.Enabled, sess.Config().Log.FilePath)
 
 	// Load all modules
 	module.LoadModules(sess)

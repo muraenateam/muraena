@@ -1,6 +1,8 @@
 package api
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
@@ -24,15 +26,18 @@ func setupTestRedis(t *testing.T) *miniredis.Miniredis {
 }
 
 func newTestServer() *Server {
-	sess := &session.Session{
-		Options: core.GetDefaultOptions(),
-		Config:  &session.Configuration{},
-	}
+	cfg := &session.Configuration{}
 	// applyDefaults is unexported in the session package; set the fields the
 	// API server reads directly.
-	sess.Config.Api.Bind = "127.0.0.1"
-	sess.Config.Api.Port = 8443
-	sess.Config.Api.JWT.AccessMinutes = 15
-	sess.Config.Api.JWT.RefreshDays = 7
+	cfg.Api.Bind = "127.0.0.1"
+	cfg.Api.Port = 8443
+	cfg.Api.JWT.AccessMinutes = 15
+	cfg.Api.JWT.RefreshDays = 7
+
+	tmp := filepath.Join(os.TempDir(), "muraena-test-config.toml")
+	opts := core.GetDefaultOptions()
+	opts.ConfigFilePath = &tmp
+	sess := &session.Session{Options: opts}
+	sess.SwapConfig(cfg)
 	return New(sess)
 }

@@ -19,7 +19,7 @@ func init() {
 	log.Init(core.Options{Debug: &[]bool{true}[0]}, false, "")
 
 	s := &session.Session{}
-	s.Config = &session.Configuration{}
+	s.SwapConfig(&session.Configuration{})
 
 	m = &Tracker{
 		SessionModule: session.NewSessionModule(Name, s),

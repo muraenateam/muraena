@@ -60,7 +60,7 @@ func Load(s *session.Session) (m *StaticHTTP, err error) {
 
 	m = &StaticHTTP{
 		SessionModule: session.NewSessionModule(Name, s),
-		config:        s.Config.StaticServer,
+		config:        s.Config().StaticServer,
 	}
 
 	if !m.config.Enabled {

@@ -10,7 +10,7 @@ import (
 )
 
 func (s *Server) jwtCfg() (int, int) {
-	j := s.sess.Config.Api.JWT
+	j := s.sess.Config().Api.JWT
 	return j.AccessMinutes, j.RefreshDays
 }
 

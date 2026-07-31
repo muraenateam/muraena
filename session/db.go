@@ -19,7 +19,7 @@ var (
 // InitRedis initialize the connection to a Redis database
 func (s *Session) InitRedis() error {
 
-	var config = s.Config.Redis
+	var config = s.Config().Redis
 
 	if config.Host != "" {
 		host = config.Host

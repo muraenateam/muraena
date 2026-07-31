@@ -158,14 +158,14 @@ func Load(s *session.Session) (m *Watchdog, err error) {
 
 	m = &Watchdog{
 		SessionModule: session.NewSessionModule(Name, s),
-		Enabled:       s.Config.Watchdog.Enabled,
-		Dynamic:       s.Config.Watchdog.Dynamic,
-		RulesFilePath: s.Config.Watchdog.Rules,
-		GeoDBFilePath: s.Config.Watchdog.GeoDB,
+		Enabled:       s.Config().Watchdog.Enabled,
+		Dynamic:       s.Config().Watchdog.Dynamic,
+		RulesFilePath: s.Config().Watchdog.Rules,
+		GeoDBFilePath: s.Config().Watchdog.GeoDB,
 	}
 
 	if m.Enabled {
-		config := s.Config.Watchdog
+		config := s.Config().Watchdog
 
 		// Parse raw rules
 		if _, err := os.Stat(config.Rules); err == nil {

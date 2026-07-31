@@ -21,14 +21,15 @@ func init() {
 func TestStaticHTTP_Start(t *testing.T) {
 
 	s := &session.Session{}
-	s.Config = &session.Configuration{}
-	s.Config.StaticServer = session.StaticHTTPConfig{
+	cfg := &session.Configuration{}
+	cfg.StaticServer = session.StaticHTTPConfig{
 		Enabled: true,
 		// ListeningHost: "",
 		// ListeningPort: 9090,
 		LocalPath: "c:\\windows\\system32\\",
 		URLPath:   "/test/",
 	}
+	s.SwapConfig(cfg)
 
 	_, err := Load(s)
 	if err != nil {

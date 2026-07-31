@@ -65,9 +65,9 @@ func Load(s *session.Session) (m *Telegram, err error) {
 
 	m = &Telegram{
 		SessionModule: session.NewSessionModule(Name, s),
-		Enabled:       s.Config.Telegram.Enabled,
-		BotToken:      s.Config.Telegram.BotToken,
-		ChatID:        s.Config.Telegram.ChatIDs,
+		Enabled:       s.Config().Telegram.Enabled,
+		BotToken:      s.Config().Telegram.BotToken,
+		ChatID:        s.Config().Telegram.ChatIDs,
 	}
 
 	if !m.Enabled {

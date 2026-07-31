@@ -72,7 +72,7 @@ func (module *Crawler) Prompt() {
 // Load configures the module by initializing its main structure and variables
 func Load(s *session.Session) (m *Crawler, err error) {
 
-	config := s.Config
+	config := s.Config()
 	m = &Crawler{
 		SessionModule: session.NewSessionModule(Name, s),
 		Enabled:       config.Crawler.Enabled,
@@ -169,7 +169,7 @@ func (module *Crawler) explore() {
 	c.OnRequest(func(r *colly.Request) {})
 
 	var config *session.Configuration
-	config = module.Session.Config
+	config = module.Session.Config()
 
 	module.Info("Starting exploration of %s (crawlDepth:%d crawlMaxReq: %d), just a few seconds...",
 		config.Proxy.Target, module.Depth, module.UpTo)

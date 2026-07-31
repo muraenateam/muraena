@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 )
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
@@ -16,3 +17,7 @@ func writeError(w http.ResponseWriter, status int, code, msg string) {
 		"error": map[string]string{"code": code, "message": msg},
 	})
 }
+
+func writeFile(path string, b []byte) error { return os.WriteFile(path, b, 0644) }
+
+func jsonMarshal(v interface{}) ([]byte, error) { return json.Marshal(v) }
