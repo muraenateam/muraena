@@ -8,3 +8,6 @@ static/
 vendor/
 /docs/_site/
 /docs/.jekyll-metadata
+webui/node_modules/
+!webui/package.json
+!webui/package-lock.json

@@ -39,5 +39,7 @@ func newTestServer() *Server {
 	opts.ConfigFilePath = &tmp
 	sess := &session.Session{Options: opts}
 	sess.SwapConfig(cfg)
-	return New(sess)
+	srv := New(sess)
+	go srv.hub.Run()
+	return srv
 }

@@ -5,6 +5,13 @@ GO        ?= go
 
 all: build
 
+# Release builds must run `make webui` before `make build` so the Go binary
+# embeds the freshly built Svelte SPA (webui/dist) via go:embed.
+webui:
+	cd webui && npm ci && npm run build
+
+build_all: webui build
+
 # This will be triggered before any command, or when just calling $ make
 # mkdir $(BUILD)
 pre:
@@ -34,4 +41,4 @@ lint: fmt
 fmt:
 	gofmt -s -w $(PACKAGES)
 
-.PHONY: all build build_with_race_detector lint fmt
+.PHONY: all build build_with_race_detector lint fmt webui build_all

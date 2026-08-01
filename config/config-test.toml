@@ -247,6 +247,16 @@
 #	geoDB = "./config/geoDB.mmdb"
 
 [api]
-   enable=true
-   bind="127.0.0.1"
-   port=5666
+    enable = true
+    bind   = "127.0.0.1"
+    port   = 5666
+    [api.jwt]
+      accessMinutes = 15
+      refreshDays   = 7
+    [api.traffic]
+      enable        = true
+      captureBodies = true
+      maxFlows      = 5000
+      ttlMinutes    = 1440
+      maxBodyKB     = 512
+
