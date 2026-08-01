@@ -7,16 +7,19 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/muraenateam/muraena/api/auth"
+	"github.com/muraenateam/muraena/api/traffic"
 	"github.com/muraenateam/muraena/core"
 	"github.com/muraenateam/muraena/log"
 	"github.com/muraenateam/muraena/session"
+	"github.com/muraenateam/muraena/webui"
 )
 
 type Server struct {
 	sess *session.Session
+	hub  *traffic.Hub
 }
 
-func New(sess *session.Session) *Server { return &Server{sess: sess} }
+func New(sess *session.Session) *Server { return &Server{sess: sess, hub: traffic.NewHub()} }
 
 func (s *Server) Router() http.Handler {
 	r := chi.NewRouter()
@@ -30,6 +33,11 @@ func (s *Server) Router() http.Handler {
 		r.Post("/auth/login", s.handleLogin)
 		r.Post("/auth/refresh", s.handleRefresh)
 
+		// WS traffic route authenticates itself via ?token= (browsers cannot set
+		// an Authorization header on a WebSocket upgrade), so it must be mounted
+		// outside RequireAuth to avoid rejecting the header-less upgrade request.
+		r.Get("/ws/traffic", s.handleTrafficWS)
+
 		r.Group(func(r chi.Router) {
 			r.Use(RequireAuth())
 			r.Post("/auth/logout", s.handleLogout)
@@ -42,6 +50,10 @@ func (s *Server) Router() http.Handler {
 			r.Get("/sessions/hijacked", s.handleHijacked)
 			r.Get("/sessions/instrumented", s.handleInstrumented)
 			r.Get("/keepalives", s.handleListKeepalives)
+
+			r.Get("/traffic", s.handleListTraffic)
+			r.Get("/traffic/stats", s.handleTrafficStats)
+			r.Get("/traffic/{id}", s.handleGetTraffic)
 		})
 
 		r.Group(func(r chi.Router) {
@@ -63,8 +75,13 @@ func (s *Server) Router() http.Handler {
 			r.Post("/keepalives", s.handleCreateKeepalive)
 			r.Delete("/keepalives/{id}", s.handleDeleteKeepalive)
 			r.Post("/victims/{id}/keepalive", s.handleKeepaliveNow)
+
+			r.Delete("/traffic", s.handleClearTraffic)
 		})
 	})
+
+	// Serve the embedded WebUI at the root (localhost only).
+	r.Handle("/*", webui.Handler())
 	return r
 }
 
@@ -79,6 +96,18 @@ func Run(sess *session.Session) {
 		return
 	}
 	srv := New(sess)
+	// Always start the hub + consumer, regardless of the boot-time
+	// Api.Traffic.Enable value: Api.Traffic.Enable is hot-swappable at
+	// runtime (see commit c722060) and the proxy tap checks it per-request,
+	// so flows can start arriving at any time. The /ws/traffic route is also
+	// registered unconditionally, so a client can authenticate and call
+	// s.hub.Register() at any time; hub.Run() must already be draining the
+	// (unbuffered) register channel or that call blocks forever, leaking the
+	// handler goroutine, its reader goroutine, and the socket. Both loops are
+	// idle-cheap when capture is off: StartConsumer blocks on the empty
+	// capture.Flows() channel and hub.Run() blocks on an empty select.
+	go srv.hub.Run()
+	go traffic.StartConsumer(sess, srv.hub)
 	addr := fmt.Sprintf("%s:%d", sess.Config().Api.Bind, sess.Config().Api.Port)
 	log.Info("API control plane listening on %s", addr)
 	if err := http.ListenAndServe(addr, srv.Router()); err != nil {
