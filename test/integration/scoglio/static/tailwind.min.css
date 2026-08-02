@@ -1,0 +1,4 @@
+/* Placeholder stylesheet for Scoglio integration test target.
+   The real Tailwind build is not committed; styling is irrelevant to the
+   HTTP/Redis integration assertions. Replace with a real Tailwind build if
+   you need the pages to render styled during manual testing. */

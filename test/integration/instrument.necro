@@ -1,0 +1,13 @@
+{
+  "name": "%%%TRACKER%%%",
+  "task": {
+    "type": "generic",
+    "name": ["ScreenshotPages"],
+    "params": {
+      "urls": ["https://authenticationtest.com/loginSuccess/"]
+    }
+  },
+  "cookie": %%%COOKIES%%%,
+  "userAgent": "%%%USERAGENT%%%",
+  "email": "%%%EMAIL%%%"
+}

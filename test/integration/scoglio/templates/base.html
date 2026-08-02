@@ -1,0 +1,34 @@
+{{define "base"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scoglio - {{template "title" .}}</title>
+    <link rel="stylesheet" href="/static/tailwind.min.css">
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col">
+    <nav class="bg-indigo-700 text-white px-6 py-3 flex items-center justify-between">
+        <a href="/" class="text-xl font-bold">Scoglio</a>
+        <div class="space-x-4">
+            {{if .User}}
+                <a href="/dashboard" class="hover:underline">Dashboard</a>
+                <a href="/profile" class="hover:underline">Profile</a>
+                <form method="POST" action="/logout" class="inline">
+                    <button type="submit" class="hover:underline">Logout</button>
+                </form>
+            {{else}}
+                <a href="/login" class="hover:underline">Login</a>
+                <a href="/signup" class="hover:underline">Sign Up</a>
+            {{end}}
+        </div>
+    </nav>
+    <main class="flex-1 container mx-auto px-4 py-8 max-w-2xl">
+        {{template "content" .}}
+    </main>
+    <footer class="bg-gray-200 text-center text-sm text-gray-600 py-4">
+        Scoglio Test App &mdash; Muraena Integration Testing
+    </footer>
+</body>
+</html>
+{{end}}

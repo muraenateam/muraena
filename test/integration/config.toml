@@ -1,0 +1,104 @@
+#
+# Integration Test Configuration for Muraena
+# Target: authenticationtest.com (HTTPS)
+# Phishing domain: evil-authtest.muraena.anti:8443
+#
+# IMPORTANT: Always use HTTPS when the target uses HTTPS.
+# HTTP proxying of HTTPS targets breaks Secure cookie flags, HSTS enforcement,
+# and mixed-content protections — causing false test results and detection
+# in production deployments.
+#
+# DNS: Resolved via dnsmasq (address=/muraena.anti/127.0.0.1)
+# TLS: Wildcard cert from mkcert (*.muraena.anti)
+#
+
+[proxy]
+    phishing = "evil-authtest.muraena.anti"
+    destination = "authenticationtest.com"
+    IP = "127.0.0.1"
+    port = 8443
+    portmapping = "8443:443"
+    listener = "tcp4"
+
+    [proxy.HTTPtoHTTPS]
+    enable = false
+
+[transform]
+    [transform.base64]
+        enable = false
+        padding = ["=", "."]
+
+    [transform.request]
+        headers = ["Cookie", "Referer", "Origin"]
+
+    [transform.response]
+        skipContentType = ["font/*", "image/*"]
+        headers = [
+            "Location",
+            "Set-Cookie",
+            "Access-Control-Allow-Origin",
+        ]
+
+[log]
+    enable = true
+    filePath = "./test/integration/muraena-test.log"
+
+[redis]
+    host = "127.0.0.1"
+    port = 6379
+
+# TLS enabled with mkcert wildcard certificate.
+# Generate certs: cd test/integration/certs && mkcert "*.muraena.anti" "muraena.anti"
+[tls]
+    enable = true
+    certificate = "./test/integration/certs/_wildcard.muraena.anti+1.pem"
+    key = "./test/integration/certs/_wildcard.muraena.anti+1-key.pem"
+
+#
+# Tracking
+#
+[tracking]
+    enable = true
+    trackRequestCookies = true
+
+    [tracking.trace]
+        identifier = "session"
+        validator = "[a-zA-Z0-9]{8}"
+        header = "X-Test-Track"
+
+        [tracking.trace.landing]
+            type = "query"
+            header = "X-Test-Landing"
+
+    [tracking.secrets]
+        paths = ["/login/"]
+
+        [[tracking.secrets.patterns]]
+        label = "Username"
+        matching = "email="
+        start = "email="
+        end = "&"
+
+        [[tracking.secrets.patterns]]
+        label = "Password"
+        matching = "password="
+        start = "password="
+        end = "&"
+
+#
+# NecroBrowser
+#
+[necrobrowser]
+    enable = true
+    endpoint = "http://127.0.0.1:3000/instrument"
+    profile = "./test/integration/instrument.necro"
+
+    [necrobrowser.urls]
+#    authSession = ["/loginSuccess"]
+    authSessionResponse = ["/loginSuccess/"]
+
+    [necrobrowser.trigger]
+    #type = "cookies"
+    type = "path"
+    values = ["PHPSESSID"]
+    delay = 5

@@ -1,0 +1,6 @@
+scoglio
+scoglio.db
+scoglio.db-shm
+scoglio.db-wal
+!static/
+!static/**
