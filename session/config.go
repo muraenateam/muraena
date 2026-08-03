@@ -252,13 +252,6 @@ type Configuration struct {
 		} `toml:"secrets"`
 	} `toml:"tracking"`
 
-	// Crawler
-	Crawler struct {
-		Enabled bool `toml:"enable"`
-		Depth   int  `toml:"depth"`
-		UpTo    int  `toml:"upto"`
-	} // `toml:"crawler"`  TODO: Temporarily disabled
-
 	//
 	// Necrobrowser
 	//
@@ -516,9 +509,8 @@ func (s *Session) UpdateConfiguration(domains *[]string) (err error) {
 	//
 	// Update config
 	//
-	// Disable crawler and update external domains
+	// Update external domains
 	config.Origins.ExternalOrigins = *domains
-	config.Crawler.Enabled = false
 
 	// Update TLS accordingly
 	if !config.TLS.Expand {

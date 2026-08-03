@@ -100,3 +100,21 @@
     type = "cookies"
     values = ["MURAENA_SESS", "NECRO_BRO", "JSESSIONID"]
     delay = 5
+
+#
+# REST API control plane (integration testing)
+# NOTE: port 8444 — the proxy listener owns 8443 in this same config.
+#
+[api]
+    enable = true
+    bind = "127.0.0.1"
+    port = 8444
+
+    [api.jwt]
+        accessMinutes = 5
+        refreshDays = 1
+
+    [api.traffic]
+        enable = true
+        captureBodies = true
+        maxBodyKB = 512

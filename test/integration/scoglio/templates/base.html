@@ -6,6 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scoglio - {{template "title" .}}</title>
     <link rel="stylesheet" href="/static/tailwind.min.css">
+    <!-- Cross-origin subresources so the recon crawler has real external origins
+         to discover. These hosts resolve to 127.0.0.1 via dnsmasq (*.muraena.anti)
+         and are valid under the mkcert wildcard cert; the assets themselves 404,
+         which is fine — recon records the request host regardless. -->
+    <link rel="preload" as="image" href="https://cdn.muraena.anti:9443/static/pixel.png">
+    <script src="https://assets.muraena.anti:9443/static/analytics.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col">
     <nav class="bg-indigo-700 text-white px-6 py-3 flex items-center justify-between">

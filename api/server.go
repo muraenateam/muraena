@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/muraenateam/muraena/api/auth"
+	"github.com/muraenateam/muraena/api/recon"
 	"github.com/muraenateam/muraena/api/traffic"
 	"github.com/muraenateam/muraena/core"
 	"github.com/muraenateam/muraena/log"
@@ -15,11 +16,22 @@ import (
 )
 
 type Server struct {
-	sess *session.Session
-	hub  *traffic.Hub
+	sess     *session.Session
+	hub      *traffic.Hub
+	recon    *recon.Runner
+	reconHub *recon.ProgHub
 }
 
-func New(sess *session.Session) *Server { return &Server{sess: sess, hub: traffic.NewHub()} }
+func New(sess *session.Session) *Server {
+	s := &Server{
+		sess:     sess,
+		hub:      traffic.NewHub(),
+		recon:    recon.NewRunner(),
+		reconHub: recon.NewProgHub(),
+	}
+	go s.reconHub.Run()
+	return s
+}
 
 func (s *Server) Router() http.Handler {
 	r := chi.NewRouter()
@@ -37,6 +49,10 @@ func (s *Server) Router() http.Handler {
 		// an Authorization header on a WebSocket upgrade), so it must be mounted
 		// outside RequireAuth to avoid rejecting the header-less upgrade request.
 		r.Get("/ws/traffic", s.handleTrafficWS)
+
+		// WS recon progress route authenticates via ?token= for the same reason
+		// as /ws/traffic, so it must sit outside RequireAuth.
+		r.Get("/ws/recon", s.handleReconWS)
 
 		r.Group(func(r chi.Router) {
 			r.Use(RequireAuth())
@@ -77,6 +93,10 @@ func (s *Server) Router() http.Handler {
 			r.Post("/victims/{id}/keepalive", s.handleKeepaliveNow)
 
 			r.Delete("/traffic", s.handleClearTraffic)
+
+			r.Post("/recon", s.handleStartRecon)
+			r.Get("/recon/{id}", s.handleGetRecon)
+			r.Post("/recon/{id}/apply", s.handleApplyRecon)
 		})
 	})
 
