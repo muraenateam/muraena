@@ -4,10 +4,10 @@
   import { connect } from '../lib/ws.js';
   import { lineDiff } from '../lib/diff.js';
 
-  let flows = [], selected = null, live = true, sock = null, filterHost = '';
+  let flows = [], selected = null, live = true, sock = null, filterHost = '', err = '';
 
-  async function loadInitial() { flows = await api('/traffic?limit=100'); }
-  async function open(id) { selected = await api('/traffic/' + id); }
+  async function loadInitial() { try { flows = await api('/traffic?limit=100'); } catch (e) { err = e.message; } }
+  async function open(id) { try { selected = await api('/traffic/' + id); } catch (e) { err = e.message; } }
 
   function startLive() {
     sock = connect('/ws/traffic', filterHost ? { host: filterHost } : {}, (msg) => {
@@ -15,6 +15,14 @@
     });
   }
   function toggleLive() { live = !live; }
+  async function clearRing() {
+    if (!confirm('Clear the traffic ring buffer?')) return;
+    err = '';
+    try {
+      await api('/traffic', { method: 'DELETE' });
+      flows = [];
+    } catch (e) { err = e.message; }
+  }
 
   onMount(async () => { await loadInitial(); startLive(); });
   onDestroy(() => sock && sock.close());
@@ -25,9 +33,11 @@
 <div class="flex items-center gap-3 mb-4">
   <h1 class="text-2xl font-bold">Traffic</h1>
   <button class="px-2 py-1 rounded bg-slate-700 text-sm" on:click={toggleLive}>{live ? 'Pause' : 'Resume'}</button>
+  <button class="px-2 py-1 rounded bg-red-700 text-sm" on:click={clearRing}>Clear ring</button>
   <input class="px-2 py-1 rounded bg-slate-800 text-sm" placeholder="filter host" bind:value={filterHost} />
   <span class="text-xs text-amber-400">bodies may contain credentials</span>
 </div>
+{#if err}<p class="text-red-400 text-sm mb-2">{err}</p>{/if}
 
 <div class="flex gap-4">
   <table class="flex-1 text-xs">

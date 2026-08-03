@@ -90,7 +90,7 @@ func (l *logger) emit(s string) {
 	}
 
 	s = strings.Replace(s, "%", "%%", -1)
-	if _, err := fmt.Fprintf(l.Writer, s+string("\n")); err != nil {
+	if _, err := fmt.Fprintf(l.Writer, "%s\n", s); err != nil {
 		fmt.Printf("Emit error: %+v", err)
 	}
 
@@ -104,15 +104,15 @@ func do(v Verbosity, format string, args ...interface{}) {
 		panic("No Output added to log")
 	}
 
+	currMessage := format
+	if args != nil {
+		currMessage = fmt.Sprintf(format, args...)
+	}
+
 	for _, l := range loggers {
 
 		if l.Level > v {
 			continue
-		}
-
-		currMessage := format
-		if args != nil {
-			currMessage = fmt.Sprintf(format, args...)
 		}
 
 		tokens := map[string]func() string{
@@ -157,6 +157,10 @@ func do(v Verbosity, format string, args ...interface{}) {
 		l.emit(logLine)
 	}
 
+	// Fire once per message, outside the per-logger loop above: firing inside
+	// that loop would deliver one LogLine per configured output (e.g. console
+	// + file) instead of one per call.
+	fireTaps(LevelNames[v], currMessage)
 }
 
 // Raw emits a message without format to the logs.
@@ -164,10 +168,12 @@ func Raw(format string, args ...interface{}) {
 	lock.Lock()
 	defer lock.Unlock()
 
+	currMessage := fmt.Sprintf(format, args...)
 	for _, l := range loggers {
-		currMessage := fmt.Sprintf(format, args...)
 		l.emit(currMessage)
 	}
+
+	fireTaps("RAW", currMessage)
 }
 
 // Verbose emits a verbose message.

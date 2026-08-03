@@ -7,6 +7,7 @@
   <a use:link href="/" class="block px-3 py-2 rounded hover:bg-slate-800">Dashboard</a>
   <a use:link href="/victims" class="block px-3 py-2 rounded hover:bg-slate-800">Victims</a>
   <a use:link href="/traffic" class="block px-3 py-2 rounded hover:bg-slate-800">Traffic</a>
+  <a use:link href="/logs" class="block px-3 py-2 rounded hover:bg-slate-800">Logs</a>
   <a use:link href="/config" class="block px-3 py-2 rounded hover:bg-slate-800">Config</a>
   <a use:link href="/recon" class="block px-3 py-2 rounded hover:bg-slate-800">Recon</a>
   <a use:link href="/settings" class="block px-3 py-2 rounded hover:bg-slate-800">Settings</a>

@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/muraenateam/muraena/api/auth"
+	"github.com/muraenateam/muraena/api/logstream"
 	"github.com/muraenateam/muraena/api/recon"
 	"github.com/muraenateam/muraena/api/traffic"
 	"github.com/muraenateam/muraena/core"
@@ -20,6 +21,8 @@ type Server struct {
 	hub      *traffic.Hub
 	recon    *recon.Runner
 	reconHub *recon.ProgHub
+	logHub   *logstream.Hub
+	logCh    chan log.LogLine
 }
 
 func New(sess *session.Session) *Server {
@@ -28,9 +31,54 @@ func New(sess *session.Session) *Server {
 		hub:      traffic.NewHub(),
 		recon:    recon.NewRunner(),
 		reconHub: recon.NewProgHub(),
+		logHub:   logstream.NewHub(),
+		logCh:    make(chan log.LogLine, 256),
 	}
 	go s.reconHub.Run()
+	// Note: the log tap and its Redis-backed consumer are wired up in Run(),
+	// not here, mirroring traffic.StartConsumer below — both touch
+	// session.RedisPool from a background goroutine and must not start until
+	// the process is actually serving, so unit tests that call New() directly
+	// (see newTestServer) never race a live consumer against a test's
+	// short-lived Redis instance.
 	return s
+}
+
+// startLogTap registers the package-level log tap and starts the Redis ring
+// + hub consumer. Only called from Run(); see the note in New().
+func (s *Server) startLogTap() {
+	go s.logHub.Run()
+	go s.consumeLogTap()
+	log.RegisterTap("api", func(l log.LogLine) {
+		// Non-blocking: fires under log.lock, so a full/slow consumer must
+		// never stall logging. Drop the line instead of blocking.
+		select {
+		case s.logCh <- l:
+		default:
+		}
+	})
+}
+
+// consumeLogTap drains the tap channel and fans each line out to the Redis
+// ring and connected WS clients. Runs for the lifetime of the process. The
+// per-line work is wrapped in a recover: this goroutine outlives any single
+// request and must never take the process down (e.g. a backing store that
+// is briefly unreachable), matching the "never stall/never crash the app on
+// a log line" spirit of the tap itself.
+func (s *Server) consumeLogTap() {
+	for l := range s.logCh {
+		func() {
+			defer func() { _ = recover() }()
+			maxLines := s.sess.Config().Api.Logs.MaxLines
+			if maxLines <= 0 {
+				maxLines = 512
+			}
+			if err := logstream.Append(l, maxLines); err != nil {
+				return
+			}
+			s.logHub.Broadcast(l)
+		}()
+	}
 }
 
 func (s *Server) Router() http.Handler {
@@ -54,6 +102,10 @@ func (s *Server) Router() http.Handler {
 		// as /ws/traffic, so it must sit outside RequireAuth.
 		r.Get("/ws/recon", s.handleReconWS)
 
+		// WS logs route authenticates via ?token= for the same reason as
+		// /ws/traffic and /ws/recon, so it must sit outside RequireAuth.
+		r.Get("/ws/logs", s.handleLogsWS)
+
 		r.Group(func(r chi.Router) {
 			r.Use(RequireAuth())
 			r.Post("/auth/logout", s.handleLogout)
@@ -70,6 +122,8 @@ func (s *Server) Router() http.Handler {
 			r.Get("/traffic", s.handleListTraffic)
 			r.Get("/traffic/stats", s.handleTrafficStats)
 			r.Get("/traffic/{id}", s.handleGetTraffic)
+
+			r.Get("/logs", s.handleListLogs)
 		})
 
 		r.Group(func(r chi.Router) {
@@ -128,6 +182,7 @@ func Run(sess *session.Session) {
 	// capture.Flows() channel and hub.Run() blocks on an empty select.
 	go srv.hub.Run()
 	go traffic.StartConsumer(sess, srv.hub)
+	srv.startLogTap()
 	addr := fmt.Sprintf("%s:%d", sess.Config().Api.Bind, sess.Config().Api.Port)
 	log.Info("API control plane listening on %s", addr)
 	if err := http.ListenAndServe(addr, srv.Router()); err != nil {

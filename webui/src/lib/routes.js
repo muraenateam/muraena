@@ -5,6 +5,7 @@ import Traffic from '../views/Traffic.svelte';
 import Config from '../views/Config.svelte';
 import Recon from '../views/Recon.svelte';
 import Settings from '../views/Settings.svelte';
+import Logs from '../views/Logs.svelte';
 
 export default {
   '/login': Login,
@@ -14,4 +15,5 @@ export default {
   '/config': Config,
   '/recon': Recon,
   '/settings': Settings,
+  '/logs': Logs,
 };

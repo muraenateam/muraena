@@ -1,10 +1,11 @@
 <script>
   import { onMount } from 'svelte';
-  import { api } from '../lib/api.js';
+  import { api, ApiError } from '../lib/api.js';
 
   let cfg = null, restartFields = [], msg = '', err = '';
   // editable live fields (Go-field-name paths)
   let userAgent = '', sameSite = '';
+  let importText = '', importFields = [];
 
   onMount(async () => {
     try {
@@ -31,6 +32,28 @@
     }
   }
   async function reload() { await api('/config/reload', { method: 'POST' }); msg = 'reloaded'; }
+
+  async function importFragment() {
+    msg = ''; err = ''; importFields = [];
+    let patch;
+    try {
+      patch = JSON.parse(importText);
+    } catch (e) {
+      err = 'invalid JSON config fragment: ' + e.message;
+      return;
+    }
+    try {
+      await api('/config/import', { method: 'POST', body: patch });
+      msg = 'imported';
+      importText = '';
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409 && e.body?.restartRequired) {
+        importFields = e.body.fields ?? [];
+      } else {
+        err = e.message;
+      }
+    }
+  }
 </script>
 
 <h1 class="text-2xl font-bold mb-4">Config</h1>
@@ -64,5 +87,20 @@
       <summary class="cursor-pointer text-slate-400">Raw config (read-only, secrets redacted)</summary>
       <pre class="text-xs bg-slate-950 p-2 rounded overflow-auto">{JSON.stringify(cfg, null, 2)}</pre>
     </details>
+
+    <div class="mt-6">
+      <h3 class="font-semibold">Import config fragment</h3>
+      <p class="text-xs text-slate-500 mb-2">Paste a JSON config patch (e.g. from a recon result) and import it.</p>
+      <textarea class="w-full h-32 px-3 py-2 rounded bg-slate-800 font-mono text-xs" bind:value={importText} placeholder={'{ "Origins": { ... } }'}></textarea>
+      <button class="mt-2 px-3 py-2 rounded bg-indigo-600" on:click={importFragment}>Import fragment</button>
+      {#if importFields.length}
+        <div class="mt-2">
+          <p class="text-sm text-amber-400">Restart required for:</p>
+          <ul class="text-sm text-amber-400 list-disc pl-6">
+            {#each importFields as f}<li>{f}</li>{/each}
+          </ul>
+        </div>
+      {/if}
+    </div>
   </div>
 {/if}

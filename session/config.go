@@ -52,12 +52,18 @@ type ApiTrafficConfig struct {
 	CaptureBodies bool `toml:"captureBodies"`
 }
 
+type ApiLogsConfig struct {
+	Enable   bool `toml:"enable"`
+	MaxLines int  `toml:"maxLines"`
+}
+
 type ApiConfig struct {
 	Enable  bool             `toml:"enable"`
 	Bind    string           `toml:"bind"`
 	Port    int              `toml:"port"`
 	JWT     ApiJWTConfig     `toml:"jwt"`
 	Traffic ApiTrafficConfig `toml:"traffic"`
+	Logs    ApiLogsConfig    `toml:"logs"`
 }
 
 type ReconConfig struct {
@@ -87,6 +93,9 @@ func (a *ApiConfig) applyDefaults() {
 	}
 	if a.Traffic.MaxBodyKB == 0 {
 		a.Traffic.MaxBodyKB = 512
+	}
+	if a.Logs.MaxLines == 0 {
+		a.Logs.MaxLines = 512
 	}
 }
 

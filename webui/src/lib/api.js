@@ -10,7 +10,7 @@ export function getAccess() { return accessToken; }
 export function clearTokens() { accessToken = null; refreshToken = null; }
 
 export class ApiError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
+  constructor(status, message, body) { super(message); this.status = status; this.body = body; }
 }
 
 async function doFetch(path, { method = 'GET', body } = {}) {
@@ -40,8 +40,9 @@ export async function api(path, opts = {}) {
   }
   if (!res.ok) {
     let msg = res.statusText;
-    try { msg = (await res.json())?.error?.message ?? msg; } catch (_) {}
-    throw new ApiError(res.status, msg);
+    let parsed;
+    try { parsed = await res.json(); msg = parsed?.error?.message ?? msg; } catch (_) {}
+    throw new ApiError(res.status, msg, parsed);
   }
   return res.json();
 }
